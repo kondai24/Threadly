@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: db
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: go_post
+      TZ: "Asia/Tokyo"
+    volumes:
+      - ./db/my.cnf:/etc/mysql/conf.d/my.cnf
+      - db_data:/var/lib/mysql
+    ports:
+      - 3306:3306
+
+volumes:
+  db_data:
