@@ -1,16 +1,19 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { useGetApiPostsIdSuspense } from "../orval/threadyAPI";
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const postId = Number(id);
+  const postId = id !== undefined ? Number(id) : NaN;
+  if (id === undefined || Number.isNaN(postId)) {
+    return <Navigate to="/board" replace />;
+  }
 
   const { data: post } = useGetApiPostsIdSuspense(postId);
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "";
     try {
-      return new Date(dateStr).toLocaleDateString("ja-JP", {
+      return new Date(dateStr).toLocaleString("ja-JP", {
         year: "numeric",
         month: "long",
         day: "numeric",

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import React from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,7 +17,18 @@ export default function BoardPage() {
   const { data: posts } = useGetApiPostsSuspense();
   const createPost = usePostApiPosts();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const closeDialog = useCallback(() => setIsDialogOpen(false), []);
+
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDialog();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isDialogOpen, closeDialog]);
+
+  const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
 
@@ -38,7 +50,7 @@ export default function BoardPage() {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "";
     try {
-      return new Date(dateStr).toLocaleDateString("ja-JP", {
+      return new Date(dateStr).toLocaleString("ja-JP", {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -96,11 +108,16 @@ export default function BoardPage() {
         <div
           className="dialog-overlay"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsDialogOpen(false);
+            if (e.target === e.currentTarget) closeDialog();
           }}
         >
-          <div className="dialog">
-            <h2>✏️ 新しい投稿</h2>
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dialog-title"
+          >
+            <h2 id="dialog-title">✏️ 新しい投稿</h2>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label htmlFor="post-title">タイトル</label>
@@ -126,7 +143,7 @@ export default function BoardPage() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setIsDialogOpen(false)}
+                  onClick={closeDialog}
                 >
                   キャンセル
                 </button>
