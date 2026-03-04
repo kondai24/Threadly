@@ -1,5 +1,5 @@
-import React from "react";
 import { useState, useEffect, useCallback } from "react";
+import type { SyntheticEvent } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,7 +28,7 @@ export default function BoardPage() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isDialogOpen, closeDialog]);
 
-  const handleSubmit = (e: React.SyntheticEvent) => {
+  const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
 
