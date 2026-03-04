@@ -1,17 +1,19 @@
 package main
 
 import (
-	"log"
-	"os"
 	"Threadly/internal/infra/database"
 	repository "Threadly/internal/infra/database/repositories"
 	"Threadly/internal/infra/http/routes"
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/usecase/services"
+	"log"
+	"os"
 
 	"github.com/joho/godotenv"
 )
 
+// @title Thready API
+// @version 1.0
 func main() {
 	// envファイルの読み込み
 	_ = godotenv.Load()
