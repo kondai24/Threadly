@@ -1,4 +1,19 @@
 definitions:
+  Threadly_internal_domain_models.Post:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        $ref: '#/definitions/gorm.DeletedAt'
+      id:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
   gin.H:
     additionalProperties: {}
     type: object
@@ -27,23 +42,10 @@ definitions:
       title:
         type: string
     type: object
-  todo_internal_domain_models.Post:
-    properties:
-      content:
-        type: string
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      id:
-        type: integer
-      title:
-        type: string
-      updatedAt:
-        type: string
-    type: object
 info:
   contact: {}
+  title: Thready API
+  version: "1.0"
 paths:
   /api/posts:
     get:
@@ -55,7 +57,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/todo_internal_domain_models.Post'
+              $ref: '#/definitions/Threadly_internal_domain_models.Post'
             type: array
         "500":
           description: Internal Server Error
@@ -134,7 +136,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/todo_internal_domain_models.Post'
+            $ref: '#/definitions/Threadly_internal_domain_models.Post'
         "400":
           description: Bad Request
           schema:

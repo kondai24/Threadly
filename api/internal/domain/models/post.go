@@ -2,14 +2,12 @@ package models
 
 import (
 	"errors"
-
-	"gorm.io/gorm"
 )
 
 type Post struct {
-	*gorm.Model
-	Title   string
-	Content string
+	BaseModel
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 func (p *Post) Validate() error {
