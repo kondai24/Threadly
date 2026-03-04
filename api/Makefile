@@ -8,11 +8,11 @@ BIN_DIR := ./bin
 .PHONY: dev build swag clean
 
 dev:
-	go run $(CMD_DIR)/main.go
+	go run $(SWAG_MAIN)
 
 build:
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/main $(CMD_DIR)/main.go
+	go build -o $(BIN_DIR)/main $(SWAG_MAIN)
 
 swag:
 	go run github.com/swaggo/swag/cmd/swag@latest init \
