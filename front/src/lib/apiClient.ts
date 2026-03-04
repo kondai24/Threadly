@@ -21,12 +21,9 @@ export const customInstance = <T>(
   url: string,
   config: RequestInit,
 ): Promise<T> => {
-  const source = Axios.CancelToken.source();
-
   const axiosConfig: AxiosRequestConfig = {
     url,
     method: config.method as AxiosRequestConfig["method"],
-    cancelToken: source.token,
   };
 
   if (config.body) {
