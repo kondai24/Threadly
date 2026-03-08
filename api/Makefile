@@ -4,7 +4,7 @@ CMD_DIR := ./cmd/api
 SWAG_MAIN := $(CMD_DIR)/main.go
 SWAG_OUT := ./docs
 BIN_DIR := ./bin
-SWAG := go run github.com/swaggo/swag/cmd/swag@v1.16.4
+SWAG := go run github.com/swaggo/swag/cmd/swag@v1.16.6
 MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
 GO_TEST := go test
 
