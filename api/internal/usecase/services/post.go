@@ -1,9 +1,9 @@
 package services
 
 import (
-	"context"
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"context"
 )
 
 type PostService struct {
@@ -13,6 +13,16 @@ type PostService struct {
 func NewPostService(repo repositories.PostRepository) *PostService {
 	return &PostService{repo: repo}
 
+}
+
+// IDでPostを取得
+func (s *PostService) GetPostById(ctx context.Context, id uint) (*models.Post, error) {
+	return s.repo.GetById(ctx, id)
+}
+
+// 全てのPostを取得
+func (s *PostService) ListPosts(ctx context.Context) ([]*models.Post, error) {
+	return s.repo.List(ctx)
 }
 
 // 新しいPostを作成
@@ -25,11 +35,6 @@ func (s *PostService) CreatePost(ctx context.Context, title string, content stri
 		return err
 	}
 	return s.repo.Create(ctx, post)
-}
-
-// IDでPostを取得
-func (s *PostService) GetPostById(ctx context.Context, id uint) (*models.Post, error) {
-	return s.repo.GetById(ctx, id)
 }
 
 // Postを更新
@@ -50,9 +55,4 @@ func (s *PostService) DeletePost(ctx context.Context, id uint) error {
 		return ErrPostNotFound
 	}
 	return nil
-}
-
-// 全てのPostを取得
-func (s *PostService) ListPosts(ctx context.Context) ([]*models.Post, error) {
-	return s.repo.List(ctx)
 }

@@ -30,7 +30,7 @@ func main() {
 	postCtl := controllers.NewPostController(postSvc)
 
 	handler := routes.Handlers{Post: postCtl}
-	r := routes.NewRouter(handler)
+	r := routes.SetupRouter(handler)
 
 	// Start the server
 	port := os.Getenv("PORT")

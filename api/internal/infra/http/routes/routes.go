@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"net/http"
 	docs "Threadly/docs"
 	"Threadly/internal/interface/controllers"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	swaggerfiles "github.com/swaggo/files"
@@ -14,7 +14,7 @@ type Handlers struct {
 	Post *controllers.PostController
 }
 
-func NewRouter(h Handlers) *gin.Engine {
+func SetupRouter(h Handlers) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 
