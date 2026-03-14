@@ -28,7 +28,7 @@ func NewContainer() (*dig.Container, error) {
 
 	for _, constructor := range constructors {
 		if err := container.Provide(constructor); err != nil {
-			return nil, fmt.Errorf("failed to register constructor: %w", err)
+			return nil, fmt.Errorf("failed to register constructor %T: %w", constructor, err)
 		}
 	}
 
