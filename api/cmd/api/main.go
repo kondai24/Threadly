@@ -1,11 +1,7 @@
 package main
 
 import (
-	"Threadly/internal/infra/database"
-	repository "Threadly/internal/infra/database/repositories"
-	"Threadly/internal/infra/http/routes"
-	"Threadly/internal/interface/controllers"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/di"
 	"log"
 	"os"
 
@@ -17,20 +13,16 @@ import (
 func main() {
 	// envファイルの読み込み
 	_ = godotenv.Load()
-	db, err := database.ConnectionDB()
+
+	container, err := di.NewContainer()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Failed to build container: %v", err)
 	}
 
-	// DI setup: db → repositories → controllers → routes → server
-	postRepo := repository.NewPostRepository(db)
-
-	postSvc := services.NewPostService(postRepo)
-
-	postCtl := controllers.NewPostController(postSvc)
-
-	handler := routes.Handlers{Post: postCtl}
-	r := routes.SetupRouter(handler)
+	r, err := di.ResolveRouter(container)
+	if err != nil {
+		log.Fatalf("Failed to resolve router: %v", err)
+	}
 
 	// Start the server
 	port := os.Getenv("PORT")
