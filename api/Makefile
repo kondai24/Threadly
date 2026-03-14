@@ -8,10 +8,15 @@ SWAG := go run github.com/swaggo/swag/cmd/swag@v1.16.6
 MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
 GO_TEST := go test
 
-.PHONY: dev build swag test test-cover clean
+.PHONY: tools dev build swag test test-cover clean
+
+tools:
+	go install go.uber.org/mock/mockgen@v0.6.0
+	go install github.com/swaggo/swag/cmd/swag@v1.16.6
+	go install github.com/air-verse/air@v1.64.5
 
 dev:
-	go run $(SWAG_MAIN)
+	air -c .air.toml
 
 build:
 	mkdir -p $(BIN_DIR)
