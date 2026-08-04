@@ -1,0 +1,4 @@
+interface:
+  display_name: "日本語コミットメッセージ"
+  short_description: "Prefixと日本語本文で意味のあるコミットを整える"
+  default_prompt: "Use $commit-message-ja to draft or create a clear Japanese Git commit message."

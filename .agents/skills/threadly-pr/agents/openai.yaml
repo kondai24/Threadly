@@ -1,0 +1,4 @@
+interface:
+  display_name: "Threadly PR作成"
+  short_description: "Threadly向けに検証結果つきのDraft PRを組み立てる"
+  default_prompt: "Use $threadly-pr to prepare and publish a clear draft pull request for Threadly."
