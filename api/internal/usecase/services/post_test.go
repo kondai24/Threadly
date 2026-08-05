@@ -13,6 +13,8 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+const testUserID uint = 7
+
 func newPostServiceTest(t *testing.T) (*PostService, *mocks.MockPostRepository) {
 	t.Helper()
 
@@ -20,178 +22,185 @@ func newPostServiceTest(t *testing.T) (*PostService, *mocks.MockPostRepository) 
 	t.Cleanup(ctrl.Finish)
 
 	repo := mocks.NewMockPostRepository(ctrl)
-	svc := NewPostService(repo)
-	return svc, repo
+	service := NewPostService(repo)
+	return service, repo
 }
 
-func TestGetPostById(t *testing.T) {
-	t.Run("IDをもとに正しく取得される", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
-
+func TestPostService_GetPostByID(t *testing.T) {
+	t.Run("所有者のPostを取得できる", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		expectedPost := &models.Post{
 			BaseModel: models.BaseModel{ID: 1},
+			AuthorID:  testUserID,
 			Title:     "hello",
 			Content:   "world",
 		}
-
 		repo.EXPECT().
-			GetById(gomock.Any(), uint(1)).
+			GetByID(gomock.Any(), uint(1)).
 			Return(expectedPost, nil)
 
-		post, err := svc.GetPostById(context.Background(), 1)
+		post, err := service.GetPostByID(context.Background(), 1)
+
 		require.NoError(t, err)
 		require.NotNil(t, post)
-		assert.Equal(t, expectedPost.ID, post.ID)
-		assert.Equal(t, expectedPost.Title, post.Title)
-		assert.Equal(t, expectedPost.Content, post.Content)
+		assert.Equal(t, expectedPost, post)
 	})
 
-	t.Run("Repositoryのエラーがそのまま返される", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
+	t.Run("Repositoryのエラーをそのまま返す", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		expectedErr := errors.New("db error")
-
 		repo.EXPECT().
-			GetById(gomock.Any(), uint(999)).
+			GetByID(gomock.Any(), uint(999)).
 			Return(nil, expectedErr)
 
-		post, err := svc.GetPostById(context.Background(), 999)
+		post, err := service.GetPostByID(context.Background(), 999)
+
 		require.Error(t, err)
 		assert.Nil(t, post)
 		assert.ErrorIs(t, err, expectedErr)
 	})
 }
 
-func TestListPosts(t *testing.T) {
-	t.Run("全ての投稿が正しく取得される", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
-
+func TestPostService_ListAllPosts(t *testing.T) {
+	t.Run("全Postを返す", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		expectedPosts := []*models.Post{
-			{BaseModel: models.BaseModel{ID: 1}, Title: "hello", Content: "world"},
-			{BaseModel: models.BaseModel{ID: 2}, Title: "foo", Content: "bar"},
+			{BaseModel: models.BaseModel{ID: 1}, AuthorID: testUserID, Title: "hello", Content: "world"},
+			{BaseModel: models.BaseModel{ID: 2}, AuthorID: testUserID + 1, Title: "foo", Content: "bar"},
 		}
-
 		repo.EXPECT().
-			List(gomock.Any()).
+			ListAll(gomock.Any()).
 			Return(expectedPosts, nil)
 
-		posts, err := svc.ListPosts(context.Background())
+		posts, err := service.ListAllPosts(context.Background())
+
 		require.NoError(t, err)
-		require.Len(t, posts, 2)
 		assert.Equal(t, expectedPosts, posts)
 	})
 
-	t.Run("Repositoryのエラーがそのまま返される", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
+	t.Run("Repositoryのエラーをそのまま返す", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		expectedErr := errors.New("db error")
-
 		repo.EXPECT().
-			List(gomock.Any()).
+			ListAll(gomock.Any()).
 			Return(nil, expectedErr)
-		posts, err := svc.ListPosts(context.Background())
+
+		posts, err := service.ListAllPosts(context.Background())
+
 		require.Error(t, err)
 		assert.Nil(t, posts)
 		assert.ErrorIs(t, err, expectedErr)
 	})
 }
 
-func TestCreatePost(t *testing.T) {
-	t.Run("入力が正しい場合に，投稿が作成されること", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
-
+func TestPostService_CreatePost(t *testing.T) {
+	t.Run("認証済みUserをauthorに設定する", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		repo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, post *models.Post) error {
+				assert.Equal(t, testUserID, post.AuthorID)
 				assert.Equal(t, "hello", post.Title)
 				assert.Equal(t, "world", post.Content)
 				return nil
 			})
 
-		err := svc.CreatePost(context.Background(), "hello", "world")
+		err := service.CreatePost(context.Background(), testUserID, "hello", "world")
+
 		require.NoError(t, err)
 	})
 
-	t.Run("タイトルがない場合に，バリデーションエラーが返されること", func(t *testing.T) {
-		svc, _ := newPostServiceTest(t)
+	t.Run("空のtitleを拒否する", func(t *testing.T) {
+		service, _ := newPostServiceTest(t)
 
-		err := svc.CreatePost(context.Background(), "", "world")
+		err := service.CreatePost(context.Background(), testUserID, "", "world")
+
 		require.Error(t, err)
-		assert.EqualError(t, err, "titleが入力されていません")
+		assert.ErrorIs(t, err, models.ErrInvalidTitle)
 	})
 
-	t.Run("コンテンツがない場合に，バリデーションエラーが返されること", func(t *testing.T) {
-		svc, _ := newPostServiceTest(t)
+	t.Run("空のcontentを拒否する", func(t *testing.T) {
+		service, _ := newPostServiceTest(t)
 
-		err := svc.CreatePost(context.Background(), "hello", "")
+		err := service.CreatePost(context.Background(), testUserID, "hello", "")
+
 		require.Error(t, err)
-		assert.EqualError(t, err, "contentが入力されていません")
+		assert.ErrorIs(t, err, models.ErrInvalidContent)
 	})
 }
 
-func TestUpdatePost(t *testing.T) {
-	t.Run("入力が正しい場合に，投稿が更新されること", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
-
-		post := models.Post{
-			Title:   "test",
-			Content: "this is a test",
+func TestPostService_UpdatePost(t *testing.T) {
+	t.Run("所有者のPostを更新できる", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
+		post := &models.Post{
+			BaseModel: models.BaseModel{ID: 1},
+			AuthorID:  testUserID,
+			Title:     "test",
+			Content:   "this is a test",
 		}
-		post.ID = 1
+		repo.EXPECT().Update(gomock.Any(), testUserID, post).Return(nil)
 
-		repo.EXPECT().
-			Update(gomock.Any(), &post).
-			Return(nil)
+		err := service.UpdatePost(context.Background(), testUserID, post)
 
-		err := svc.UpdatePost(context.Background(), &post)
 		require.NoError(t, err)
 	})
 
-	t.Run("タイトルがない場合に，バリデーションエラーが返されること", func(t *testing.T) {
-		svc, _ := newPostServiceTest(t)
-
-		post := models.Post{
-			Content: "this is a test",
+	t.Run("他Userが所有するPostを拒否する", func(t *testing.T) {
+		service, _ := newPostServiceTest(t)
+		post := &models.Post{
+			BaseModel: models.BaseModel{ID: 1},
+			AuthorID:  testUserID + 1,
+			Title:     "test",
+			Content:   "this is a test",
 		}
-		post.ID = 1
 
-		err := svc.UpdatePost(context.Background(), &post)
+		err := service.UpdatePost(context.Background(), testUserID, post)
+
 		require.Error(t, err)
-		assert.EqualError(t, err, "titleが入力されていません")
+		assert.ErrorIs(t, err, ErrPostNotFound)
 	})
 
-	t.Run("コンテンツがない場合に，バリデーションエラーが返されること", func(t *testing.T) {
-		svc, _ := newPostServiceTest(t)
+	t.Run("空のtitleを拒否する", func(t *testing.T) {
+		service, _ := newPostServiceTest(t)
+		post := &models.Post{AuthorID: testUserID, Content: "content"}
 
-		post := models.Post{
-			Title: "test",
-		}
-		post.ID = 1
+		err := service.UpdatePost(context.Background(), testUserID, post)
 
-		err := svc.UpdatePost(context.Background(), &post)
 		require.Error(t, err)
-		assert.EqualError(t, err, "contentが入力されていません")
+		assert.ErrorIs(t, err, models.ErrInvalidTitle)
+	})
+
+	t.Run("空のcontentを拒否する", func(t *testing.T) {
+		service, _ := newPostServiceTest(t)
+		post := &models.Post{AuthorID: testUserID, Title: "title"}
+
+		err := service.UpdatePost(context.Background(), testUserID, post)
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, models.ErrInvalidContent)
 	})
 }
 
-func TestDeletePost(t *testing.T) {
-	t.Run("IDをもとに正しく削除される", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
-
+func TestPostService_DeletePost(t *testing.T) {
+	t.Run("所有者のPostを削除できる", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		repo.EXPECT().
-			DeleteById(gomock.Any(), uint(1)).
+			DeleteByID(gomock.Any(), testUserID, uint(1)).
 			Return(int64(1), nil)
 
-		err := svc.DeletePost(context.Background(), 1)
+		err := service.DeletePost(context.Background(), testUserID, 1)
+
 		require.NoError(t, err)
 	})
 
-	t.Run("存在しないIDを削除しようとした場合に，ErrPostNotFoundが返される", func(t *testing.T) {
-		svc, repo := newPostServiceTest(t)
-
+	t.Run("所有者のPostを削除できない場合はNotFoundを返す", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
 		repo.EXPECT().
-			DeleteById(gomock.Any(), uint(999)).
+			DeleteByID(gomock.Any(), testUserID, uint(999)).
 			Return(int64(0), nil)
 
-		err := svc.DeletePost(context.Background(), 999)
+		err := service.DeletePost(context.Background(), testUserID, 999)
+
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrPostNotFound)
 	})

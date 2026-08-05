@@ -7,7 +7,7 @@ func registerPostRoutes(api *gin.RouterGroup, h Handlers) {
 	{
 		posts.GET("", h.Post.ListPostsHandler)
 		posts.POST("", h.Post.CreatePostHandler)
-		posts.GET("/:id", h.Post.GetPostByIdHandler)
+		posts.GET("/:id", h.Post.GetPostByIDHandler)
 		posts.PUT("/:id", h.Post.UpdatePostHandler)
 		posts.DELETE("/:id", h.Post.DeletePostHandler)
 	}

@@ -2,12 +2,14 @@ package di
 
 import (
 	"Threadly/internal/domain/repositories"
+	authinfra "Threadly/internal/infra/auth"
 	"Threadly/internal/infra/database"
 	dbrepository "Threadly/internal/infra/database/repositories"
 	"Threadly/internal/infra/http/routes"
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/usecase/services"
 	"fmt"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/dig"
@@ -19,8 +21,13 @@ func NewContainer() (*dig.Container, error) {
 
 	constructors := []any{
 		database.ConnectionDB,
+		provideUserRepository,
 		providePostRepository,
+		providePasswordHasher,
+		provideTokenIssuer,
+		services.NewAuthService,
 		services.NewPostService,
+		controllers.NewAuthController,
 		controllers.NewPostController,
 		provideHandlers,
 		routes.SetupRouter,
@@ -39,9 +46,28 @@ func providePostRepository(db *gorm.DB) repositories.PostRepository {
 	return dbrepository.NewPostRepository(db)
 }
 
-func provideHandlers(postController *controllers.PostController) routes.Handlers {
+func provideUserRepository(db *gorm.DB) repositories.UserRepository {
+	return dbrepository.NewUserRepository(db)
+}
+
+func providePasswordHasher() services.PasswordHasher {
+	return authinfra.NewArgon2idHasher()
+}
+
+func provideTokenIssuer() (services.TokenIssuer, error) {
+	// JWT_SECRETが未設定・短すぎる場合は、デフォルト値にフォールバックせず起動を失敗させる。
+	return authinfra.NewJWTIssuer(os.Getenv("JWT_SECRET"))
+}
+
+func provideHandlers(
+	authController *controllers.AuthController,
+	postController *controllers.PostController,
+	tokenIssuer services.TokenIssuer,
+) routes.Handlers {
 	return routes.Handlers{
-		Post: postController,
+		Auth:        authController,
+		Post:        postController,
+		TokenIssuer: tokenIssuer,
 	}
 }
 

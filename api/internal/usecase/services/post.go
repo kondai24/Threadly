@@ -15,21 +15,27 @@ func NewPostService(repo repositories.PostRepository) *PostService {
 
 }
 
-// IDでPostを取得
-func (s *PostService) GetPostById(ctx context.Context, id uint) (*models.Post, error) {
-	return s.repo.GetById(ctx, id)
+// 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
+func (s *PostService) GetPostByID(ctx context.Context, postID uint) (*models.Post, error) {
+	return s.repo.GetByID(ctx, postID)
 }
 
-// 全てのPostを取得
-func (s *PostService) ListPosts(ctx context.Context) ([]*models.Post, error) {
-	return s.repo.List(ctx)
+// 更新前の所有者確認など、所有者だけが扱うPostを取得する。
+func (s *PostService) GetPostByIDForOwner(ctx context.Context, userID uint, postID uint) (*models.Post, error) {
+	return s.repo.GetByIDForOwner(ctx, userID, postID)
 }
 
-// 新しいPostを作成
-func (s *PostService) CreatePost(ctx context.Context, title string, content string) error {
+// 認証済みUserが閲覧できる全Postを取得する。
+func (s *PostService) ListAllPosts(ctx context.Context) ([]*models.Post, error) {
+	return s.repo.ListAll(ctx)
+}
+
+// author_idはリクエストではなく、検証済みtokenのUser IDから設定する。
+func (s *PostService) CreatePost(ctx context.Context, userID uint, title string, content string) error {
 	post := &models.Post{
-		Title:   title,
-		Content: content,
+		AuthorID: userID,
+		Title:    title,
+		Content:  content,
 	}
 	if err := post.Validate(); err != nil {
 		return err
@@ -37,17 +43,20 @@ func (s *PostService) CreatePost(ctx context.Context, title string, content stri
 	return s.repo.Create(ctx, post)
 }
 
-// Postを更新
-func (s *PostService) UpdatePost(ctx context.Context, post *models.Post) error {
+// 所有者でない場合はNotFoundとして扱い、他UserのPostの存在を隠す。
+func (s *PostService) UpdatePost(ctx context.Context, userID uint, post *models.Post) error {
+	if post.AuthorID != userID {
+		return ErrPostNotFound
+	}
 	if err := post.Validate(); err != nil {
 		return err
 	}
-	return s.repo.Update(ctx, post)
+	return s.repo.Update(ctx, userID, post)
 }
 
-// Postを削除
-func (s *PostService) DeletePost(ctx context.Context, id uint) error {
-	rows, err := s.repo.DeleteById(ctx, id)
+// 削除もRepositoryでuserIDを条件に含め、所有者境界を維持する。
+func (s *PostService) DeletePost(ctx context.Context, userID uint, postID uint) error {
+	rows, err := s.repo.DeleteByID(ctx, userID, postID)
 	if err != nil {
 		return err
 	}

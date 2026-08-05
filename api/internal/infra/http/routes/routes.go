@@ -3,6 +3,8 @@ package routes
 import (
 	docs "Threadly/docs"
 	"Threadly/internal/interface/controllers"
+	"Threadly/internal/middleware"
+	"Threadly/internal/usecase/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +13,9 @@ import (
 )
 
 type Handlers struct {
-	Post *controllers.PostController
+	Auth        *controllers.AuthController
+	Post        *controllers.PostController
+	TokenIssuer services.TokenIssuer
 }
 
 func SetupRouter(h Handlers) *gin.Engine {
@@ -23,7 +27,13 @@ func SetupRouter(h Handlers) *gin.Engine {
 	router.GET("/health", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	api := router.Group("/api")
-	registerPostRoutes(api, h)
+	registerAuthRoutes(api, h)
+
+	// /meとPost APIはすべて同じ認証Middlewareを通す。
+	protected := api.Group("")
+	protected.Use(middleware.RequireAuth(h.TokenIssuer))
+	protected.GET("/me", h.Auth.MeHandler)
+	registerPostRoutes(protected, h)
 
 	return router
 }

@@ -1,0 +1,84 @@
+package middleware
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"Threadly/internal/usecase/services"
+
+	"github.com/gin-gonic/gin"
+)
+
+type tokenIssuerStub struct {
+	userID uint
+	err    error
+}
+
+func (s tokenIssuerStub) Issue(uint) (string, error) {
+	return "unused", nil
+}
+
+func (s tokenIssuerStub) Parse(string) (uint, error) {
+	return s.userID, s.err
+}
+
+func TestRequireAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name          string
+		authorization string
+		issuer        tokenIssuerStub
+		wantStatus    int
+		wantUserID    uint
+	}{
+		{
+			name:       "Authorizationヘッダーがない",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:          "Bearer以外のscheme",
+			authorization: "Basic token",
+			issuer:        tokenIssuerStub{userID: 7},
+			wantStatus:    http.StatusUnauthorized,
+		},
+		{
+			name:          "tokenが不正",
+			authorization: "Bearer invalid",
+			issuer:        tokenIssuerStub{err: services.ErrInvalidToken},
+			wantStatus:    http.StatusUnauthorized,
+		},
+		{
+			name:          "正しいBearer token",
+			authorization: "bearer token",
+			issuer:        tokenIssuerStub{userID: 7},
+			wantStatus:    http.StatusOK,
+			wantUserID:    7,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := gin.New()
+			router.GET("/", RequireAuth(tt.issuer), func(c *gin.Context) {
+				userID, ok := UserIDFromContext(c.Request.Context())
+				if !ok || userID != tt.wantUserID {
+					t.Fatalf("context user ID = %d, ok = %t, want %d", userID, ok, tt.wantUserID)
+				}
+				c.Status(http.StatusOK)
+			})
+
+			request := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.authorization != "" {
+				request.Header.Set("Authorization", tt.authorization)
+			}
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			if response.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", response.Code, tt.wantStatus)
+			}
+		})
+	}
+}
