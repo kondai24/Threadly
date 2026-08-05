@@ -7,6 +7,10 @@ Use this template after inspecting the actual diff. Replace every placeholder; r
 
 <!-- 何を変更し、誰にどんな影響があるか。結論を先に書く。 -->
 
+## Stack構成
+
+<!-- 通常PRなら「該当なし」。Stack PRなら、このPRの層、直下のbase PR、後続PR、層の境界を記す。 -->
+
 ## 背景・原因
 
 <!-- なぜ変更したか。バグ修正でなければ「該当なし」ではなく、変更の動機を書く。 -->
@@ -20,6 +24,11 @@ Use this template after inspecting the actual diff. Replace every placeholder; r
 
 <!-- 観測できる結果、レスポンス、画面、生成物、テスト結果など。未確認の期待値は書かない。 -->
 
+## 影響範囲
+
+- **対象**: <!-- 影響を受けるAPI、画面、利用者、開発者 -->
+- **互換性**: <!-- 後方互換性、破壊的変更、設定/データ移行の有無 -->
+
 ## やらないこと
 
 - <!-- このPRの対象外。例: APIのみのためfront/は変更しない -->
@@ -32,8 +41,8 @@ Use this template after inspecting the actual diff. Replace every placeholder; r
 
 ### 自動確認
 
-- [ ] `<!-- command -->`
-- [ ] `<!-- command -->`
+- [x] `<!-- command -->` — <!-- 実際の結果 -->
+- [ ] `<!-- 未実施のcommand -->` — <!-- 未実施・blockerの理由 -->
 
 ### 手動確認
 

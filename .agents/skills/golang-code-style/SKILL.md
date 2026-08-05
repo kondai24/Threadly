@@ -1,6 +1,6 @@
 ---
 name: golang-code-style
-description: "Golang code style conventions — line length and breaking, variable declarations, control flow clarity, when comments help vs hurt. Use when writing or reviewing Go code, asking about style or clarity, or establishing project coding standards. Not for naming conventions (→ See `samber/cc-skills-golang@golang-naming` skill), linter configuration (→ See `samber/cc-skills-golang@golang-lint` skill), or doc comments (→ See `samber/cc-skills-golang@golang-documentation` skill)."
+description: "Golang code style conventions — line length and breaking, variable declarations, control flow clarity, when comments help vs hurt, and Threadly's Japanese comments and test subtest names. Use when writing or reviewing Go code, asking about style or clarity, or establishing project coding standards. Not for naming conventions (→ See `samber/cc-skills-golang@golang-naming` skill), linter configuration (→ See `samber/cc-skills-golang@golang-lint` skill), or doc comments (→ See `samber/cc-skills-golang@golang-documentation` skill)."
 user-invocable: true
 license: MIT
 compatibility: Designed for Claude Code or similar AI coding agents, and for projects using Golang.
@@ -26,6 +26,13 @@ allowed-tools: Read Edit Write Glob Grep Bash(go:*) Bash(golangci-lint:*)
 Style rules that require human judgment — linters handle formatting, this skill handles clarity. For naming see `samber/cc-skills-golang@golang-naming` skill; for design patterns see `samber/cc-skills-golang@golang-design-patterns` skill; for struct/interface design see `samber/cc-skills-golang@golang-structs-interfaces` skill.
 
 > "Clear is better than clever." — Go Proverbs
+
+## Threadlyの日本語表記
+
+- 実装コメントは日本語で書く。コードの逐語訳ではなく、セキュリティ上の理由、境界条件、設計上の意図など、コードだけでは読み取りにくい内容に限定する。
+- コメントは短く保ち、処理を追いかければ明らかな内容や、将来ずれやすい実装詳細はコメントにしない。
+- `t.Run` のサブテスト名とテーブルテストの `name` は日本語で書く。動作が分かる短い表現にし、例として「所有者のPostを取得できる」「不正なtokenを拒否する」のようにする。
+- テスト関数名、Goの識別子、エラーメッセージ、Swaggerのアノテーションは既存のプロジェクト規約を優先し、必要な場合だけ日本語へ変更する。
 
 When ignoring a rule, add a comment to the code.
 
