@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 
+	"Threadly/internal/usecase/services"
+
 	"golang.org/x/crypto/argon2"
 )
 
@@ -22,8 +24,7 @@ const (
 )
 
 var (
-	ErrInvalidHash      = errors.New("invalid password hash")
-	ErrPasswordMismatch = errors.New("password mismatch")
+	ErrInvalidHash = errors.New("invalid password hash")
 )
 
 type Argon2idHasher struct{}
@@ -76,7 +77,7 @@ func (h *Argon2idHasher) Compare(encodedHash string, password string) error {
 		params.keyLength,
 	)
 	if subtle.ConstantTimeCompare(actualKey, expectedKey) != 1 {
-		return ErrPasswordMismatch
+		return services.ErrPasswordMismatch
 	}
 	return nil
 }

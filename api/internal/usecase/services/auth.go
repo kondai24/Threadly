@@ -13,10 +13,13 @@ var (
 	ErrInvalidCredentials    = errors.New("invalid credentials")
 	ErrUsernameAlreadyExists = errors.New("username already exists")
 	ErrInvalidToken          = errors.New("invalid token")
+	// ErrPasswordMismatchは、PasswordHasher.Compareがpassword不一致時に返すエラーである。
+	ErrPasswordMismatch = errors.New("password mismatch")
 )
 
 type PasswordHasher interface {
 	Hash(password string) (string, error)
+	// Compareはpassword不一致時だけErrPasswordMismatchを返し、不正なhashや内部障害は別エラーで返す。
 	Compare(encodedHash string, password string) error
 }
 
@@ -99,8 +102,11 @@ func (s *AuthService) Login(
 		return nil, "", fmt.Errorf("find user for login: %w", err)
 	}
 	if err := s.hasher.Compare(user.PasswordHash, password); err != nil {
-		// password hashの詳細は外へ返さず、username不存在時と同じ応答にする。
-		return nil, "", ErrInvalidCredentials
+		if errors.Is(err, ErrPasswordMismatch) {
+			// password不一致はusername不存在時と同じ応答にして、Userの存在を推測されにくくする。
+			return nil, "", ErrInvalidCredentials
+		}
+		return nil, "", fmt.Errorf("compare password hash: %w", err)
 	}
 
 	token, err := s.tokens.Issue(user.ID)

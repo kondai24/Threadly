@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"Threadly/internal/domain/models"
@@ -135,7 +136,7 @@ func TestAuthService_Login(t *testing.T) {
 	t.Run("誤ったpasswordを認証失敗として扱う", func(t *testing.T) {
 		service, repo := newAuthServiceTest(
 			t,
-			fakePasswordHasher{compareErr: errors.New("mismatch")},
+			fakePasswordHasher{compareErr: fmt.Errorf("verify: %w", ErrPasswordMismatch)},
 			fakeTokenIssuer{token: "access-token"},
 		)
 		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(&models.User{
@@ -148,6 +149,29 @@ func TestAuthService_Login(t *testing.T) {
 
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("error = %v, want ErrInvalidCredentials", err)
+		}
+	})
+
+	t.Run("PasswordHasherの内部エラーをラップして返す", func(t *testing.T) {
+		expectedErr := errors.New("invalid password hash")
+		service, repo := newAuthServiceTest(
+			t,
+			fakePasswordHasher{compareErr: expectedErr},
+			fakeTokenIssuer{token: "access-token"},
+		)
+		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(&models.User{
+			BaseModel:    models.BaseModel{ID: 1},
+			Username:     "alice",
+			PasswordHash: "invalid-hash",
+		}, nil)
+
+		_, _, err := service.Login(context.Background(), "alice", "correct horse")
+
+		if !errors.Is(err, expectedErr) {
+			t.Fatalf("error = %v, want wrapped password hasher error", err)
+		}
+		if errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("error = %v, must not be ErrInvalidCredentials", err)
 		}
 	})
 
