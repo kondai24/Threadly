@@ -1,10 +1,10 @@
 package database
 
 import (
+	"Threadly/internal/domain/models"
 	"fmt"
 	"os"
 	"strconv"
-	"Threadly/internal/domain/models"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -35,11 +35,11 @@ func getDBConfig() DBConfig {
 func ConnectionDB() (*gorm.DB, error) {
 	config := getDBConfig()
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=True", config.User, config.Password, config.Host, config.Port, config.DB)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{TranslateError: true})
 	if err != nil {
 		return nil, err
 	}
-	if err := db.AutoMigrate(&models.Post{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.Post{}); err != nil {
 		return nil, err
 	}
 	return db, nil

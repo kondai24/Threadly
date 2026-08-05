@@ -10,8 +10,13 @@ import (
 
 // @title Thready API
 // @version 1.0
+// @description Threadly learning API with username/password authentication and authenticated post browsing.
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter `Bearer <JWT>`.
 func main() {
-	// envファイルの読み込み
+	// 環境変数ファイルを読み込む。
 	_ = godotenv.Load()
 
 	container, err := di.NewContainer()
@@ -24,7 +29,7 @@ func main() {
 		log.Fatalf("Failed to resolve router: %v", err)
 	}
 
-	// Start the server
+	// サーバーを起動する。
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
