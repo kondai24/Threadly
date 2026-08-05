@@ -1,30 +1,4 @@
 definitions:
-  Threadly_internal_domain_models.Post:
-    properties:
-      content:
-        type: string
-      createdAt:
-        type: string
-      deletedAt:
-        $ref: '#/definitions/gorm.DeletedAt'
-      id:
-        type: integer
-      title:
-        type: string
-      updatedAt:
-        type: string
-    type: object
-  gin.H:
-    additionalProperties: {}
-    type: object
-  gorm.DeletedAt:
-    properties:
-      time:
-        type: string
-      valid:
-        description: Valid is true if Time is not NULL
-        type: boolean
-    type: object
   internal_interface_controllers.CreatePostRequest:
     properties:
       content:
@@ -42,14 +16,183 @@ definitions:
       title:
         type: string
     type: object
+  internal_interface_controllers.authResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/internal_interface_controllers.userResponse'
+    type: object
+  internal_interface_controllers.credentialsRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  internal_interface_controllers.postAuthorResponse:
+    properties:
+      id:
+        type: integer
+      username:
+        type: string
+    type: object
+  internal_interface_controllers.postDetailResponse:
+    properties:
+      author:
+        $ref: '#/definitions/internal_interface_controllers.postAuthorResponse'
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  internal_interface_controllers.postListResponse:
+    properties:
+      author:
+        $ref: '#/definitions/internal_interface_controllers.postAuthorResponse'
+      createdAt:
+        type: string
+      id:
+        type: integer
+      title:
+        type: string
+    type: object
+  internal_interface_controllers.userResponse:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: integer
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
 info:
   contact: {}
+  description: Threadly learning API with username/password authentication and authenticated
+    post browsing.
   title: Thready API
   version: "1.0"
 paths:
+  /api/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate with a username and password, then issue a JWT access
+        token.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_interface_controllers.credentialsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_interface_controllers.authResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login
+      tags:
+      - auth
+  /api/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a user with a username and password, then issue a JWT access
+        token.
+      parameters:
+      - description: Registration credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_interface_controllers.credentialsRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_interface_controllers.authResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Register a user
+      tags:
+      - auth
+  /api/me:
+    get:
+      description: Return the user represented by the Bearer JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_interface_controllers.userResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
   /api/posts:
     get:
-      description: Get all posts
+      description: Get all posts visible to the authenticated user.
       produces:
       - application/json
       responses:
@@ -57,19 +200,27 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/Threadly_internal_domain_models.Post'
+              $ref: '#/definitions/internal_interface_controllers.postListResponse'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
       summary: List posts
       tags:
       - posts
     post:
       consumes:
       - application/json
-      description: Create a new post
+      description: Create a post owned by the authenticated user.
       parameters:
       - description: Create post payload
         in: body
@@ -85,17 +236,26 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
       summary: Create post
       tags:
       - posts
   /api/posts/{id}:
     delete:
-      description: Delete a post by ID
+      description: Delete a post when it is owned by the authenticated user.
       parameters:
       - description: Post ID
         in: path
@@ -110,20 +270,30 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/gin.H'
-      summary: Delete post
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete current user's post
       tags:
       - posts
     get:
-      description: Get one post by its ID
+      description: Get a post by ID when it is visible to the authenticated user.
       parameters:
       - description: Post ID
         in: path
@@ -136,22 +306,36 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Threadly_internal_domain_models.Post'
+            $ref: '#/definitions/internal_interface_controllers.postDetailResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
       summary: Get post by ID
       tags:
       - posts
     put:
       consumes:
       - application/json
-      description: Update title and/or content of a post
+      description: Update a post when it is owned by the authenticated user.
       parameters:
       - description: Post ID
         in: path
@@ -172,16 +356,32 @@ paths:
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/gin.H'
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/gin.H'
-      summary: Update post
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update current user's post
       tags:
       - posts
+securityDefinitions:
+  BearerAuth:
+    description: Enter `Bearer <JWT>`.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
