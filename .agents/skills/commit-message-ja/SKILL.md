@@ -1,6 +1,6 @@
 ---
 name: commit-message-ja
-description: Draft, review, or create Git commits using an English Conventional Commit prefix and Japanese subject/body text. Use when the user asks for a commit message, asks to commit changes, wants commit history cleaned up, or needs help choosing a commit prefix.
+description: Draft, split, review, or create Git commits using an English Conventional Commit prefix and Japanese subject/body text. Use when the user asks for a commit message, asks to commit changes, wants a large change split into reviewable commits or Stack PR layers, wants commit history cleaned up, or needs help choosing a commit prefix.
 ---
 
 # 日本語コミットメッセージ
@@ -36,6 +36,18 @@ description: Draft, review, or create Git commits using an English Conventional 
 
 複数の変更が含まれる場合は、最も利用者に近い主目的をPrefixにする。ただし、独立した目的が混ざっているなら、メッセージで隠さずコミットを分ける。`Merge` や `Revert` などGitが生成する特殊なコミットは、この形式の対象外としてよい。
 
+## コミット粒度と依存順
+
+コミットは「同じ目的を実現するために一緒にレビュー・revert・テストしたい変更」の単位にする。ファイル数ではなく、レビュアーが確認する判断を基準に分ける。
+
+- 1コミットには、1つの説明可能な振る舞いまたは責務を入れる。実装に必要なテスト、設定、型、生成物は同じコミットへ含める。
+- ドメイン・共通基盤、永続化/HTTP API、利用側UIのように依存方向がある場合は、依存される層から順にコミットする。
+- API契約を変えるSwaggerは、その契約を変更するAPI層へ含める。Orvalなどのフロント生成物と画面変更は、API-onlyのコミットへ混ぜず利用側の層へ残す。
+- テストだけが独立したテスト基盤変更でない限り、対象の振る舞いを検証するテストを後続コミットへ分離しない。
+- 無関係なSkill、フォーマット、別機能の作業中ファイルは、同じ作業ツリーにあってもステージしない。
+
+Stack PRにする場合は、通常「1ブランチ = 1つのレビュー層」とし、各ブランチ内のコミットもその層だけに限定する。たとえば認証機能なら、`認証コア → 認証API → リソース認可 → UI` の順に積む。独立してマージできる変更や無関係な変更を、同じStackへ入れない。
+
 ## 1行目を書く
 
 - 変更内容を「何をどうするか」で短く表す。目安は20〜30文字程度とする。
@@ -57,11 +69,13 @@ description: Draft, review, or create Git commits using an English Conventional 
 ## コミットを作る手順
 
 1. 依頼がメッセージ案だけか、実際のコミット作成まで含むかを確認する。案だけならGitの状態を変更しない。
-2. `git status` と差分を確認し、対象範囲、変更理由、検証状況を把握する。既存のステージ済み変更と未ステージ変更を混同しない。
-3. プロジェクトの規約と直近のコミットを確認し、Prefixとメッセージを決める。
-4. 独立した目的の変更を分離し、対象ファイルだけをステージする。ユーザーが作業中の無関係な変更を勝手に含めない。
-5. 必要なテスト、静的検査、`git diff --cached --check` を実行する。検証に失敗した場合は、成功したような詳細説明にしない。
-6. ユーザーがコミットを明示的に依頼している場合だけコミットを作成し、作成後にハッシュ、メッセージ、検証結果を報告する。
+2. `git status`、ステージ済み/未ステージ差分、現在のブランチ、直近コミット、push済みかどうかを確認する。既存のステージ済み変更と未ステージ変更を混同しない。
+3. 変更を責務と依存関係で並べ、単一コミットでよいか、複数コミットまたはStack PRにするかを先に決める。分割する場合は、各層の目的・対象パス・検証を短く列挙する。
+4. すでに大きなローカルコミットを分割する場合、対象コミットが未pushであり、ユーザーが履歴の再構成を明示的に求めたことを確認する。その場合だけ、内容を保持するresetでコミットを戻して再ステージする。公開済みのコミット、PR、他者が参照するブランチは、明示的な承認なしに書き換えない。
+5. プロジェクトの規約と直近の履歴を確認し、Prefixとメッセージを決める。
+6. 各層で対象ファイルだけをステージする。次の層へ進む前に、ステージ済み差分がその層の説明だけで完結していることを確認する。
+7. 必要なテスト、静的検査、`git diff --cached --check` を実行する。Stackの各下位層は、そのコミット時点で必要なビルド/テストが通ることを確認する。検証に失敗した場合は、成功したような詳細説明にしない。
+8. ユーザーがコミットを明示的に依頼している場合だけコミットを作成し、作成後にハッシュ、メッセージ、検証結果を報告する。
 
 ## 例
 
