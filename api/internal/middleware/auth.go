@@ -24,7 +24,7 @@ func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 		}
 
 		userID, err := tokenIssuer.Parse(strings.TrimSpace(rawToken))
-		if err != nil {
+		if err != nil || userID == 0 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
