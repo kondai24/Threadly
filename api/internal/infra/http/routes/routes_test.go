@@ -2,13 +2,15 @@ package routes
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
@@ -85,28 +87,68 @@ func (r *routePostRepository) ListAll(_ context.Context) ([]*models.Post, error)
 	return posts, nil
 }
 
-type routeUserRepository struct{}
+type routeUserRepository struct {
+	users  map[uint]*models.User
+	nextID uint
+}
 
-func (routeUserRepository) FindByUsername(context.Context, string) (*models.User, error) {
+func newRouteUserRepository() *routeUserRepository {
+	return &routeUserRepository{
+		users:  make(map[uint]*models.User),
+		nextID: 1,
+	}
+}
+
+func (r *routeUserRepository) FindByUsername(_ context.Context, username string) (*models.User, error) {
+	for _, user := range r.users {
+		if user.Username == username {
+			return cloneUser(user), nil
+		}
+	}
 	return nil, repositories.ErrUserNotFound
 }
 
-func (routeUserRepository) FindByID(context.Context, uint) (*models.User, error) {
-	return nil, repositories.ErrUserNotFound
+func (r *routeUserRepository) FindByID(_ context.Context, userID uint) (*models.User, error) {
+	user, ok := r.users[userID]
+	if !ok {
+		return nil, repositories.ErrUserNotFound
+	}
+	return cloneUser(user), nil
 }
 
-func (routeUserRepository) Create(context.Context, *models.User) error {
-	return errors.New("not used")
+func (r *routeUserRepository) Create(_ context.Context, user *models.User) error {
+	for _, stored := range r.users {
+		if stored.Username == user.Username {
+			return repositories.ErrUsernameAlreadyExists
+		}
+	}
+
+	now := time.Now()
+	user.ID = r.nextID
+	user.CreatedAt = now
+	user.UpdatedAt = now
+	r.nextID++
+	r.users[user.ID] = cloneUser(user)
+	return nil
 }
 
 type routePasswordHasher struct{}
 
-func (routePasswordHasher) Hash(string) (string, error) {
-	return "hash", nil
+func (routePasswordHasher) Hash(password string) (string, error) {
+	return routeHashPassword(password), nil
 }
 
-func (routePasswordHasher) Compare(string, string) error {
+func (routePasswordHasher) Compare(encodedHash string, password string) error {
+	actualHash := routeHashPassword(password)
+	if subtle.ConstantTimeCompare([]byte(encodedHash), []byte(actualHash)) != 1 {
+		return services.ErrPasswordMismatch
+	}
 	return nil
+}
+
+func routeHashPassword(password string) string {
+	passwordHash := sha256.Sum256([]byte(password))
+	return string(passwordHash[:])
 }
 
 type routeTokenIssuer struct{}
@@ -131,10 +173,15 @@ func clonePost(post *models.Post) *models.Post {
 	return &cloned
 }
 
+func cloneUser(user *models.User) *models.User {
+	cloned := *user
+	return &cloned
+}
+
 func newTestRouter(postRepo *routePostRepository) *gin.Engine {
 	tokenIssuer := routeTokenIssuer{}
 	authService := services.NewAuthService(
-		routeUserRepository{},
+		newRouteUserRepository(),
 		routePasswordHasher{},
 		tokenIssuer,
 	)
@@ -156,6 +203,117 @@ type routePostResponse struct {
 	Title   string                  `json:"title"`
 	Content string                  `json:"content"`
 	Author  routePostAuthorResponse `json:"author"`
+}
+
+type routeUserResponse struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+}
+
+type routeAuthResponse struct {
+	User  routeUserResponse `json:"user"`
+	Token string            `json:"token"`
+}
+
+func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestRouter(newRoutePostRepository())
+	credentials := `{"username":"alice","password":"password"}`
+
+	registerResponse := performRequest(
+		router,
+		http.MethodPost,
+		"/api/auth/register",
+		"",
+		credentials,
+	)
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("register status = %d, want 201", registerResponse.Code)
+	}
+	var registered routeAuthResponse
+	if err := json.Unmarshal(registerResponse.Body.Bytes(), &registered); err != nil {
+		t.Fatalf("decode register response: %v", err)
+	}
+	if registered.User.ID != 1 || registered.User.Username != "alice" {
+		t.Fatalf("registered user = %+v, want alice with ID 1", registered.User)
+	}
+	if registered.Token == "" {
+		t.Fatal("register token is empty")
+	}
+	if strings.Contains(registerResponse.Body.String(), "password") ||
+		strings.Contains(registerResponse.Body.String(), "hash") {
+		t.Fatalf("register response exposes password data: %s", registerResponse.Body.String())
+	}
+
+	loginResponse := performRequest(
+		router,
+		http.MethodPost,
+		"/api/auth/login",
+		"",
+		credentials,
+	)
+	if loginResponse.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want 200", loginResponse.Code)
+	}
+	var loggedIn routeAuthResponse
+	if err := json.Unmarshal(loginResponse.Body.Bytes(), &loggedIn); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	if loggedIn.User != registered.User {
+		t.Fatalf("login user = %+v, want %+v", loggedIn.User, registered.User)
+	}
+	if loggedIn.Token == "" {
+		t.Fatal("login token is empty")
+	}
+
+	meResponse := performRequest(router, http.MethodGet, "/api/me", loggedIn.Token, "")
+	if meResponse.Code != http.StatusOK {
+		t.Fatalf("me status = %d, want 200", meResponse.Code)
+	}
+	var currentUser routeUserResponse
+	if err := json.Unmarshal(meResponse.Body.Bytes(), &currentUser); err != nil {
+		t.Fatalf("decode me response: %v", err)
+	}
+	if currentUser != registered.User {
+		t.Fatalf("current user = %+v, want %+v", currentUser, registered.User)
+	}
+}
+
+func TestSetupRouter_ProtectedRoutesRequireToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestRouter(newRoutePostRepository())
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "現在User取得を拒否する", method: http.MethodGet, path: "/api/me"},
+		{name: "Post一覧取得を拒否する", method: http.MethodGet, path: "/api/posts"},
+		{name: "Post詳細取得を拒否する", method: http.MethodGet, path: "/api/posts/1"},
+		{
+			name:   "Post作成を拒否する",
+			method: http.MethodPost,
+			path:   "/api/posts",
+			body:   `{"title":"title","content":"content"}`,
+		},
+		{
+			name:   "Post更新を拒否する",
+			method: http.MethodPut,
+			path:   "/api/posts/1",
+			body:   `{"title":"updated"}`,
+		},
+		{name: "Post削除を拒否する", method: http.MethodDelete, path: "/api/posts/1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := performRequest(router, tt.method, tt.path, "", tt.body)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("%s %s status = %d, want 401", tt.method, tt.path, response.Code)
+			}
+		})
+	}
 }
 
 func TestSetupRouter_PostsAreReadableByAllAuthenticatedUsers(t *testing.T) {

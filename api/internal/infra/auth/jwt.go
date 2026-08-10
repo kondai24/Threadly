@@ -68,6 +68,9 @@ func (i *JWTIssuer) Parse(rawToken string) (uint, error) {
 			return i.secret, nil
 		},
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithExpirationRequired(),
+		jwt.WithIssuedAt(),
+		jwt.WithTimeFunc(i.now),
 	)
 	if err != nil || !token.Valid {
 		return 0, services.ErrInvalidToken

@@ -16,6 +16,8 @@ func TestJWTIssuer_IssueAndParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new jwt issuer: %v", err)
 	}
+	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
+	issuer.now = func() time.Time { return now }
 
 	rawToken, err := issuer.Issue(42)
 	if err != nil {
@@ -30,43 +32,81 @@ func TestJWTIssuer_IssueAndParse(t *testing.T) {
 	}
 }
 
-func TestJWTIssuer_RejectsExpiredToken(t *testing.T) {
+func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 	issuer, err := NewJWTIssuer(strings.Repeat("s", minimumSecretLen))
 	if err != nil {
 		t.Fatalf("new jwt issuer: %v", err)
 	}
-	expiredToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
+	issuer.now = func() time.Time { return now }
+	validClaims := jwt.RegisteredClaims{
 		Subject:   "42",
-		IssuedAt:  jwt.NewNumericDate(time.Now().Add(-2 * time.Hour)),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour)),
-	})
-	rawToken, err := expiredToken.SignedString(issuer.secret)
-	if err != nil {
-		t.Fatalf("sign expired token: %v", err)
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
 	}
 
-	_, err = issuer.Parse(rawToken)
-
-	if !errors.Is(err, services.ErrInvalidToken) {
-		t.Fatalf("expired token error = %v, want ErrInvalidToken", err)
+	tests := []struct {
+		name       string
+		method     jwt.SigningMethod
+		claims     jwt.RegisteredClaims
+		signingKey []byte
+	}{
+		{
+			name:   "期限切れtokenを拒否する",
+			method: jwt.SigningMethodHS256,
+			claims: jwt.RegisteredClaims{
+				Subject:   "42",
+				IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
+				ExpiresAt: jwt.NewNumericDate(now.Add(-time.Hour)),
+			},
+			signingKey: issuer.secret,
+		},
+		{
+			name:   "expのないtokenを拒否する",
+			method: jwt.SigningMethodHS256,
+			claims: jwt.RegisteredClaims{
+				Subject:  "42",
+				IssuedAt: jwt.NewNumericDate(now),
+			},
+			signingKey: issuer.secret,
+		},
+		{
+			name:   "未来のiatを拒否する",
+			method: jwt.SigningMethodHS256,
+			claims: jwt.RegisteredClaims{
+				Subject:   "42",
+				IssuedAt:  jwt.NewNumericDate(now.Add(time.Minute)),
+				ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+			},
+			signingKey: issuer.secret,
+		},
+		{
+			name:       "許可外アルゴリズムを拒否する",
+			method:     jwt.SigningMethodHS512,
+			claims:     validClaims,
+			signingKey: issuer.secret,
+		},
+		{
+			name:       "不正な署名鍵を拒否する",
+			method:     jwt.SigningMethodHS256,
+			claims:     validClaims,
+			signingKey: []byte(strings.Repeat("x", minimumSecretLen)),
+		},
 	}
-}
 
-func TestJWTIssuer_RejectsWrongAlgorithm(t *testing.T) {
-	issuer, err := NewJWTIssuer(strings.Repeat("s", minimumSecretLen))
-	if err != nil {
-		t.Fatalf("new jwt issuer: %v", err)
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.RegisteredClaims{Subject: "42"})
-	rawToken, err := token.SignedString(issuer.secret)
-	if err != nil {
-		t.Fatalf("sign wrong algorithm token: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			token := jwt.NewWithClaims(tt.method, tt.claims)
+			rawToken, signErr := token.SignedString(tt.signingKey)
+			if signErr != nil {
+				t.Fatalf("sign token: %v", signErr)
+			}
 
-	_, err = issuer.Parse(rawToken)
-
-	if !errors.Is(err, services.ErrInvalidToken) {
-		t.Fatalf("wrong algorithm error = %v, want ErrInvalidToken", err)
+			_, parseErr := issuer.Parse(rawToken)
+			if !errors.Is(parseErr, services.ErrInvalidToken) {
+				t.Fatalf("Parse() error = %v, want ErrInvalidToken", parseErr)
+			}
+		})
 	}
 }
 
