@@ -42,7 +42,7 @@ func TestGORMLogger_HidesParametersOnErrorAndSlowQuery(t *testing.T) {
 				err := db.Callback().Create().After("gorm:create").Register(
 					"test:force-error",
 					func(tx *gorm.DB) {
-						tx.AddError(errors.New("forced database error"))
+						_ = tx.AddError(errors.New("forced database error"))
 					},
 				)
 				if err != nil {
