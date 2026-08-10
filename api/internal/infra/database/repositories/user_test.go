@@ -9,6 +9,7 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/infra/database"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
@@ -23,9 +24,9 @@ func openTestDB(t *testing.T) *gorm.DB {
 		t.Fatal("TEST_DATABASE_DSN must be set for integration tests")
 	}
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{TranslateError: true})
+	db, err := gorm.Open(mysql.Open(dsn), database.NewGORMConfig())
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}))
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.Post{}))
 
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
