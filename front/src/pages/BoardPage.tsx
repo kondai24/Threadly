@@ -1,166 +1,151 @@
-import { useState, useEffect, useCallback } from "react";
-import type { SyntheticEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../lib/auth-context";
+import { formatDate } from "../lib/format";
 import {
+  getGetApiPostsQueryKey,
   useGetApiPostsSuspense,
   usePostApiPosts,
-  getGetApiPostsQueryKey,
 } from "../orval/threadyAPI";
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "投稿を保存できませんでした。";
+}
+
 export default function BoardPage() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data } = useGetApiPostsSuspense();
+  const createPost = usePostApiPosts();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const posts = data ?? [];
 
-  const queryClient = useQueryClient();
-  const { data: posts } = useGetApiPostsSuspense();
-  const createPost = usePostApiPosts();
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextTitle = title.trim();
+    const nextContent = content.trim();
+    if (!nextTitle || !nextContent) return;
 
-  const closeDialog = useCallback(() => setIsDialogOpen(false), []);
-
-  useEffect(() => {
-    if (!isDialogOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeDialog();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isDialogOpen, closeDialog]);
-
-  const handleSubmit = (e: SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!title.trim() || !content.trim()) return;
-
+    setFormError(null);
     createPost.mutate(
-      { data: { title: title.trim(), content: content.trim() } },
+      { data: { title: nextTitle, content: nextContent } },
       {
         onSuccess: () => {
           setTitle("");
           setContent("");
-          setIsDialogOpen(false);
-          queryClient.invalidateQueries({
-            queryKey: getGetApiPostsQueryKey(),
-          });
+          queryClient.invalidateQueries({ queryKey: getGetApiPostsQueryKey() });
         },
+        onError: (error) => setFormError(getErrorMessage(error)),
       },
     );
   };
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "";
-    try {
-      return new Date(dateStr).toLocaleString("ja-JP", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   return (
-    <div>
-      <div className="board-header">
+    <div className="board-page">
+      <header className="board-topline">
         <div>
-          <h1>📋 掲示板</h1>
-          <p className="post-count">
-            {posts.length > 0 ? `${posts.length} 件の投稿` : ""}
+          <span className="eyebrow">YOUR BOARD / {user?.username}</span>
+          <h1 className="page-title">考えの流れ</h1>
+          <p className="page-lede">
+            ここに置いた言葉は、あなたの次の思考への目印になります。
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => setIsDialogOpen(true)}
-        >
-          ✏️ 新規投稿
-        </button>
-      </div>
-
-      {posts.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-icon">📭</div>
-          <p>まだ投稿がありません</p>
-          <p style={{ color: "var(--text-muted)", marginTop: "0.5rem" }}>
-            最初の投稿をしてみましょう！
-          </p>
+        <div className="board-summary" aria-label="投稿数">
+          <strong>{posts.length.toString().padStart(2, "0")}</strong>
+          <span>posts<br />in your thread</span>
         </div>
-      )}
+      </header>
 
-      {posts.length > 0 && (
-        <div className="post-list">
-          {posts.map((post) => (
-            <Link to={`/board/${post.id}`} className="post-item" key={post.id}>
-              <div className="post-id">#{post.id}</div>
-              <div className="post-info">
-                <div className="post-title">{post.title}</div>
-                <div className="post-date">{formatDate(post.createdAt)}</div>
-              </div>
-              <span className="arrow">→</span>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {isDialogOpen && (
-        <div
-          className="dialog-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeDialog();
-          }}
-        >
-          <div
-            className="dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dialog-title"
-          >
-            <h2 id="dialog-title">✏️ 新しい投稿</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label htmlFor="post-title">タイトル</label>
-                <input
-                  id="post-title"
-                  type="text"
-                  placeholder="投稿のタイトルを入力..."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="post-content">内容</label>
-                <textarea
-                  id="post-content"
-                  placeholder="投稿の内容を入力..."
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                />
-              </div>
-              <div className="dialog-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={closeDialog}
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={
-                    createPost.isPending || !title.trim() || !content.trim()
-                  }
-                >
-                  {createPost.isPending ? "投稿中..." : "投稿する"}
-                </button>
-              </div>
-            </form>
+      <div className="board-layout">
+        <section className="composer-card" aria-labelledby="composer-title">
+          <div className="composer-header">
+            <div>
+              <span className="card-label">New entry</span>
+              <h2 id="composer-title">今日の考えを置く</h2>
+            </div>
+            <span className="composer-mark" aria-hidden="true">+</span>
           </div>
-        </div>
-      )}
+          <form className="composer-form" onSubmit={handleSubmit}>
+            <label className="field">
+              <span className="field-label">タイトル</span>
+              <input
+                className="text-input"
+                type="text"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="考えの見出しをつける"
+                maxLength={200}
+                required
+              />
+            </label>
+            <label className="field">
+              <span className="field-label">本文</span>
+              <textarea
+                className="text-input text-area"
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                placeholder="まだまとまっていなくても大丈夫です。"
+                required
+              />
+            </label>
+            {formError && (
+              <p className="form-error" role="alert">
+                {formError}
+              </p>
+            )}
+            <div className="form-footer">
+              <span className="field-help">POST /api/posts · owner only</span>
+              <button
+                className="button button-primary"
+                type="submit"
+                disabled={createPost.isPending || !title.trim() || !content.trim()}
+              >
+                {createPost.isPending ? "保存中…" : "投稿を残す"} <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section className="post-feed" aria-labelledby="feed-title">
+          <div className="feed-heading">
+            <div>
+              <span className="card-label">Archive / {posts.length}</span>
+              <h2 id="feed-title">Recent thoughts</h2>
+            </div>
+            <span className="feed-filter">read: all · write: {user?.username}</span>
+          </div>
+
+          {posts.length === 0 ? (
+            <div className="empty-state">
+              <span className="empty-index">01</span>
+              <h3>最初の一枚を置いてみる</h3>
+              <p>左のフォームからタイトルと本文を書けば、ここに流れが生まれます。</p>
+            </div>
+          ) : (
+            <div className="post-list">
+              {posts.map((post, index) => (
+                <Link to={`/board/${post.id}`} className="post-card" key={post.id}>
+                  <span className="post-number">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="post-card-main">
+                    <span className="post-card-meta">
+                      <span>{post.author?.username ?? "unknown"}</span>
+                      <span>{formatDate(post.createdAt)}</span>
+                    </span>
+                    <strong className="post-card-title">{post.title}</strong>
+                    <span className="post-card-footer">
+                      <span>OPEN THREAD</span>
+                      <span className="post-arrow" aria-hidden="true">↗</span>
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
