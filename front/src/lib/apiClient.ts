@@ -5,6 +5,21 @@ export const api = Axios.create({
   baseURL: "",
 });
 
+const TOKEN_KEY = "threadly.access-token";
+
+api.interceptors.request.use((config) => {
+  const token =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem(TOKEN_KEY)
+      : null;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -12,8 +27,12 @@ api.interceptors.response.use(
       return Promise.reject(new Error("レスポンスがありません。"));
     }
     const message =
-      error.response.data?.message || `Error: ${error.response.status}`;
-    return Promise.reject(new Error(message));
+      error.response.data?.error ||
+      error.response.data?.message ||
+      `Error: ${error.response.status}`;
+    const normalizedError = new Error(message) as Error & { status?: number };
+    normalizedError.status = error.response.status;
+    return Promise.reject(normalizedError);
   },
 );
 
