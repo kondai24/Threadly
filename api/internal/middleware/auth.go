@@ -17,8 +17,8 @@ const userIDContextKey contextKey = iota
 
 func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		scheme, rawToken, ok := strings.Cut(c.GetHeader("Authorization"), " ")
-		if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(rawToken) == "" {
+		rawToken, ok := sessionToken(c)
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
@@ -34,6 +34,20 @@ func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 		c.Request = c.Request.WithContext(requestContext)
 		c.Next()
 	}
+}
+
+func sessionToken(c *gin.Context) (string, bool) {
+	if cookie, err := c.Request.Cookie(SessionCookieName); err == nil {
+		return strings.TrimSpace(cookie.Value), true
+	}
+
+	// Bearer remains supported for CLI and existing API clients while browser
+	// sessions use the HttpOnly cookie above.
+	scheme, rawToken, ok := strings.Cut(c.GetHeader("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return "", false
+	}
+	return strings.TrimSpace(rawToken), strings.TrimSpace(rawToken) != ""
 }
 
 func UserIDFromContext(ctx context.Context) (uint, bool) {

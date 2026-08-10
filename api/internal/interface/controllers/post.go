@@ -58,7 +58,7 @@ func NewPostController(service *services.PostService) *PostController {
 // @Description Get all posts visible to the authenticated user.
 // @Tags posts
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Success 200 {array} postListResponse
 // @Failure 401 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
@@ -81,7 +81,7 @@ func (pc *PostController) ListPostsHandler(c *gin.Context) {
 // @Description Get a post by ID when it is visible to the authenticated user.
 // @Tags posts
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param id path int true "Post ID"
 // @Success 200 {object} postDetailResponse
 // @Failure 400 {object} map[string]interface{}
@@ -109,7 +109,7 @@ func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
 // @Tags posts
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param request body CreatePostRequest true "Create post payload"
 // @Success 201
 // @Failure 400 {object} map[string]interface{}
@@ -142,7 +142,7 @@ func (pc *PostController) CreatePostHandler(c *gin.Context) {
 // @Tags posts
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param id path int true "Post ID"
 // @Param request body UpdatePostRequest true "Update post payload"
 // @Success 200
@@ -197,7 +197,7 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 // @Description Delete a post when it is owned by the authenticated user.
 // @Tags posts
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param id path int true "Post ID"
 // @Success 204
 // @Failure 400 {object} map[string]interface{}

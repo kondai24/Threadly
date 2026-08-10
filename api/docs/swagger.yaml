@@ -18,8 +18,6 @@ definitions:
     type: object
   internal_interface_controllers.authResponse:
     properties:
-      token:
-        type: string
       user:
         $ref: '#/definitions/internal_interface_controllers.userResponse'
     type: object
@@ -88,8 +86,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Authenticate with a username and password, then issue a JWT access
-        token.
+      description: Authenticate with a username and password, then set an authenticated
+        session cookie.
       parameters:
       - description: Login credentials
         in: body
@@ -122,12 +120,21 @@ paths:
       summary: Login
       tags:
       - auth
+  /api/auth/logout:
+    post:
+      description: Clear the authenticated session cookie.
+      responses:
+        "204":
+          description: No Content
+      summary: Logout
+      tags:
+      - auth
   /api/auth/register:
     post:
       consumes:
       - application/json
-      description: Create a user with a username and password, then issue a JWT access
-        token.
+      description: Create a user with a username and password, then set an authenticated
+        session cookie.
       parameters:
       - description: Registration credentials
         in: body
@@ -162,7 +169,7 @@ paths:
       - auth
   /api/me:
     get:
-      description: Return the user represented by the Bearer JWT.
+      description: Return the user represented by the authenticated session cookie.
       produces:
       - application/json
       responses:
@@ -186,7 +193,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Get current user
       tags:
       - auth
@@ -213,7 +220,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: List posts
       tags:
       - posts
@@ -249,7 +256,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Create post
       tags:
       - posts
@@ -288,7 +295,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Delete current user's post
       tags:
       - posts
@@ -328,7 +335,7 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Get post by ID
       tags:
       - posts
@@ -374,14 +381,14 @@ paths:
             additionalProperties: true
             type: object
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Update current user's post
       tags:
       - posts
 securityDefinitions:
-  BearerAuth:
-    description: Enter `Bearer <JWT>`.
+  SessionCookie:
+    description: HttpOnly, Secure, SameSite session cookie.
     in: header
-    name: Authorization
+    name: Cookie
     type: apiKey
 swagger: "2.0"

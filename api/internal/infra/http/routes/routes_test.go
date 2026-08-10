@@ -15,6 +15,7 @@ import (
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
 	"Threadly/internal/interface/controllers"
+	"Threadly/internal/middleware"
 	"Threadly/internal/usecase/services"
 
 	"github.com/gin-gonic/gin"
@@ -211,12 +212,12 @@ type routeUserResponse struct {
 }
 
 type routeAuthResponse struct {
-	User  routeUserResponse `json:"user"`
-	Token string            `json:"token"`
+	User routeUserResponse `json:"user"`
 }
 
 func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	t.Setenv("COOKIE_SECURE", "true")
 	router := newTestRouter(newRoutePostRepository())
 	credentials := `{"username":"alice","password":"password"}`
 
@@ -237,11 +238,16 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	if registered.User.ID != 1 || registered.User.Username != "alice" {
 		t.Fatalf("registered user = %+v, want alice with ID 1", registered.User)
 	}
-	if registered.Token == "" {
-		t.Fatal("register token is empty")
+	registerCookie := sessionCookie(t, registerResponse)
+	if !registerCookie.HttpOnly || !registerCookie.Secure || registerCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("session cookie attributes = %+v, want HttpOnly, Secure, SameSite=Lax", registerCookie)
+	}
+	if registerCookie.Path != "/" || registerCookie.Name != middleware.SessionCookieName {
+		t.Fatalf("session cookie = %+v, want __Host- cookie with Path=/", registerCookie)
 	}
 	if strings.Contains(registerResponse.Body.String(), "password") ||
-		strings.Contains(registerResponse.Body.String(), "hash") {
+		strings.Contains(registerResponse.Body.String(), "hash") ||
+		strings.Contains(registerResponse.Body.String(), "token") {
 		t.Fatalf("register response exposes password data: %s", registerResponse.Body.String())
 	}
 
@@ -262,11 +268,12 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	if loggedIn.User != registered.User {
 		t.Fatalf("login user = %+v, want %+v", loggedIn.User, registered.User)
 	}
-	if loggedIn.Token == "" {
-		t.Fatal("login token is empty")
+	loginCookie := sessionCookie(t, loginResponse)
+	if loginCookie.Value == "" {
+		t.Fatal("login session cookie is empty")
 	}
 
-	meResponse := performRequest(router, http.MethodGet, "/api/me", loggedIn.Token, "")
+	meResponse := performCookieRequest(router, http.MethodGet, "/api/me", loginCookie, "")
 	if meResponse.Code != http.StatusOK {
 		t.Fatalf("me status = %d, want 200", meResponse.Code)
 	}
@@ -276,6 +283,15 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	}
 	if currentUser != registered.User {
 		t.Fatalf("current user = %+v, want %+v", currentUser, registered.User)
+	}
+
+	logoutResponse := performCookieRequest(router, http.MethodPost, "/api/auth/logout", loginCookie, "")
+	if logoutResponse.Code != http.StatusNoContent {
+		t.Fatalf("logout status = %d, want 204", logoutResponse.Code)
+	}
+	logoutCookie := sessionCookie(t, logoutResponse)
+	if logoutCookie.MaxAge >= 0 || !logoutCookie.HttpOnly || !logoutCookie.Secure || logoutCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("logout cookie = %+v, want expired secure session cookie", logoutCookie)
 	}
 }
 
@@ -404,4 +420,34 @@ func performRequest(
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	return response
+}
+
+func performCookieRequest(
+	router http.Handler,
+	method string,
+	path string,
+	cookie *http.Cookie,
+	body string,
+) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if cookie != nil {
+		request.AddCookie(cookie)
+	}
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	return response
+}
+
+func sessionCookie(t *testing.T, response *httptest.ResponseRecorder) *http.Cookie {
+	t.Helper()
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == middleware.SessionCookieName {
+			return cookie
+		}
+	}
+	t.Fatalf("session cookie %q is missing from response", middleware.SessionCookieName)
+	return nil
 }

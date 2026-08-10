@@ -28,6 +28,7 @@ func TestRequireAuth(t *testing.T) {
 	tests := []struct {
 		name          string
 		authorization string
+		cookie        string
 		issuer        tokenIssuerStub
 		wantStatus    int
 		wantUserID    uint
@@ -55,6 +56,13 @@ func TestRequireAuth(t *testing.T) {
 			wantStatus:    http.StatusOK,
 			wantUserID:    7,
 		},
+		{
+			name:       "正しいsession cookie",
+			cookie:     "token",
+			issuer:     tokenIssuerStub{userID: 8},
+			wantStatus: http.StatusOK,
+			wantUserID: 8,
+		},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +79,9 @@ func TestRequireAuth(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.authorization != "" {
 				request.Header.Set("Authorization", tt.authorization)
+			}
+			if tt.cookie != "" {
+				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: tt.cookie})
 			}
 			response := httptest.NewRecorder()
 
