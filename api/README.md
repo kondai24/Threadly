@@ -62,9 +62,12 @@ go test -race ./...
 go vet ./...
 ```
 
-`UserRepository` のIntegration testは、既存の開発用DBとは分離したテスト用MySQLを用意し、DSNを指定して実行します。
+Integration testは、既存の開発用DBとは分離した `test-db` を起動し、DSNを指定して実行します。
 
 ```sh
-export TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3306)/threadly_test?parseTime=True'
-go test -tags=integration ./internal/infra/database/repositories
+docker compose up -d test-db
+export TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3307)/threadly_test?parseTime=True'
+go test -tags=integration ./internal/infra/database ./internal/infra/database/repositories
 ```
+
+Integration testが触るのは専用の `threadly_test` DBだけです。User/PostのAutoMigrateはschemaへ反映されますが、テストデータの変更はtransactionをrollbackし、開発用の `go_post` DBやそのvolumeは削除しません。
