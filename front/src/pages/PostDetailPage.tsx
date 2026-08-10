@@ -8,6 +8,11 @@ export default function PostDetailPage() {
     return <Navigate to="/board" replace />;
   }
 
+  return <PostDetailContent postId={postId} />;
+}
+
+function PostDetailContent({ postId }: { postId: number }) {
+
   const { data: post } = useGetApiPostsIdSuspense(postId);
 
   const formatDate = (dateStr?: string) => {
