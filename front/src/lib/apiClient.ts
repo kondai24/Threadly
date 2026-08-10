@@ -3,21 +3,7 @@ import type { AxiosRequestConfig } from "axios";
 
 export const api = Axios.create({
   baseURL: "",
-});
-
-const TOKEN_KEY = "threadly.access-token";
-
-api.interceptors.request.use((config) => {
-  const token =
-    typeof window !== "undefined"
-      ? window.localStorage.getItem(TOKEN_KEY)
-      : null;
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
-  return config;
+  withCredentials: true,
 });
 
 api.interceptors.response.use(

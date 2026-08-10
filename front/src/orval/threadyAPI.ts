@@ -64,7 +64,7 @@ import { customInstance } from "../lib/apiClient";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Authenticate with a username and password, then issue a JWT access token.
+ * Authenticate with a username and password, then set an authenticated session cookie.
  * @summary Login
  */
 export const getPostApiAuthLoginUrl = () => {
@@ -161,7 +161,89 @@ export const usePostApiAuthLogin = <
 };
 
 /**
- * Create a user with a username and password, then issue a JWT access token.
+ * Clear the authenticated session cookie.
+ * @summary Logout
+ */
+export const getPostApiAuthLogoutUrl = () => {
+  return `/api/auth/logout`;
+};
+
+export const postApiAuthLogout = async (
+  options?: RequestInit,
+): Promise<void> => {
+  return customInstance<void>(getPostApiAuthLogoutUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostApiAuthLogoutMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiAuthLogout>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiAuthLogout>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["postApiAuthLogout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiAuthLogout>>,
+    void
+  > = () => {
+    return postApiAuthLogout(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostApiAuthLogoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiAuthLogout>>
+>;
+
+export type PostApiAuthLogoutMutationError = unknown;
+
+/**
+ * @summary Logout
+ */
+export const usePostApiAuthLogout = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiAuthLogout>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiAuthLogout>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getPostApiAuthLogoutMutationOptions(options), queryClient);
+};
+
+/**
+ * Create a user with a username and password, then set an authenticated session cookie.
  * @summary Register a user
  */
 export const getPostApiAuthRegisterUrl = () => {
@@ -267,7 +349,7 @@ export const usePostApiAuthRegister = <
 };
 
 /**
- * Return the user represented by the Bearer JWT.
+ * Return the user represented by the authenticated session cookie.
  * @summary Get current user
  */
 export const getGetApiMeUrl = () => {

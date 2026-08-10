@@ -5,43 +5,26 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getApiMe } from "../orval/threadyAPI";
+import { getApiMe, postApiAuthLogout } from "../orval/threadyAPI";
 import type { InternalInterfaceControllersAuthResponse } from "../orval/threadyAPI.schemas";
 import { AuthContext, type AuthContextValue } from "./auth-context";
 
-const TOKEN_KEY = "threadly.access-token";
-
-function readToken() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
-}
-
-function removeToken() {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(TOKEN_KEY);
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(readToken);
   const [user, setUser] = useState<AuthContextValue["user"]>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(readToken()));
+  const [isLoading, setIsLoading] = useState(true);
+
+  const clearSession = useCallback(() => {
+    setUser(null);
+  }, []);
 
   const signOut = useCallback(() => {
-    removeToken();
-    setToken(null);
-    setUser(null);
+    void postApiAuthLogout().catch(() => undefined);
+    clearSession();
     setIsLoading(false);
-  }, []);
+  }, [clearSession]);
 
   useEffect(() => {
     let isCurrent = true;
-
-    if (!token) {
-      return () => {
-        isCurrent = false;
-      };
-    }
 
     getApiMe()
       .then((me) => {
@@ -50,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!isCurrent) return;
-        signOut();
+        clearSession();
       })
       .finally(() => {
         if (isCurrent) setIsLoading(false);
@@ -59,13 +42,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isCurrent = false;
     };
-  }, [signOut, token]);
+  }, [clearSession]);
 
   const setSession = useCallback(
     (response: InternalInterfaceControllersAuthResponse) => {
-      if (!response.token) return;
-      window.localStorage.setItem(TOKEN_KEY, response.token);
-      setToken(response.token);
       setUser(response.user ?? null);
       setIsLoading(false);
     },
@@ -75,13 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       isLoading,
-      isAuthenticated: Boolean(token && user),
-      token,
+      isAuthenticated: Boolean(user),
       user,
       setSession,
       signOut,
     }),
-    [isLoading, setSession, signOut, token, user],
+    [isLoading, setSession, signOut, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

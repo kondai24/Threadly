@@ -23,7 +23,6 @@ export interface InternalInterfaceControllersUserResponse {
 }
 
 export interface InternalInterfaceControllersAuthResponse {
-  token?: string;
   user?: InternalInterfaceControllersUserResponse;
 }
 

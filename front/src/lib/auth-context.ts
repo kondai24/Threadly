@@ -7,13 +7,14 @@ import type {
 export type AuthContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
-  token: string | null;
   user: InternalInterfaceControllersUserResponse | null;
   setSession: (response: InternalInterfaceControllersAuthResponse) => void;
   signOut: () => void;
 };
 
-export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+export const AuthContext = createContext<AuthContextValue | undefined>(
+  undefined,
+);
 
 export function useAuth() {
   const value = useContext(AuthContext);
