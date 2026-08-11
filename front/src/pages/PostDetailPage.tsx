@@ -25,6 +25,7 @@ export default function PostDetailPage() {
 
   return <PostDetailContent postId={postId} />;
 }
+
 function PostDetailContent({ postId }: { postId: number }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,9 +48,7 @@ function PostDetailContent({ postId }: { postId: number }) {
       { id: postId, data: { title: title.trim(), content: content.trim() } },
       {
         onSuccess: async () => {
-          await queryClient.invalidateQueries({
-            queryKey: getGetApiPostsIdQueryKey(postId),
-          });
+          await queryClient.invalidateQueries({ queryKey: getGetApiPostsIdQueryKey(postId) });
           await queryClient.invalidateQueries({ queryKey: getGetApiPostsQueryKey() });
           setIsEditing(false);
         },
@@ -75,89 +74,85 @@ function PostDetailContent({ postId }: { postId: number }) {
   };
 
   return (
-    <div className="detail-page">
-      <Link to="/board" className="back-link">
-        <span aria-hidden="true">←</span> ボードへ戻る
+    <div>
+      <Link
+        to="/board"
+        className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-[#8b8b9e] no-underline outline-none transition-colors hover:text-[#6c63ff] focus-visible:ring-2 focus-visible:ring-[#6c63ff]/50"
+      >
+        ← ボードへ戻る
       </Link>
 
-      <div className="detail-grid">
-        <article className="detail-paper">
-          <div className="detail-meta">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <article className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6 sm:p-10">
+          <div className="mb-8 flex flex-wrap justify-between gap-3 border-b border-white/[0.08] pb-4 text-xs uppercase tracking-[0.12em] text-[#5a5a6e]">
             <span>POST / {String(post.id).padStart(4, "0")}</span>
             <span>{post.author?.username ?? "unknown"}</span>
           </div>
           {isEditing ? (
-            <form className="edit-form" onSubmit={handleUpdate}>
-              <label className="field">
-                <span className="field-label">タイトル</span>
+            <form className="space-y-5" onSubmit={handleUpdate}>
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-[#8b8b9e]">タイトル</span>
                 <input
-                  className="text-input detail-title-input"
+                  className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm text-[#f0f0f5] outline-none transition-all focus:border-[#6c63ff] focus:ring-[3px] focus:ring-[#6c63ff]/25"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   maxLength={200}
                   required
                 />
               </label>
-              <label className="field">
-                <span className="field-label">本文</span>
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-[#8b8b9e]">本文</span>
                 <textarea
-                  className="text-input text-area detail-content-input"
+                  className="min-h-48 w-full resize-y rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm leading-[1.7] text-[#f0f0f5] outline-none transition-all focus:border-[#6c63ff] focus:ring-[3px] focus:ring-[#6c63ff]/25"
                   value={content}
                   onChange={(event) => setContent(event.target.value)}
                   required
                 />
               </label>
-              {error && <p className="form-error" role="alert">{error}</p>}
-              <div className="detail-actions">
+              {error && <p className="text-sm text-[#f87171]" role="alert">{error}</p>}
+              <div className="flex flex-wrap justify-end gap-3">
                 <button
-                  className="button button-secondary"
+                  className="inline-flex items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] px-5 py-3 text-sm font-semibold text-[#f0f0f5] transition-colors hover:bg-white/[0.1]"
                   type="button"
                   onClick={() => setIsEditing(false)}
                 >
                   キャンセル
                 </button>
-                <button className="button button-primary" type="submit" disabled={updatePost.isPending}>
-                  {updatePost.isPending ? "保存中…" : "変更を保存"} <span aria-hidden="true">↗</span>
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#6c63ff] to-[#8b7bff] px-5 py-3 text-sm font-semibold text-white shadow-[0_4px_20px_rgba(108,99,255,0.25)] disabled:cursor-not-allowed disabled:opacity-50"
+                  type="submit"
+                  disabled={updatePost.isPending}
+                >
+                  {updatePost.isPending ? "保存中…" : "変更を保存"} ↗
                 </button>
               </div>
             </form>
           ) : (
             <>
-              <h1 className="detail-title">{post.title}</h1>
-              <div className="detail-content">{post.content}</div>
-              <div className="detail-paper-footer">
+              <h1 className="text-3xl font-extrabold leading-[1.25] tracking-[-0.03em] sm:text-4xl">{post.title}</h1>
+              <div className="mt-8 whitespace-pre-wrap break-words text-base leading-[1.9] text-[#c7c7d0]">{post.content}</div>
+              <div className="mt-10 flex flex-wrap gap-4 border-t border-white/[0.08] pt-4 text-xs text-[#5a5a6e]">
                 <span>Created {formatLongDate(post.createdAt)}</span>
-                {post.updatedAt && post.updatedAt !== post.createdAt && (
-                  <span>Updated {formatLongDate(post.updatedAt)}</span>
-                )}
+                {post.updatedAt && post.updatedAt !== post.createdAt && <span>Updated {formatLongDate(post.updatedAt)}</span>}
               </div>
             </>
           )}
         </article>
 
-        <aside className="detail-aside">
-          <div className="detail-aside-block">
-            <span className="card-label">Thread note</span>
-            <p>投稿は、あとから戻ってこられる小さな入口です。</p>
+        <aside className="space-y-5">
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6">
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#6c63ff]">Thread note</span>
+            <p className="mt-4 text-sm leading-[1.7] text-[#8b8b9e]">投稿は、あとから戻ってこられる小さな入口です。</p>
           </div>
-          <div className="fact-list">
-            <div className="fact-row">
-              <span className="fact-label">AUTHOR</span>
-              <strong>{post.author?.username ?? "unknown"}</strong>
-            </div>
-            <div className="fact-row">
-              <span className="fact-label">ACCESS</span>
-              <strong>READ ALL · WRITE OWNER</strong>
-            </div>
-            <div className="fact-row">
-              <span className="fact-label">ENDPOINT</span>
-              <strong>/api/posts/{postId}</strong>
-            </div>
+          <div className="divide-y divide-white/[0.08] rounded-2xl border border-white/[0.08] bg-white/[0.04] px-5">
+            <div className="flex justify-between gap-3 py-4 text-xs"><span className="text-[#5a5a6e]">AUTHOR</span><strong>{post.author?.username ?? "unknown"}</strong></div>
+            <div className="flex justify-between gap-3 py-4 text-xs"><span className="text-[#5a5a6e]">ACCESS</span><strong className="text-right">READ ALL · WRITE OWNER</strong></div>
+            <div className="flex justify-between gap-3 py-4 text-xs"><span className="text-[#5a5a6e]">ENDPOINT</span><strong>/api/posts/{postId}</strong></div>
           </div>
           {isOwner && !isEditing && (
-            <div className="detail-aside-actions">
+            <div className="space-y-3">
               <button
-                className="button button-secondary button-wide"
+                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.06] px-5 py-3 text-sm font-semibold text-[#f0f0f5] transition-colors hover:bg-white/[0.1]"
                 type="button"
                 onClick={() => {
                   setTitle(post.title ?? "");
@@ -167,12 +162,12 @@ function PostDetailContent({ postId }: { postId: number }) {
               >
                 投稿を編集
               </button>
-              <button className="button-text danger-link" type="button" onClick={handleDelete} disabled={deletePost.isPending}>
+              <button className="w-full text-xs text-[#f87171] transition-opacity hover:opacity-80 disabled:opacity-50" type="button" onClick={handleDelete} disabled={deletePost.isPending}>
                 {deletePost.isPending ? "削除中…" : "この投稿を削除する"}
               </button>
             </div>
           )}
-          {error && !isEditing && <p className="form-error" role="alert">{error}</p>}
+          {error && !isEditing && <p className="text-sm text-[#f87171]" role="alert">{error}</p>}
         </aside>
       </div>
     </div>
