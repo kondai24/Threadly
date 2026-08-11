@@ -295,7 +295,7 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	}
 }
 
-func TestSetupRouter_ProtectedRoutesRequireToken(t *testing.T) {
+func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestRouter(newRoutePostRepository())
 	tests := []struct {
@@ -407,15 +407,18 @@ func performRequest(
 	router http.Handler,
 	method string,
 	path string,
-	token string,
+	cookieValue string,
 	body string,
 ) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(method, path, strings.NewReader(body))
 	if body != "" {
 		request.Header.Set("Content-Type", "application/json")
 	}
-	if token != "" {
-		request.Header.Set("Authorization", "Bearer "+token)
+	if cookieValue != "" {
+		request.AddCookie(&http.Cookie{
+			Name:  middleware.SessionCookieName,
+			Value: cookieValue,
+		})
 	}
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)

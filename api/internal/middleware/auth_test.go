@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"Threadly/internal/usecase/services"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,23 +36,10 @@ func TestRequireAuth(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:          "Bearer以外のscheme",
-			authorization: "Basic token",
+			name:          "Authorizationヘッダーを拒否する",
+			authorization: "Bearer token",
 			issuer:        tokenIssuerStub{userID: 7},
 			wantStatus:    http.StatusUnauthorized,
-		},
-		{
-			name:          "tokenが不正",
-			authorization: "Bearer invalid",
-			issuer:        tokenIssuerStub{err: services.ErrInvalidToken},
-			wantStatus:    http.StatusUnauthorized,
-		},
-		{
-			name:          "正しいBearer token",
-			authorization: "bearer token",
-			issuer:        tokenIssuerStub{userID: 7},
-			wantStatus:    http.StatusOK,
-			wantUserID:    7,
 		},
 		{
 			name:       "正しいsession cookie",

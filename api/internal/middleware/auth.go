@@ -23,7 +23,7 @@ func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 			return
 		}
 
-		userID, err := tokenIssuer.Parse(strings.TrimSpace(rawToken))
+		userID, err := tokenIssuer.Parse(rawToken)
 		if err != nil || userID == 0 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
@@ -41,13 +41,7 @@ func sessionToken(c *gin.Context) (string, bool) {
 		return strings.TrimSpace(cookie.Value), true
 	}
 
-	// Bearer remains supported for CLI and existing API clients while browser
-	// sessions use the HttpOnly cookie above.
-	scheme, rawToken, ok := strings.Cut(c.GetHeader("Authorization"), " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", false
-	}
-	return strings.TrimSpace(rawToken), strings.TrimSpace(rawToken) != ""
+	return "", false
 }
 
 func UserIDFromContext(ctx context.Context) (uint, bool) {
