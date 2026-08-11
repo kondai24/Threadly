@@ -17,13 +17,13 @@ const userIDContextKey contextKey = iota
 
 func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		scheme, rawToken, ok := strings.Cut(c.GetHeader("Authorization"), " ")
-		if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(rawToken) == "" {
+		rawToken, ok := sessionToken(c)
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 
-		userID, err := tokenIssuer.Parse(strings.TrimSpace(rawToken))
+		userID, err := tokenIssuer.Parse(rawToken)
 		if err != nil || userID == 0 {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
@@ -34,6 +34,14 @@ func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 		c.Request = c.Request.WithContext(requestContext)
 		c.Next()
 	}
+}
+
+func sessionToken(c *gin.Context) (string, bool) {
+	if cookie, err := c.Request.Cookie(SessionCookieName); err == nil {
+		return strings.TrimSpace(cookie.Value), true
+	}
+
+	return "", false
 }
 
 func UserIDFromContext(ctx context.Context) (uint, bool) {

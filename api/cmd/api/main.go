@@ -11,10 +11,10 @@ import (
 // @title Thready API
 // @version 1.0
 // @description Threadly learning API with username/password authentication and authenticated post browsing.
-// @securityDefinitions.apikey BearerAuth
+// @securityDefinitions.apikey SessionCookie
 // @in header
-// @name Authorization
-// @description Enter `Bearer <JWT>`.
+// @name Cookie
+// @description HttpOnly, Secure, SameSite session cookie.
 func main() {
 	// 環境変数ファイルを読み込む。
 	_ = godotenv.Load()

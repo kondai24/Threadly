@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/api/auth/login": {
             "post": {
-                "description": "Authenticate with a username and password, then issue a JWT access token.",
+                "description": "Authenticate with a username and password, then set an authenticated session cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -70,9 +70,23 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/auth/logout": {
+            "post": {
+                "description": "Clear the authenticated session cookie.",
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/auth/register": {
             "post": {
-                "description": "Create a user with a username and password, then issue a JWT access token.",
+                "description": "Create a user with a username and password, then set an authenticated session cookie.",
                 "consumes": [
                     "application/json"
                 ],
@@ -129,10 +143,10 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
-                "description": "Return the user represented by the Bearer JWT.",
+                "description": "Return the user represented by the authenticated session cookie.",
                 "produces": [
                     "application/json"
                 ],
@@ -175,7 +189,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "description": "Get all posts visible to the authenticated user.",
@@ -215,7 +229,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "description": "Create a post owned by the authenticated user.",
@@ -272,7 +286,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "description": "Get a post by ID when it is visible to the authenticated user.",
@@ -332,7 +346,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "description": "Update a post when it is owned by the authenticated user.",
@@ -401,7 +415,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "description": "Delete a post when it is owned by the authenticated user.",
@@ -487,9 +501,6 @@ const docTemplate = `{
         "internal_interface_controllers.authResponse": {
             "type": "object",
             "properties": {
-                "token": {
-                    "type": "string"
-                },
                 "user": {
                     "$ref": "#/definitions/internal_interface_controllers.userResponse"
                 }
@@ -580,10 +591,10 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
-        "BearerAuth": {
-            "description": "Enter ` + "`" + `Bearer \u003cJWT\u003e` + "`" + `.",
+        "SessionCookie": {
+            "description": "HttpOnly, Secure, SameSite session cookie.",
             "type": "apiKey",
-            "name": "Authorization",
+            "name": "Cookie",
             "in": "header"
         }
     }

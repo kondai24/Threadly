@@ -30,8 +30,7 @@ type userResponse struct {
 }
 
 type authResponse struct {
-	User  userResponse `json:"user"`
-	Token string       `json:"token"`
+	User userResponse `json:"user"`
 }
 
 func NewAuthController(service *services.AuthService) *AuthController {
@@ -40,7 +39,7 @@ func NewAuthController(service *services.AuthService) *AuthController {
 
 // RegisterHandler godoc
 // @Summary Register a user
-// @Description Create a user with a username and password, then issue a JWT access token.
+// @Description Create a user with a username and password, then set an authenticated session cookie.
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -62,15 +61,15 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 		writeAuthError(c, err)
 		return
 	}
+	http.SetCookie(c.Writer, middleware.NewSessionCookie(token))
 	c.JSON(http.StatusCreated, authResponse{
-		User:  toUserResponse(user),
-		Token: token,
+		User: toUserResponse(user),
 	})
 }
 
 // LoginHandler godoc
 // @Summary Login
-// @Description Authenticate with a username and password, then issue a JWT access token.
+// @Description Authenticate with a username and password, then set an authenticated session cookie.
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -92,18 +91,29 @@ func (ac *AuthController) LoginHandler(c *gin.Context) {
 		writeAuthError(c, err)
 		return
 	}
+	http.SetCookie(c.Writer, middleware.NewSessionCookie(token))
 	c.JSON(http.StatusOK, authResponse{
-		User:  toUserResponse(user),
-		Token: token,
+		User: toUserResponse(user),
 	})
+}
+
+// LogoutHandler godoc
+// @Summary Logout
+// @Description Clear the authenticated session cookie.
+// @Tags auth
+// @Success 204
+// @Router /api/auth/logout [post]
+func (ac *AuthController) LogoutHandler(c *gin.Context) {
+	http.SetCookie(c.Writer, middleware.NewExpiredSessionCookie())
+	c.Status(http.StatusNoContent)
 }
 
 // MeHandler godoc
 // @Summary Get current user
-// @Description Return the user represented by the Bearer JWT.
+// @Description Return the user represented by the authenticated session cookie.
 // @Tags auth
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Success 200 {object} userResponse
 // @Failure 401 {object} map[string]interface{}
 // @Failure 404 {object} map[string]interface{}

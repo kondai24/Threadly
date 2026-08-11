@@ -22,31 +22,37 @@ go run ./cmd/api
 
 ## 認証
 
-パスワードは Argon2id でハッシュ化して保存します。登録またはログインが成功すると、1時間有効な Bearer JWT が返ります。
+パスワードは Argon2id でハッシュ化して保存します。登録またはログインが成功すると、1時間有効な `HttpOnly; Secure; SameSite=Lax` セッションCookieが設定されます。JWT本体はレスポンスボディやブラウザJavaScriptへ返しません。
 
 ```sh
 curl -X POST http://localhost:8080/api/auth/register \
   -H 'Content-Type: application/json' \
+  -c threadly.cookies \
   -d '{"username":"alice","password":"correct-horse-battery"}'
 
 curl -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
+  -c threadly.cookies \
   -d '{"username":"alice","password":"correct-horse-battery"}'
 ```
 
-以降の `/api/me` と `/api/posts` へのアクセスでは、レスポンスの `token` を使用します。
+以降の `/api/me` と `/api/posts` へのアクセスでは、Cookie jarを使用します。
 
 ```sh
-export TOKEN='ログインで返されたJWT'
-
 curl http://localhost:8080/api/me \
-  -H "Authorization: Bearer ${TOKEN}"
+  -b threadly.cookies
 
 curl -X POST http://localhost:8080/api/posts \
-  -H "Authorization: Bearer ${TOKEN}" \
+  -b threadly.cookies \
   -H 'Content-Type: application/json' \
   -d '{"title":"hello","content":"world"}'
+
+curl -X POST http://localhost:8080/api/auth/logout \
+  -b threadly.cookies \
+  -c threadly.cookies
 ```
+
+`Secure` CookieはHTTPS接続でのみ送信されます。HTTPでローカル開発する場合だけは `COOKIE_SECURE=false` を設定し、本番環境では必ず `true` のままにしてください。
 
 Post の一覧取得・詳細取得は、JWTで認証されたUserが全Postを閲覧できます。作成時の投稿者はJWTのUser IDから設定され、更新・削除は投稿者本人に限定されます。レスポンスには公開User情報として `author.id` と `author.username` を含めます。`authorId` はリクエストから受け取りません。
 

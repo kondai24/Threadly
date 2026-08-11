@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"Threadly/internal/usecase/services"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,6 +26,7 @@ func TestRequireAuth(t *testing.T) {
 	tests := []struct {
 		name          string
 		authorization string
+		cookie        string
 		issuer        tokenIssuerStub
 		wantStatus    int
 		wantUserID    uint
@@ -37,23 +36,17 @@ func TestRequireAuth(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:          "Bearer以外のscheme",
-			authorization: "Basic token",
+			name:          "Authorizationヘッダーを拒否する",
+			authorization: "Bearer token",
 			issuer:        tokenIssuerStub{userID: 7},
 			wantStatus:    http.StatusUnauthorized,
 		},
 		{
-			name:          "tokenが不正",
-			authorization: "Bearer invalid",
-			issuer:        tokenIssuerStub{err: services.ErrInvalidToken},
-			wantStatus:    http.StatusUnauthorized,
-		},
-		{
-			name:          "正しいBearer token",
-			authorization: "bearer token",
-			issuer:        tokenIssuerStub{userID: 7},
-			wantStatus:    http.StatusOK,
-			wantUserID:    7,
+			name:       "正しいsession cookie",
+			cookie:     "token",
+			issuer:     tokenIssuerStub{userID: 8},
+			wantStatus: http.StatusOK,
+			wantUserID: 8,
 		},
 	}
 
@@ -71,6 +64,9 @@ func TestRequireAuth(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.authorization != "" {
 				request.Header.Set("Authorization", tt.authorization)
+			}
+			if tt.cookie != "" {
+				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: tt.cookie})
 			}
 			response := httptest.NewRecorder()
 
