@@ -26,18 +26,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isCurrent = true;
 
-    getApiMe()
-      .then((me) => {
+    const loadUser = async () => {
+      try {
+        const me = await getApiMe();
+
         if (!isCurrent) return;
+
         setUser(me);
-      })
-      .catch(() => {
+      } catch {
         if (!isCurrent) return;
+
         clearSession();
-      })
-      .finally(() => {
-        if (isCurrent) setIsLoading(false);
-      });
+      } finally {
+        if (isCurrent) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadUser();
 
     return () => {
       isCurrent = false;
