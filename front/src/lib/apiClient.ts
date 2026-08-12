@@ -3,6 +3,7 @@ import type { AxiosRequestConfig } from "axios";
 
 export const api = Axios.create({
   baseURL: "",
+  withCredentials: true,
 });
 
 api.interceptors.response.use(
@@ -12,8 +13,12 @@ api.interceptors.response.use(
       return Promise.reject(new Error("レスポンスがありません。"));
     }
     const message =
-      error.response.data?.message || `Error: ${error.response.status}`;
-    return Promise.reject(new Error(message));
+      error.response.data?.error ||
+      error.response.data?.message ||
+      `Error: ${error.response.status}`;
+    const normalizedError = new Error(message) as Error & { status?: number };
+    normalizedError.status = error.response.status;
+    return Promise.reject(normalizedError);
   },
 );
 
