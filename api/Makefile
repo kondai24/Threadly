@@ -10,8 +10,10 @@ GO_TEST := go test
 ATLAS ?= atlas
 MIGRATION_DIR := file://migrations
 DATABASE_URL ?=
+GOVULNCHECK_VERSION := v1.6.0
+GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test clean
+.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
 tools:
 	go install go.uber.org/mock/mockgen@v0.6.0
@@ -51,6 +53,9 @@ migrate-status:
 
 integration-test: migrate-apply
 	$(GO_TEST) -tags=integration ./internal/infra/database ./internal/infra/database/repositories
+
+vulncheck:
+	$(GOVULNCHECK) ./...
 
 clean:
 	rm -rf $(BIN_DIR)
