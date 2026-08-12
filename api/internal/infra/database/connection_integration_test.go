@@ -13,7 +13,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestAutoMigrate_CreatesUserAndPostSchema(t *testing.T) {
+func TestMigration_CreatesUserAndPostSchema(t *testing.T) {
 	db := openIntegrationDB(t)
 	migrator := db.Migrator()
 
@@ -23,7 +23,7 @@ func TestAutoMigrate_CreatesUserAndPostSchema(t *testing.T) {
 	require.True(t, migrator.HasConstraint(&models.Post{}, "Author"))
 }
 
-func TestAutoMigrate_EnforcesUserAndPostConstraints(t *testing.T) {
+func TestMigration_EnforcesUserAndPostConstraints(t *testing.T) {
 	t.Run("usernameのunique制約を検証する", func(t *testing.T) {
 		tx := newIntegrationTransaction(t)
 		first := &models.User{Username: "schema-user", PasswordHash: "first-hash"}
@@ -54,7 +54,6 @@ func openIntegrationDB(t *testing.T) *gorm.DB {
 	}
 	db, err := gorm.Open(mysql.Open(dsn), NewGORMConfig())
 	require.NoError(t, err)
-	require.NoError(t, autoMigrate(db))
 
 	sqlDB, err := db.DB()
 	require.NoError(t, err)

@@ -2,7 +2,7 @@
 
 ## 起動
 
-MySQL を起動したうえで、API を実行します。
+MySQLを起動し、Atlasでmigrationを適用したうえでAPIを実行します。
 
 ```sh
 cd api
@@ -14,6 +14,8 @@ export DB_HOST=127.0.0.1
 export DB_PORT=3306
 export DB=go_post
 export JWT_SECRET="32バイト以上のランダムな秘密値"
+export DATABASE_URL='mysql://root:password@127.0.0.1:3306/go_post'
+make migrate-apply
 
 go run ./cmd/api
 ```
@@ -73,7 +75,24 @@ Integration testは、既存の開発用DBとは分離した `test-db` を起動
 ```sh
 docker compose up -d test-db
 export TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3307)/threadly_test?parseTime=True'
-go test -tags=integration ./internal/infra/database ./internal/infra/database/repositories
+export DATABASE_URL='mysql://root:password@127.0.0.1:3307/threadly_test'
+make integration-test
 ```
 
-Integration testが触るのは専用の `threadly_test` DBだけです。User/PostのAutoMigrateはschemaへ反映されますが、テストデータの変更はtransactionをrollbackし、開発用の `go_post` DBやそのvolumeは削除しません。
+Integration testが触るのは専用の `threadly_test` DBだけです。`make integration-test` がAtlasのversioned migrationを適用してからテストを実行します。テストデータの変更はtransactionをrollbackし、開発用の `go_post` DBやそのvolumeは削除しません。
+
+## Migration
+
+GORMのモデルは `internal/domain/models` に定義し、DBスキーマの変更履歴は `migrations/` と `migrations/atlas.sum` で管理します。Atlasのmigrationはアプリケーション起動時には実行されません。
+
+Atlas CLIが必要です。macOSでは `brew install ariga/tap/atlas`、またはAtlas公式のインストーラーを利用してください。
+
+```sh
+# 現在のGORMモデルとの差分からmigrationを生成する
+make migrate-diff
+
+# 適用済みバージョンと保留中のmigrationを確認する
+make migrate-status
+```
+
+新しい空のDBへは `make migrate-apply` を実行して、コミット済みのmigrationを先頭から適用します。既存DB向けのbaselineや既存migrationとの互換対応はこの変更の対象外です。
