@@ -7,8 +7,13 @@ BIN_DIR := ./bin
 SWAG := go run github.com/swaggo/swag/cmd/swag@v1.16.6
 MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
 GO_TEST := go test
+ATLAS ?= atlas
+MIGRATION_DIR := file://migrations
+DATABASE_URL ?=
+GOVULNCHECK_VERSION := v1.6.0
+GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
-.PHONY: tools dev build swag test test-cover clean
+.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
 tools:
 	go install go.uber.org/mock/mockgen@v0.6.0
@@ -34,6 +39,23 @@ test:
 
 test-cover:
 	$(GO_TEST) ./... -cover
+
+migrate-diff:
+	$(ATLAS) migrate diff --env gorm
+
+migrate-apply:
+	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL must be set" >&2; exit 1)
+	$(ATLAS) migrate apply --url "$(DATABASE_URL)" --dir "$(MIGRATION_DIR)"
+
+migrate-status:
+	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL must be set" >&2; exit 1)
+	$(ATLAS) migrate status --url "$(DATABASE_URL)" --dir "$(MIGRATION_DIR)"
+
+integration-test: migrate-apply
+	$(GO_TEST) -tags=integration ./internal/infra/database ./internal/infra/database/repositories
+
+vulncheck:
+	$(GOVULNCHECK) ./...
 
 clean:
 	rm -rf $(BIN_DIR)

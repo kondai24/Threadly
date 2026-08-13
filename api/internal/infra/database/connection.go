@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"Threadly/internal/domain/models"
-
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -52,9 +50,6 @@ func ConnectionDB() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := autoMigrate(db); err != nil {
-		return nil, err
-	}
 	return db, nil
 }
 
@@ -75,8 +70,4 @@ func newGORMLogger(writer logger.Writer, slowThreshold time.Duration) logger.Int
 		ParameterizedQueries: true,
 		LogLevel:             logger.Warn,
 	})
-}
-
-func autoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.User{}, &models.Post{})
 }

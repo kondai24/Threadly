@@ -26,7 +26,6 @@ func openTestDB(t *testing.T) *gorm.DB {
 
 	db, err := gorm.Open(mysql.Open(dsn), database.NewGORMConfig())
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&models.User{}, &models.Post{}))
 
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
