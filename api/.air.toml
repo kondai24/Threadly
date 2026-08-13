@@ -6,7 +6,7 @@ env_files = [".env"]
 
 [build]
   cmd = "go build -o ./tmp/main ./cmd/api"
-  bin = "./tmp/main"
+  entrypoint = ["./tmp/main"]
   args_bin = []
   include_dir = ["cmd", "internal", "docs"]
   include_ext = ["go", "tpl", "tmpl", "html", "yaml", "yml"]

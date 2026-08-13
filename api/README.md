@@ -17,8 +17,11 @@ export JWT_SECRET="32バイト以上のランダムな秘密値"
 export DATABASE_URL='mysql://root:password@127.0.0.1:3306/go_post'
 make migrate-apply
 
-go run ./cmd/api
+make tools
+make dev
 ```
+
+`make dev` は Air を起動し、`cmd/`・`internal/`・`docs/` 配下の変更を検知すると API を再ビルド・再起動します。Air は `make tools` で Go 1.25 と互換性のある固定バージョンをインストールします。
 
 `JWT_SECRET` は必須です。HS256 の署名鍵として利用するため、32バイト以上の秘密値を設定してください。設定項目は `.env.sample` にも記載しています。
 

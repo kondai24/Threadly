@@ -12,16 +12,19 @@ MIGRATION_DIR := file://migrations
 DATABASE_URL ?=
 GOVULNCHECK_VERSION := v1.6.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+AIR_VERSION := v1.67.1
+AIR := $(shell go env GOPATH)/bin/air
 
 .PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
 tools:
 	go install go.uber.org/mock/mockgen@v0.6.0
 	go install github.com/swaggo/swag/cmd/swag@v1.16.6
-	go install github.com/air-verse/air@v1.64.5
+	go install github.com/air-verse/air@$(AIR_VERSION)
 
 dev:
-	air -c .air.toml
+	@test -x "$(AIR)" || (echo "Air is not installed. Run 'make tools' first." >&2; exit 1)
+	$(AIR) -c .air.toml
 
 build:
 	mkdir -p $(BIN_DIR)
