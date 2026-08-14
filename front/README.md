@@ -1,5 +1,11 @@
 # React + TypeScript + Vite
 
+## Development setup
+
+- Node.js `22.18.0` or later（ローカル開発では `.node-version` の `22.22.2` を使用）
+- npm `10.9.0` or later
+- 依存関係のインストール: `npm ci`
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
