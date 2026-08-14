@@ -27,7 +27,7 @@ make dev
 
 ## 認証
 
-パスワードは Argon2id でハッシュ化して保存します。登録またはログインが成功すると、1時間有効な `HttpOnly; Secure; SameSite=Lax` セッションCookieが設定されます。JWT本体はレスポンスボディやブラウザJavaScriptへ返しません。
+パスワードは Argon2id でハッシュ化して保存します。登録またはログインが成功すると、1時間有効な `HttpOnly; SameSite=Lax` セッションCookieが設定されます。HTTPS環境では `Secure` も有効になり、Cookie名は `__Host-threadly-session` です。JWT本体はレスポンスボディやブラウザJavaScriptへ返しません。
 
 ```sh
 curl -X POST http://localhost:8080/api/auth/register \
@@ -57,7 +57,7 @@ curl -X POST http://localhost:8080/api/auth/logout \
   -c threadly.cookies
 ```
 
-`Secure` CookieはHTTPS接続でのみ送信されます。HTTPでローカル開発する場合だけは `COOKIE_SECURE=false` を設定し、本番環境では必ず `true` のままにしてください。
+`Secure` CookieはHTTPS接続でのみ送信されます。HTTPでローカル開発する場合は `api/.env` に `COOKIE_SECURE=false` を設定してください。この場合、`__Host-` 接頭辞は使えないためCookie名は `threadly-session` になります。本番環境では `COOKIE_SECURE=true` を維持し、`__Host-threadly-session` を使用してください。
 
 Post の一覧取得・詳細取得は、JWTで認証されたUserが全Postを閲覧できます。作成時の投稿者はJWTのUser IDから設定され、更新・削除は投稿者本人に限定されます。レスポンスには公開User情報として `author.id` と `author.username` を含めます。`authorId` はリクエストから受け取りません。
 

@@ -37,7 +37,7 @@ func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 }
 
 func sessionToken(c *gin.Context) (string, bool) {
-	if cookie, err := c.Request.Cookie(SessionCookieName); err == nil {
+	if cookie, err := c.Request.Cookie(sessionCookieName()); err == nil {
 		return strings.TrimSpace(cookie.Value), true
 	}
 

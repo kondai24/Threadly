@@ -66,7 +66,7 @@ func TestRequireAuth(t *testing.T) {
 				request.Header.Set("Authorization", tt.authorization)
 			}
 			if tt.cookie != "" {
-				request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: tt.cookie})
+				request.AddCookie(NewSessionCookie(tt.cookie))
 			}
 			response := httptest.NewRecorder()
 
