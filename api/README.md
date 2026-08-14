@@ -8,22 +8,18 @@ MySQLを起動し、Atlasでmigrationを適用したうえでAPIを実行しま�
 cd api
 docker compose up -d db
 
-export DB_USER=root
-export DB_PASSWORD=password
-export DB_HOST=127.0.0.1
-export DB_PORT=3306
-export DB=go_post
-export JWT_SECRET="32バイト以上のランダムな秘密値"
-export DATABASE_URL='mysql://root:password@127.0.0.1:3306/go_post'
+# api/.env に DB_USER、DB_PASSWORD、DB_HOST、DB_PORT、DB、JWT_SECRET を設定
+make tools
 make migrate-apply
 
-make tools
 make dev
 ```
 
-`make dev` は Air を起動し、`cmd/`・`internal/`・`docs/` 配下の変更を検知すると API を再ビルド・再起動します。Air は `make tools` で Go 1.25 と互換性のある固定バージョンをインストールします。
+`make tools` は mockgen、swag、Air、Atlas CLIをインストールします。Atlas CLIはmacOSのHomebrewを利用します。`make dev` は Air を起動し、`cmd/`・`internal/`・`docs/` 配下の変更を検知すると API を再ビルド・再起動します。Air は Go 1.25 と互換性のある固定バージョンをインストールします。
 
 `JWT_SECRET` は必須です。HS256 の署名鍵として利用するため、32バイト以上の秘密値を設定してください。設定項目は `.env.sample` にも記載しています。
+
+`api/.env` がある場合、Makefileが `DB_USER`・`DB_PASSWORD`・`DB_HOST`・`DB_PORT`・`DB` から `DATABASE_URL` を自動生成します。そのため、ローカル開発では `DATABASE_URL` を毎回設定する必要はありません。別のDBを対象にする場合は、従来どおり `DATABASE_URL='mysql://...' make migrate-apply` のように明示指定できます。
 
 ## 認証
 
@@ -78,8 +74,7 @@ Integration testは、既存の開発用DBとは分離した `test-db` を起動
 ```sh
 docker compose up -d test-db
 export TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3307)/threadly_test?parseTime=True'
-export DATABASE_URL='mysql://root:password@127.0.0.1:3307/threadly_test'
-make integration-test
+DATABASE_URL='mysql://root:password@127.0.0.1:3307/threadly_test' make integration-test
 ```
 
 Integration testが触るのは専用の `threadly_test` DBだけです。`make integration-test` がAtlasのversioned migrationを適用してからテストを実行します。テストデータの変更はtransactionをrollbackし、開発用の `go_post` DBやそのvolumeは削除しません。
@@ -88,7 +83,7 @@ Integration testが触るのは専用の `threadly_test` DBだけです。`make 
 
 GORMのモデルは `internal/domain/models` に定義し、DBスキーマの変更履歴は `migrations/` と `migrations/atlas.sum` で管理します。Atlasのmigrationはアプリケーション起動時には実行されません。
 
-Atlas CLIが必要です。macOSでは `brew install ariga/tap/atlas`、またはAtlas公式のインストーラーを利用してください。
+Atlas CLIが必要です。macOSでは `make tools` が `brew install ariga/tap/atlas` を実行します。Homebrewを使わない環境では、Atlas公式のインストーラーを利用してください。
 
 ```sh
 # 現在のGORMモデルとの差分からmigrationを生成する
