@@ -57,6 +57,8 @@ curl -X POST http://localhost:8080/api/auth/logout \
 
 Post の一覧取得・詳細取得は、JWTで認証されたUserが全Postを閲覧できます。作成時の投稿者はJWTのUser IDから設定され、更新・削除は投稿者本人に限定されます。レスポンスには公開User情報として `author.id` と `author.username` を含めます。`authorId` はリクエストから受け取りません。
 
+UserとPostのIDは連番ではなくUUID文字列です。`/api/posts/{id}` の `id` にもUUIDを指定します。
+
 詳細なリクエスト・レスポンスは `/swagger/index.html` を参照してください。
 
 ## テスト

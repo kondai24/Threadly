@@ -56,7 +56,7 @@ func (mr *MockPostRepositoryMockRecorder) Create(ctx, post any) *gomock.Call {
 }
 
 // DeleteByID mocks base method.
-func (m *MockPostRepository) DeleteByID(ctx context.Context, userID, postID uint) (int64, error) {
+func (m *MockPostRepository) DeleteByID(ctx context.Context, userID, postID models.UUID) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteByID", ctx, userID, postID)
 	ret0, _ := ret[0].(int64)
@@ -71,7 +71,7 @@ func (mr *MockPostRepositoryMockRecorder) DeleteByID(ctx, userID, postID any) *g
 }
 
 // GetByID mocks base method.
-func (m *MockPostRepository) GetByID(ctx context.Context, postID uint) (*models.Post, error) {
+func (m *MockPostRepository) GetByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", ctx, postID)
 	ret0, _ := ret[0].(*models.Post)
@@ -86,7 +86,7 @@ func (mr *MockPostRepositoryMockRecorder) GetByID(ctx, postID any) *gomock.Call 
 }
 
 // GetByIDForOwner mocks base method.
-func (m *MockPostRepository) GetByIDForOwner(ctx context.Context, userID, postID uint) (*models.Post, error) {
+func (m *MockPostRepository) GetByIDForOwner(ctx context.Context, userID, postID models.UUID) (*models.Post, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByIDForOwner", ctx, userID, postID)
 	ret0, _ := ret[0].(*models.Post)
@@ -116,7 +116,7 @@ func (mr *MockPostRepositoryMockRecorder) ListAll(ctx any) *gomock.Call {
 }
 
 // Update mocks base method.
-func (m *MockPostRepository) Update(ctx context.Context, userID uint, post *models.Post) error {
+func (m *MockPostRepository) Update(ctx context.Context, userID models.UUID, post *models.Post) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, userID, post)
 	ret0, _ := ret[0].(error)

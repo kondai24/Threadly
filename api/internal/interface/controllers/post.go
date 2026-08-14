@@ -3,7 +3,6 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"time"
 
 	"Threadly/internal/domain/models"
@@ -29,19 +28,19 @@ type UpdatePostRequest struct {
 }
 
 type postAuthorResponse struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
+	ID       models.UUID `json:"id"`
+	Username string      `json:"username"`
 }
 
 type postListResponse struct {
-	ID        uint               `json:"id"`
+	ID        models.UUID        `json:"id"`
 	Title     string             `json:"title"`
 	Author    postAuthorResponse `json:"author"`
 	CreatedAt time.Time          `json:"createdAt"`
 }
 
 type postDetailResponse struct {
-	ID        uint               `json:"id"`
+	ID        models.UUID        `json:"id"`
 	Title     string             `json:"title"`
 	Content   string             `json:"content"`
 	Author    postAuthorResponse `json:"author"`
@@ -82,7 +81,7 @@ func (pc *PostController) ListPostsHandler(c *gin.Context) {
 // @Tags posts
 // @Produce json
 // @Security SessionCookie
-// @Param id path int true "Post ID"
+// @Param id path string true "Post ID"
 // @Success 200 {object} postDetailResponse
 // @Failure 400 {object} map[string]interface{}
 // @Failure 401 {object} map[string]interface{}
@@ -143,7 +142,7 @@ func (pc *PostController) CreatePostHandler(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security SessionCookie
-// @Param id path int true "Post ID"
+// @Param id path string true "Post ID"
 // @Param request body UpdatePostRequest true "Update post payload"
 // @Success 200
 // @Failure 400 {object} map[string]interface{}
@@ -198,7 +197,7 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 // @Tags posts
 // @Produce json
 // @Security SessionCookie
-// @Param id path int true "Post ID"
+// @Param id path string true "Post ID"
 // @Success 204
 // @Failure 400 {object} map[string]interface{}
 // @Failure 401 {object} map[string]interface{}
@@ -224,14 +223,14 @@ func (pc *PostController) DeletePostHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func parsePostIDParam(c *gin.Context) (uint, bool) {
+func parsePostIDParam(c *gin.Context) (models.UUID, bool) {
 	rawPostID := c.Param("id")
-	parsedPostID, err := strconv.ParseUint(rawPostID, 10, 64)
-	if err != nil || parsedPostID == 0 || parsedPostID > uint64(^uint(0)) {
+	parsedPostID, err := models.ParseUUID(rawPostID)
+	if err != nil || parsedPostID == "" {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid post id"})
-		return 0, false
+		return "", false
 	}
-	return uint(parsedPostID), true
+	return parsedPostID, true
 }
 
 func toPostAuthorResponse(author models.User) postAuthorResponse {

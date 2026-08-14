@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,18 +22,22 @@ import (
 )
 
 type routePostRepository struct {
-	posts  map[uint]*models.Post
-	nextID uint
+	posts map[models.UUID]*models.Post
 }
+
+const (
+	routeUserID      models.UUID = "11111111-1111-4111-8111-111111111111"
+	routeOtherUserID models.UUID = "22222222-2222-4222-8222-222222222222"
+	routePostID      models.UUID = "33333333-3333-4333-8333-333333333333"
+)
 
 func newRoutePostRepository() *routePostRepository {
 	return &routePostRepository{
-		posts:  make(map[uint]*models.Post),
-		nextID: 1,
+		posts: make(map[models.UUID]*models.Post),
 	}
 }
 
-func (r *routePostRepository) GetByID(_ context.Context, postID uint) (*models.Post, error) {
+func (r *routePostRepository) GetByID(_ context.Context, postID models.UUID) (*models.Post, error) {
 	post, ok := r.posts[postID]
 	if !ok {
 		return nil, gorm.ErrRecordNotFound
@@ -42,7 +45,7 @@ func (r *routePostRepository) GetByID(_ context.Context, postID uint) (*models.P
 	return clonePost(post), nil
 }
 
-func (r *routePostRepository) GetByIDForOwner(_ context.Context, userID uint, id uint) (*models.Post, error) {
+func (r *routePostRepository) GetByIDForOwner(_ context.Context, userID models.UUID, id models.UUID) (*models.Post, error) {
 	post, ok := r.posts[id]
 	if !ok || post.AuthorID != userID {
 		return nil, gorm.ErrRecordNotFound
@@ -51,17 +54,16 @@ func (r *routePostRepository) GetByIDForOwner(_ context.Context, userID uint, id
 }
 
 func (r *routePostRepository) Create(_ context.Context, post *models.Post) error {
-	post.ID = r.nextID
-	r.nextID++
+	post.ID = routePostID
 	post.Author = models.User{
-		BaseModel: models.BaseModel{ID: post.AuthorID},
-		Username:  "user-" + strconv.FormatUint(uint64(post.AuthorID), 10),
+		UUIDBaseModel: models.UUIDBaseModel{ID: post.AuthorID},
+		Username:      "user-" + string(post.AuthorID),
 	}
 	r.posts[post.ID] = clonePost(post)
 	return nil
 }
 
-func (r *routePostRepository) Update(_ context.Context, userID uint, post *models.Post) error {
+func (r *routePostRepository) Update(_ context.Context, userID models.UUID, post *models.Post) error {
 	stored, ok := r.posts[post.ID]
 	if !ok || stored.AuthorID != userID {
 		return gorm.ErrRecordNotFound
@@ -71,7 +73,7 @@ func (r *routePostRepository) Update(_ context.Context, userID uint, post *model
 	return nil
 }
 
-func (r *routePostRepository) DeleteByID(_ context.Context, userID uint, postID uint) (int64, error) {
+func (r *routePostRepository) DeleteByID(_ context.Context, userID models.UUID, postID models.UUID) (int64, error) {
 	post, ok := r.posts[postID]
 	if !ok || post.AuthorID != userID {
 		return 0, nil
@@ -89,14 +91,12 @@ func (r *routePostRepository) ListAll(_ context.Context) ([]*models.Post, error)
 }
 
 type routeUserRepository struct {
-	users  map[uint]*models.User
-	nextID uint
+	users map[models.UUID]*models.User
 }
 
 func newRouteUserRepository() *routeUserRepository {
 	return &routeUserRepository{
-		users:  make(map[uint]*models.User),
-		nextID: 1,
+		users: make(map[models.UUID]*models.User),
 	}
 }
 
@@ -109,7 +109,7 @@ func (r *routeUserRepository) FindByUsername(_ context.Context, username string)
 	return nil, repositories.ErrUserNotFound
 }
 
-func (r *routeUserRepository) FindByID(_ context.Context, userID uint) (*models.User, error) {
+func (r *routeUserRepository) FindByID(_ context.Context, userID models.UUID) (*models.User, error) {
 	user, ok := r.users[userID]
 	if !ok {
 		return nil, repositories.ErrUserNotFound
@@ -125,10 +125,9 @@ func (r *routeUserRepository) Create(_ context.Context, user *models.User) error
 	}
 
 	now := time.Now()
-	user.ID = r.nextID
+	user.ID = routeUserID
 	user.CreatedAt = now
 	user.UpdatedAt = now
-	r.nextID++
 	r.users[user.ID] = cloneUser(user)
 	return nil
 }
@@ -154,19 +153,19 @@ func routeHashPassword(password string) string {
 
 type routeTokenIssuer struct{}
 
-func (routeTokenIssuer) Issue(userID uint) (string, error) {
-	return "user-" + strconv.FormatUint(uint64(userID), 10), nil
+func (routeTokenIssuer) Issue(userID models.UUID) (string, error) {
+	return "user-" + string(userID), nil
 }
 
-func (routeTokenIssuer) Parse(rawToken string) (uint, error) {
+func (routeTokenIssuer) Parse(rawToken string) (models.UUID, error) {
 	if !strings.HasPrefix(rawToken, "user-") {
-		return 0, services.ErrInvalidToken
+		return "", services.ErrInvalidToken
 	}
-	userID, err := strconv.ParseUint(strings.TrimPrefix(rawToken, "user-"), 10, 64)
-	if err != nil || userID == 0 {
-		return 0, services.ErrInvalidToken
+	userID, err := models.ParseUUID(strings.TrimPrefix(rawToken, "user-"))
+	if err != nil || userID == "" {
+		return "", services.ErrInvalidToken
 	}
-	return uint(userID), nil
+	return userID, nil
 }
 
 func clonePost(post *models.Post) *models.Post {
@@ -195,20 +194,20 @@ func newTestRouter(postRepo *routePostRepository) *gin.Engine {
 }
 
 type routePostAuthorResponse struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
+	ID       models.UUID `json:"id"`
+	Username string      `json:"username"`
 }
 
 type routePostResponse struct {
-	ID      uint                    `json:"id"`
+	ID      models.UUID             `json:"id"`
 	Title   string                  `json:"title"`
 	Content string                  `json:"content"`
 	Author  routePostAuthorResponse `json:"author"`
 }
 
 type routeUserResponse struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
+	ID       models.UUID `json:"id"`
+	Username string      `json:"username"`
 }
 
 type routeAuthResponse struct {
@@ -235,8 +234,8 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	if err := json.Unmarshal(registerResponse.Body.Bytes(), &registered); err != nil {
 		t.Fatalf("decode register response: %v", err)
 	}
-	if registered.User.ID != 1 || registered.User.Username != "alice" {
-		t.Fatalf("registered user = %+v, want alice with ID 1", registered.User)
+	if registered.User.ID != routeUserID || registered.User.Username != "alice" {
+		t.Fatalf("registered user = %+v, want alice with ID %s", registered.User, routeUserID)
 	}
 	registerCookie := sessionCookie(t, registerResponse)
 	if !registerCookie.HttpOnly || !registerCookie.Secure || registerCookie.SameSite != http.SameSiteLaxMode {
@@ -328,6 +327,7 @@ func TestSetupRouter_HTTPDevelopmentUsesCompatibleSessionCookie(t *testing.T) {
 func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestRouter(newRoutePostRepository())
+	postPath := "/api/posts/" + string(routePostID)
 	tests := []struct {
 		name   string
 		method string
@@ -336,7 +336,7 @@ func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 	}{
 		{name: "現在User取得を拒否する", method: http.MethodGet, path: "/api/me"},
 		{name: "Post一覧取得を拒否する", method: http.MethodGet, path: "/api/posts"},
-		{name: "Post詳細取得を拒否する", method: http.MethodGet, path: "/api/posts/1"},
+		{name: "Post詳細取得を拒否する", method: http.MethodGet, path: postPath},
 		{
 			name:   "Post作成を拒否する",
 			method: http.MethodPost,
@@ -346,10 +346,10 @@ func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 		{
 			name:   "Post更新を拒否する",
 			method: http.MethodPut,
-			path:   "/api/posts/1",
+			path:   postPath,
 			body:   `{"title":"updated"}`,
 		},
-		{name: "Post削除を拒否する", method: http.MethodDelete, path: "/api/posts/1"},
+		{name: "Post削除を拒否する", method: http.MethodDelete, path: postPath},
 	}
 
 	for _, tt := range tests {
@@ -376,17 +376,17 @@ func TestSetupRouter_PostsAreReadableByAllAuthenticatedUsers(t *testing.T) {
 		router,
 		http.MethodPost,
 		"/api/posts",
-		"user-1",
-		`{"title":"owned","content":"content","authorId":999}`,
+		"user-"+string(routeUserID),
+		`{"title":"owned","content":"content","authorId":"99999999-9999-4999-8999-999999999999"}`,
 	)
 	if response.Code != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201", response.Code)
 	}
-	if postRepo.posts[1].AuthorID != 1 {
-		t.Fatalf("stored author ID = %d, want token user ID 1", postRepo.posts[1].AuthorID)
+	if postRepo.posts[routePostID].AuthorID != routeUserID {
+		t.Fatalf("stored author ID = %s, want token user ID %s", postRepo.posts[routePostID].AuthorID, routeUserID)
 	}
 
-	response = performRequest(router, http.MethodGet, "/api/posts", "user-1", "")
+	response = performRequest(router, http.MethodGet, "/api/posts", "user-"+string(routeUserID), "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("owner list status = %d, want 200", response.Code)
 	}
@@ -397,11 +397,11 @@ func TestSetupRouter_PostsAreReadableByAllAuthenticatedUsers(t *testing.T) {
 	if len(ownerPosts) != 1 {
 		t.Fatalf("owner list length = %d, want 1", len(ownerPosts))
 	}
-	if ownerPosts[0].Author.ID != 1 || ownerPosts[0].Author.Username != "user-1" {
-		t.Fatalf("owner list author = %+v, want user-1", ownerPosts[0].Author)
+	if ownerPosts[0].Author.ID != routeUserID || ownerPosts[0].Author.Username != "user-"+string(routeUserID) {
+		t.Fatalf("owner list author = %+v, want route user", ownerPosts[0].Author)
 	}
 
-	response = performRequest(router, http.MethodGet, "/api/posts", "user-2", "")
+	response = performRequest(router, http.MethodGet, "/api/posts", "user-"+string(routeOtherUserID), "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("other user list status = %d, want 200", response.Code)
 	}
@@ -413,7 +413,7 @@ func TestSetupRouter_PostsAreReadableByAllAuthenticatedUsers(t *testing.T) {
 		t.Fatalf("other user list length = %d, want 1", len(otherPosts))
 	}
 
-	response = performRequest(router, http.MethodGet, "/api/posts/1", "user-2", "")
+	response = performRequest(router, http.MethodGet, "/api/posts/"+string(routePostID), "user-"+string(routeOtherUserID), "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("other user detail status = %d, want 200", response.Code)
 	}
@@ -421,12 +421,12 @@ func TestSetupRouter_PostsAreReadableByAllAuthenticatedUsers(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &otherPost); err != nil {
 		t.Fatalf("decode other user detail: %v", err)
 	}
-	if otherPost.Author.ID != 1 || otherPost.Author.Username != "user-1" {
-		t.Fatalf("other user detail author = %+v, want user-1", otherPost.Author)
+	if otherPost.Author.ID != routeUserID || otherPost.Author.Username != "user-"+string(routeUserID) {
+		t.Fatalf("other user detail author = %+v, want route user", otherPost.Author)
 	}
 
 	for _, method := range []string{http.MethodPut, http.MethodDelete} {
-		response = performRequest(router, method, "/api/posts/1", "user-2", `{"title":"tampered"}`)
+		response = performRequest(router, method, "/api/posts/"+string(routePostID), "user-"+string(routeOtherUserID), `{"title":"tampered"}`)
 		if response.Code != http.StatusNotFound {
 			t.Fatalf("other user %s status = %d, want 404", method, response.Code)
 		}

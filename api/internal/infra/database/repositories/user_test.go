@@ -114,7 +114,10 @@ func TestUserRepository_FindByID(t *testing.T) {
 	t.Run("存在しないIDはNotFoundを返す", func(t *testing.T) {
 		repo, _ := newTestUserRepository(t)
 
-		user, err := repo.FindByID(context.Background(), 999999)
+		user, err := repo.FindByID(
+			context.Background(),
+			models.UUID("99999999-9999-4999-8999-999999999999"),
+		)
 
 		require.ErrorIs(t, err, repositories.ErrUserNotFound)
 		require.Nil(t, user)

@@ -34,7 +34,7 @@ definitions:
   internal_interface_controllers.postAuthorResponse:
     properties:
       id:
-        type: integer
+        type: string
       username:
         type: string
     type: object
@@ -47,7 +47,7 @@ definitions:
       createdAt:
         type: string
       id:
-        type: integer
+        type: string
       title:
         type: string
       updatedAt:
@@ -60,7 +60,7 @@ definitions:
       createdAt:
         type: string
       id:
-        type: integer
+        type: string
       title:
         type: string
     type: object
@@ -69,7 +69,7 @@ definitions:
       createdAt:
         type: string
       id:
-        type: integer
+        type: string
       updatedAt:
         type: string
       username:
@@ -268,7 +268,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:
@@ -306,7 +306,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:
@@ -348,7 +348,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       - description: Update post payload
         in: body
         name: request

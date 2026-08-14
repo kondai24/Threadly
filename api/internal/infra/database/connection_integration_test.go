@@ -36,7 +36,7 @@ func TestMigration_EnforcesUserAndPostConstraints(t *testing.T) {
 	t.Run("Postの外部キー制約を検証する", func(t *testing.T) {
 		tx := newIntegrationTransaction(t)
 		post := &models.Post{
-			AuthorID: ^uint(0),
+			AuthorID: "ffffffff-ffff-4fff-8fff-ffffffffffff",
 			Title:    "orphan post",
 			Content:  "must be rejected",
 		}

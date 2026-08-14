@@ -24,8 +24,8 @@ type PasswordHasher interface {
 }
 
 type TokenIssuer interface {
-	Issue(userID uint) (string, error)
-	Parse(rawToken string) (uint, error)
+	Issue(userID models.UUID) (string, error)
+	Parse(rawToken string) (models.UUID, error)
 }
 
 type AuthService struct {
@@ -116,7 +116,7 @@ func (s *AuthService) Login(
 	return user, token, nil
 }
 
-func (s *AuthService) GetMe(ctx context.Context, userID uint) (*models.User, error) {
+func (s *AuthService) GetMe(ctx context.Context, userID models.UUID) (*models.User, error) {
 	user, err := s.repo.FindByID(ctx, userID)
 	if errors.Is(err, repositories.ErrUserNotFound) {
 		return nil, repositories.ErrUserNotFound

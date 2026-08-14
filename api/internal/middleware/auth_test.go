@@ -5,19 +5,21 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"Threadly/internal/domain/models"
+
 	"github.com/gin-gonic/gin"
 )
 
 type tokenIssuerStub struct {
-	userID uint
+	userID models.UUID
 	err    error
 }
 
-func (s tokenIssuerStub) Issue(uint) (string, error) {
+func (s tokenIssuerStub) Issue(models.UUID) (string, error) {
 	return "unused", nil
 }
 
-func (s tokenIssuerStub) Parse(string) (uint, error) {
+func (s tokenIssuerStub) Parse(string) (models.UUID, error) {
 	return s.userID, s.err
 }
 
@@ -29,7 +31,7 @@ func TestRequireAuth(t *testing.T) {
 		cookie        string
 		issuer        tokenIssuerStub
 		wantStatus    int
-		wantUserID    uint
+		wantUserID    models.UUID
 	}{
 		{
 			name:       "Authorizationヘッダーがない",
@@ -38,15 +40,15 @@ func TestRequireAuth(t *testing.T) {
 		{
 			name:          "Authorizationヘッダーを拒否する",
 			authorization: "Bearer token",
-			issuer:        tokenIssuerStub{userID: 7},
+			issuer:        tokenIssuerStub{userID: "77777777-7777-4777-8777-777777777777"},
 			wantStatus:    http.StatusUnauthorized,
 		},
 		{
 			name:       "正しいsession cookie",
 			cookie:     "token",
-			issuer:     tokenIssuerStub{userID: 8},
+			issuer:     tokenIssuerStub{userID: "88888888-8888-4888-8888-888888888888"},
 			wantStatus: http.StatusOK,
-			wantUserID: 8,
+			wantUserID: "88888888-8888-4888-8888-888888888888",
 		},
 	}
 
@@ -56,7 +58,7 @@ func TestRequireAuth(t *testing.T) {
 			router.GET("/", RequireAuth(tt.issuer), func(c *gin.Context) {
 				userID, ok := UserIDFromContext(c.Request.Context())
 				if !ok || userID != tt.wantUserID {
-					t.Fatalf("context user ID = %d, ok = %t, want %d", userID, ok, tt.wantUserID)
+					t.Fatalf("context user ID = %s, ok = %t, want %s", userID, ok, tt.wantUserID)
 				}
 				c.Status(http.StatusOK)
 			})

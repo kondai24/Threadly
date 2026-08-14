@@ -30,12 +30,14 @@ type fakeTokenIssuer struct {
 	token string
 }
 
-func (i fakeTokenIssuer) Issue(uint) (string, error) {
+const authTestUserID models.UUID = "11111111-1111-4111-8111-111111111111"
+
+func (i fakeTokenIssuer) Issue(models.UUID) (string, error) {
 	return i.token, nil
 }
 
-func (i fakeTokenIssuer) Parse(string) (uint, error) {
-	return 1, nil
+func (i fakeTokenIssuer) Parse(string) (models.UUID, error) {
+	return authTestUserID, nil
 }
 
 func newAuthServiceTest(
@@ -68,7 +70,7 @@ func TestAuthService_Register(t *testing.T) {
 			if user.PasswordHash != "argon2id-hash" {
 				t.Errorf("password hash = %q, want argon2id-hash", user.PasswordHash)
 			}
-			user.ID = 1
+			user.ID = authTestUserID
 			return nil
 		})
 
@@ -81,8 +83,8 @@ func TestAuthService_Register(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if user.ID != 1 || user.Username != "alice" {
-		t.Fatalf("user = %+v, want ID 1 and username alice", user)
+	if user.ID != authTestUserID || user.Username != "alice" {
+		t.Fatalf("user = %+v, want UUID %s and username alice", user, authTestUserID)
 	}
 	if user.PasswordHash != "argon2id-hash" {
 		t.Fatalf("password hash = %q, want hashed password", user.PasswordHash)
@@ -117,9 +119,9 @@ func TestAuthService_Login(t *testing.T) {
 			fakeTokenIssuer{token: "access-token"},
 		)
 		user := &models.User{
-			BaseModel:    models.BaseModel{ID: 1},
-			Username:     "alice",
-			PasswordHash: "argon2id-hash",
+			UUIDBaseModel: models.UUIDBaseModel{ID: authTestUserID},
+			Username:      "alice",
+			PasswordHash:  "argon2id-hash",
 		}
 		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(user, nil)
 
@@ -140,9 +142,9 @@ func TestAuthService_Login(t *testing.T) {
 			fakeTokenIssuer{token: "access-token"},
 		)
 		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(&models.User{
-			BaseModel:    models.BaseModel{ID: 1},
-			Username:     "alice",
-			PasswordHash: "argon2id-hash",
+			UUIDBaseModel: models.UUIDBaseModel{ID: authTestUserID},
+			Username:      "alice",
+			PasswordHash:  "argon2id-hash",
 		}, nil)
 
 		_, _, err := service.Login(context.Background(), "alice", "wrong pass")
@@ -160,9 +162,9 @@ func TestAuthService_Login(t *testing.T) {
 			fakeTokenIssuer{token: "access-token"},
 		)
 		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(&models.User{
-			BaseModel:    models.BaseModel{ID: 1},
-			Username:     "alice",
-			PasswordHash: "invalid-hash",
+			UUIDBaseModel: models.UUIDBaseModel{ID: authTestUserID},
+			Username:      "alice",
+			PasswordHash:  "invalid-hash",
 		}, nil)
 
 		_, _, err := service.Login(context.Background(), "alice", "correct horse")
@@ -201,12 +203,12 @@ func TestAuthService_GetMe(t *testing.T) {
 			fakeTokenIssuer{},
 		)
 		expected := &models.User{
-			BaseModel: models.BaseModel{ID: 7},
-			Username:  "alice",
+			UUIDBaseModel: models.UUIDBaseModel{ID: authTestUserID},
+			Username:      "alice",
 		}
-		repo.EXPECT().FindByID(gomock.Any(), uint(7)).Return(expected, nil)
+		repo.EXPECT().FindByID(gomock.Any(), authTestUserID).Return(expected, nil)
 
-		user, err := service.GetMe(context.Background(), 7)
+		user, err := service.GetMe(context.Background(), authTestUserID)
 
 		if err != nil {
 			t.Fatalf("get me: %v", err)
@@ -222,11 +224,12 @@ func TestAuthService_GetMe(t *testing.T) {
 			fakePasswordHasher{},
 			fakeTokenIssuer{},
 		)
+		missingUserID := models.UUID("99999999-9999-4999-8999-999999999999")
 		repo.EXPECT().
-			FindByID(gomock.Any(), uint(999)).
+			FindByID(gomock.Any(), missingUserID).
 			Return(nil, repositories.ErrUserNotFound)
 
-		user, err := service.GetMe(context.Background(), 999)
+		user, err := service.GetMe(context.Background(), missingUserID)
 
 		if user != nil {
 			t.Fatalf("user = %+v, want nil", user)
@@ -243,9 +246,9 @@ func TestAuthService_GetMe(t *testing.T) {
 			fakeTokenIssuer{},
 		)
 		expectedErr := errors.New("db error")
-		repo.EXPECT().FindByID(gomock.Any(), uint(7)).Return(nil, expectedErr)
+		repo.EXPECT().FindByID(gomock.Any(), authTestUserID).Return(nil, expectedErr)
 
-		user, err := service.GetMe(context.Background(), 7)
+		user, err := service.GetMe(context.Background(), authTestUserID)
 
 		if user != nil {
 			t.Fatalf("user = %+v, want nil", user)
