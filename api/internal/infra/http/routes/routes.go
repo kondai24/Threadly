@@ -15,6 +15,7 @@ import (
 type Handlers struct {
 	Auth        *controllers.AuthController
 	Post        *controllers.PostController
+	Comment     *controllers.CommentController
 	TokenIssuer services.TokenIssuer
 }
 
@@ -34,6 +35,7 @@ func SetupRouter(h Handlers) *gin.Engine {
 	protected.Use(middleware.RequireAuth(h.TokenIssuer))
 	protected.GET("/me", h.Auth.MeHandler)
 	registerPostRoutes(protected, h)
+	registerCommentRoutes(protected, h)
 
 	return router
 }

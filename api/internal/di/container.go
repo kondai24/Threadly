@@ -23,12 +23,15 @@ func NewContainer() (*dig.Container, error) {
 		database.ConnectionDB,
 		provideUserRepository,
 		providePostRepository,
+		provideCommentRepository,
 		providePasswordHasher,
 		provideTokenIssuer,
 		services.NewAuthService,
 		services.NewPostService,
+		services.NewCommentService,
 		controllers.NewAuthController,
 		controllers.NewPostController,
+		controllers.NewCommentController,
 		provideHandlers,
 		routes.SetupRouter,
 	}
@@ -50,6 +53,10 @@ func provideUserRepository(db *gorm.DB) repositories.UserRepository {
 	return dbrepository.NewUserRepository(db)
 }
 
+func provideCommentRepository(db *gorm.DB) repositories.CommentRepository {
+	return dbrepository.NewCommentRepository(db)
+}
+
 func providePasswordHasher() services.PasswordHasher {
 	return authinfra.NewArgon2idHasher()
 }
@@ -62,11 +69,13 @@ func provideTokenIssuer() (services.TokenIssuer, error) {
 func provideHandlers(
 	authController *controllers.AuthController,
 	postController *controllers.PostController,
+	commentController *controllers.CommentController,
 	tokenIssuer services.TokenIssuer,
 ) routes.Handlers {
 	return routes.Handlers{
 		Auth:        authController,
 		Post:        postController,
+		Comment:     commentController,
 		TokenIssuer: tokenIssuer,
 	}
 }

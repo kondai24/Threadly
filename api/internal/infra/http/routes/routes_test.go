@@ -337,10 +337,21 @@ func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 		{name: "Post一覧取得を拒否する", method: http.MethodGet, path: "/api/posts"},
 		{name: "Post詳細取得を拒否する", method: http.MethodGet, path: postPath},
 		{
+			name:   "Comment一覧取得を拒否する",
+			method: http.MethodGet,
+			path:   postPath + "/comments",
+		},
+		{
 			name:   "Post作成を拒否する",
 			method: http.MethodPost,
 			path:   "/api/posts",
 			body:   `{"title":"title","content":"content"}`,
+		},
+		{
+			name:   "Comment作成を拒否する",
+			method: http.MethodPost,
+			path:   postPath + "/comments",
+			body:   `{"content":"comment"}`,
 		},
 		{
 			name:   "Post更新を拒否する",
@@ -348,7 +359,18 @@ func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 			path:   postPath,
 			body:   `{"title":"updated"}`,
 		},
+		{
+			name:   "Comment更新を拒否する",
+			method: http.MethodPut,
+			path:   "/api/comments/" + string(routePostID),
+			body:   `{"content":"updated"}`,
+		},
 		{name: "Post削除を拒否する", method: http.MethodDelete, path: postPath},
+		{
+			name:   "Comment削除を拒否する",
+			method: http.MethodDelete,
+			path:   "/api/comments/" + string(routePostID),
+		},
 	}
 
 	for _, tt := range tests {
