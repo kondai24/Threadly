@@ -80,7 +80,7 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
               type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="たとえば、daisuke"
+              placeholder="ユーザー名を入力してください"
               autoComplete="username"
               minLength={3}
               maxLength={32}
