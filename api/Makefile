@@ -9,11 +9,17 @@ MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
 GO_TEST := go test
 ATLAS ?= atlas
 MIGRATION_DIR := file://migrations
-DATABASE_URL ?=
+ENV_FILE ?= .env
+-include $(ENV_FILE)
+
+DB_SCHEME ?= mysql
+DATABASE_URL ?= $(if $(and $(DB_USER),$(DB_PASSWORD),$(DB_HOST),$(DB_PORT),$(DB)),$(DB_SCHEME)://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB),)
 GOVULNCHECK_VERSION := v1.6.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 AIR_VERSION := v1.67.1
 AIR := $(shell go env GOPATH)/bin/air
+
+export DB_USER DB_PASSWORD DB_HOST DB_PORT DB PORT JWT_SECRET COOKIE_SECURE
 
 .PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
@@ -21,6 +27,14 @@ tools:
 	go install go.uber.org/mock/mockgen@v0.6.0
 	go install github.com/swaggo/swag/cmd/swag@v1.16.6
 	go install github.com/air-verse/air@$(AIR_VERSION)
+	@if command -v "$(ATLAS)" >/dev/null 2>&1; then \
+		echo "Atlas is already installed: $$(command -v "$(ATLAS)")"; \
+	elif command -v brew >/dev/null 2>&1; then \
+		brew install ariga/tap/atlas; \
+	else \
+		echo "Atlas is not installed. Install Homebrew or run 'brew install ariga/tap/atlas'." >&2; \
+		exit 1; \
+	fi
 
 dev:
 	@test -x "$(AIR)" || (echo "Air is not installed. Run 'make tools' first." >&2; exit 1)
@@ -47,11 +61,11 @@ migrate-diff:
 	$(ATLAS) migrate diff --env gorm
 
 migrate-apply:
-	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL must be set" >&2; exit 1)
+	@test -n "$(DATABASE_URL)" || (echo "Set DATABASE_URL or DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, and DB in $(ENV_FILE)" >&2; exit 1)
 	$(ATLAS) migrate apply --url "$(DATABASE_URL)" --dir "$(MIGRATION_DIR)"
 
 migrate-status:
-	@test -n "$(DATABASE_URL)" || (echo "DATABASE_URL must be set" >&2; exit 1)
+	@test -n "$(DATABASE_URL)" || (echo "Set DATABASE_URL or DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, and DB in $(ENV_FILE)" >&2; exit 1)
 	$(ATLAS) migrate status --url "$(DATABASE_URL)" --dir "$(MIGRATION_DIR)"
 
 integration-test: migrate-apply
