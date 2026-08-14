@@ -21,6 +21,43 @@ definitions:
       user:
         $ref: '#/definitions/internal_interface_controllers.userResponse'
     type: object
+  internal_interface_controllers.commentAuthorResponse:
+    properties:
+      id:
+        type: string
+      username:
+        type: string
+    type: object
+  internal_interface_controllers.commentResponse:
+    properties:
+      author:
+        $ref: '#/definitions/internal_interface_controllers.commentAuthorResponse'
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      replies:
+        items:
+          $ref: '#/definitions/internal_interface_controllers.commentResponse'
+        type: array
+      updatedAt:
+        type: string
+    type: object
+  internal_interface_controllers.createCommentRequest:
+    properties:
+      content:
+        example: コメント本文
+        maxLength: 1000
+        minLength: 1
+        type: string
+      parentId:
+        example: 33333333-3333-4333-8333-333333333333
+        type: string
+    required:
+    - content
+    type: object
   internal_interface_controllers.credentialsRequest:
     properties:
       password:
@@ -63,6 +100,16 @@ definitions:
         type: string
       title:
         type: string
+    type: object
+  internal_interface_controllers.updateCommentRequest:
+    properties:
+      content:
+        example: 更新したコメント本文
+        maxLength: 1000
+        minLength: 1
+        type: string
+    required:
+    - content
     type: object
   internal_interface_controllers.userResponse:
     properties:
@@ -167,6 +214,92 @@ paths:
       summary: Register a user
       tags:
       - auth
+  /api/comments/{id}:
+    delete:
+      description: Soft-delete a comment and its direct replies when the authenticated
+        user is its author.
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - SessionCookie: []
+      summary: Delete a comment
+      tags:
+      - comments
+    put:
+      consumes:
+      - application/json
+      description: Update a comment when the authenticated user is its author.
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update comment payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_interface_controllers.updateCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - SessionCookie: []
+      summary: Update a comment
+      tags:
+      - comments
   /api/me:
     get:
       description: Return the user represented by the authenticated session cookie.
@@ -385,6 +518,95 @@ paths:
       summary: Update current user's post
       tags:
       - posts
+  /api/posts/{id}/comments:
+    get:
+      description: Get active comments nested by root comment and one-level replies.
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_interface_controllers.commentResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - SessionCookie: []
+      summary: List comments for a post
+      tags:
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Create a root comment or one-level reply for a post.
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Create comment payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_interface_controllers.createCommentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - SessionCookie: []
+      summary: Create a comment
+      tags:
+      - comments
 securityDefinitions:
   SessionCookie:
     description: HttpOnly, Secure, SameSite session cookie.
