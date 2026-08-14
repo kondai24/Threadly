@@ -291,7 +291,7 @@
                 "summary": "Get post by ID",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Post ID",
                         "name": "id",
                         "in": "path",
@@ -354,7 +354,7 @@
                 "summary": "Update current user's post",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Post ID",
                         "name": "id",
                         "in": "path",
@@ -420,7 +420,7 @@
                 "summary": "Delete current user's post",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Post ID",
                         "name": "id",
                         "in": "path",
@@ -517,7 +517,7 @@
             "type": "object",
             "properties": {
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"
@@ -537,7 +537,7 @@
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -557,7 +557,7 @@
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -571,7 +571,7 @@
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "updatedAt": {
                     "type": "string"

@@ -3,10 +3,10 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
+	"Threadly/internal/domain/models"
 	"Threadly/internal/usecase/services"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -34,14 +34,14 @@ func NewJWTIssuer(secret string) (*JWTIssuer, error) {
 	}, nil
 }
 
-func (i *JWTIssuer) Issue(userID uint) (string, error) {
-	if userID == 0 {
-		return "", errors.New("user id must be positive")
+func (i *JWTIssuer) Issue(userID models.UUID) (string, error) {
+	if userID == "" {
+		return "", errors.New("user id must not be empty")
 	}
 
 	now := i.now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Subject:   strconv.FormatUint(uint64(userID), 10),
+		Subject:   string(userID),
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(i.lifetime)),
 	})
@@ -52,9 +52,9 @@ func (i *JWTIssuer) Issue(userID uint) (string, error) {
 	return signedToken, nil
 }
 
-func (i *JWTIssuer) Parse(rawToken string) (uint, error) {
+func (i *JWTIssuer) Parse(rawToken string) (models.UUID, error) {
 	if strings.TrimSpace(rawToken) == "" {
-		return 0, services.ErrInvalidToken
+		return "", services.ErrInvalidToken
 	}
 
 	// 署名方式をHS256に限定し、tokenヘッダーのalgを無条件に信用しない。
@@ -73,16 +73,16 @@ func (i *JWTIssuer) Parse(rawToken string) (uint, error) {
 		jwt.WithTimeFunc(i.now),
 	)
 	if err != nil || !token.Valid {
-		return 0, services.ErrInvalidToken
+		return "", services.ErrInvalidToken
 	}
 
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok || claims.Subject == "" {
-		return 0, services.ErrInvalidToken
+		return "", services.ErrInvalidToken
 	}
-	userID, err := strconv.ParseUint(claims.Subject, 10, 64)
-	if err != nil || userID == 0 || userID > uint64(^uint(0)) {
-		return 0, services.ErrInvalidToken
+	userID, err := models.ParseUUID(claims.Subject)
+	if err != nil || userID == "" {
+		return "", services.ErrInvalidToken
 	}
-	return uint(userID), nil
+	return userID, nil
 }

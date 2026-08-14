@@ -967,7 +967,7 @@ export const usePostApiPosts = <
   return useMutation(getPostApiPostsMutationOptions(options), queryClient);
 };
 
-export const getDeleteApiPostsIdUrl = (id: number) => {
+export const getDeleteApiPostsIdUrl = (id: string) => {
   return `/api/posts/${id}`;
 };
 
@@ -976,7 +976,7 @@ export const getDeleteApiPostsIdUrl = (id: number) => {
  * @summary Delete current user's post
  */
 export const deleteApiPostsId = async (
-  id: number,
+  id: string,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<void> => {
   return customInstance<void>(getDeleteApiPostsIdUrl(id), {
@@ -996,14 +996,14 @@ export const getDeleteApiPostsIdMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteApiPostsId>>,
     TError,
-    { id: number },
+    { id: string },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteApiPostsId>>,
   TError,
-  { id: number },
+  { id: string },
   TContext
 > => {
   const mutationKey = ["deleteApiPostsId"];
@@ -1017,7 +1017,7 @@ export const getDeleteApiPostsIdMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteApiPostsId>>,
-    { id: number }
+    { id: string }
   > = (props) => {
     const { id } = props ?? {};
 
@@ -1052,7 +1052,7 @@ export const useDeleteApiPostsId = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteApiPostsId>>,
       TError,
-      { id: number },
+      { id: string },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -1061,13 +1061,13 @@ export const useDeleteApiPostsId = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteApiPostsId>>,
   TError,
-  { id: number },
+  { id: string },
   TContext
 > => {
   return useMutation(getDeleteApiPostsIdMutationOptions(options), queryClient);
 };
 
-export const getGetApiPostsIdUrl = (id: number) => {
+export const getGetApiPostsIdUrl = (id: string) => {
   return `/api/posts/${id}`;
 };
 
@@ -1076,7 +1076,7 @@ export const getGetApiPostsIdUrl = (id: number) => {
  * @summary Get post by ID
  */
 export const getApiPostsId = async (
-  id: number,
+  id: string,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<InternalInterfaceControllersPostDetailResponse> => {
   return customInstance<InternalInterfaceControllersPostDetailResponse>(
@@ -1088,7 +1088,7 @@ export const getApiPostsId = async (
   );
 };
 
-export const getGetApiPostsIdQueryKey = (id: number) => {
+export const getGetApiPostsIdQueryKey = (id: string) => {
   return [`/api/posts/${id}`] as const;
 };
 
@@ -1097,7 +1097,7 @@ export const getGetApiPostsIdQueryOptions = <
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiPostsId>>, TError, TData>
@@ -1136,7 +1136,7 @@ export function useGetApiPostsId<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiPostsId>>, TError, TData>
@@ -1160,7 +1160,7 @@ export function useGetApiPostsId<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiPostsId>>, TError, TData>
@@ -1184,7 +1184,7 @@ export function useGetApiPostsId<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiPostsId>>, TError, TData>
@@ -1204,7 +1204,7 @@ export function useGetApiPostsId<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getApiPostsId>>, TError, TData>
@@ -1230,7 +1230,7 @@ export const getGetApiPostsIdSuspenseQueryOptions = <
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseSuspenseQueryOptions<
@@ -1268,7 +1268,7 @@ export function useGetApiPostsIdSuspense<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options: {
     query: Partial<
       UseSuspenseQueryOptions<
@@ -1288,7 +1288,7 @@ export function useGetApiPostsIdSuspense<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseSuspenseQueryOptions<
@@ -1308,7 +1308,7 @@ export function useGetApiPostsIdSuspense<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseSuspenseQueryOptions<
@@ -1332,7 +1332,7 @@ export function useGetApiPostsIdSuspense<
   TError =
     GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
 >(
-  id: number,
+  id: string,
   options?: {
     query?: Partial<
       UseSuspenseQueryOptions<
@@ -1359,7 +1359,7 @@ export function useGetApiPostsIdSuspense<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getPutApiPostsIdUrl = (id: number) => {
+export const getPutApiPostsIdUrl = (id: string) => {
   return `/api/posts/${id}`;
 };
 
@@ -1368,7 +1368,7 @@ export const getPutApiPostsIdUrl = (id: number) => {
  * @summary Update current user's post
  */
 export const putApiPostsId = async (
-  id: number,
+  id: string,
   internalInterfaceControllersUpdatePostRequest: InternalInterfaceControllersUpdatePostRequest,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<void> => {
@@ -1388,14 +1388,14 @@ export const getPutApiPostsIdMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof putApiPostsId>>,
     TError,
-    { id: number; data: InternalInterfaceControllersUpdatePostRequest },
+    { id: string; data: InternalInterfaceControllersUpdatePostRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof putApiPostsId>>,
   TError,
-  { id: number; data: InternalInterfaceControllersUpdatePostRequest },
+  { id: string; data: InternalInterfaceControllersUpdatePostRequest },
   TContext
 > => {
   const mutationKey = ["putApiPostsId"];
@@ -1409,7 +1409,7 @@ export const getPutApiPostsIdMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof putApiPostsId>>,
-    { id: number; data: InternalInterfaceControllersUpdatePostRequest }
+    { id: string; data: InternalInterfaceControllersUpdatePostRequest }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -1439,7 +1439,7 @@ export const usePutApiPostsId = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiPostsId>>,
       TError,
-      { id: number; data: InternalInterfaceControllersUpdatePostRequest },
+      { id: string; data: InternalInterfaceControllersUpdatePostRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -1448,7 +1448,7 @@ export const usePutApiPostsId = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof putApiPostsId>>,
   TError,
-  { id: number; data: InternalInterfaceControllersUpdatePostRequest },
+  { id: string; data: InternalInterfaceControllersUpdatePostRequest },
   TContext
 > => {
   return useMutation(getPutApiPostsIdMutationOptions(options), queryClient);

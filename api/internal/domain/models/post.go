@@ -2,6 +2,8 @@ package models
 
 import (
 	"errors"
+
+	"gorm.io/gorm"
 )
 
 var (
@@ -10,11 +12,18 @@ var (
 )
 
 type Post struct {
-	BaseModel
-	AuthorID uint   `gorm:"not null;index" json:"authorId"`
+	UUIDBaseModel
+	AuthorID UUID   `gorm:"type:char(36);not null;index" json:"authorId"`
 	Author   User   `gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"-"`
 	Title    string `json:"title"`
 	Content  string `json:"content"`
+}
+
+func (p *Post) BeforeCreate(_ *gorm.DB) error {
+	if p.ID == "" {
+		p.ID = NewUUID()
+	}
+	return nil
 }
 
 func (p *Post) Validate() error {

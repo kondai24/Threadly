@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"gorm.io/gorm"
 )
 
 var (
@@ -16,9 +18,16 @@ var (
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_]{3,32}$`)
 
 type User struct {
-	BaseModel
+	UUIDBaseModel
 	Username     string `gorm:"size:32;not null;uniqueIndex" json:"username"`
 	PasswordHash string `gorm:"size:255;not null" json:"-"`
+}
+
+func (u *User) BeforeCreate(_ *gorm.DB) error {
+	if u.ID == "" {
+		u.ID = NewUUID()
+	}
+	return nil
 }
 
 func ValidateUsername(username string) error {

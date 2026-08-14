@@ -23,10 +23,10 @@ type credentialsRequest struct {
 }
 
 type userResponse struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID        models.UUID `json:"id"`
+	Username  string      `json:"username"`
+	CreatedAt time.Time   `json:"createdAt"`
+	UpdatedAt time.Time   `json:"updatedAt"`
 }
 
 type authResponse struct {

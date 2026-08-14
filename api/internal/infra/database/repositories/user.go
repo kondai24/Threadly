@@ -31,7 +31,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	return &user, nil
 }
 
-func (r *UserRepository) FindByID(ctx context.Context, id uint) (*models.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id models.UUID) (*models.User, error) {
 	var user models.User
 	result := r.DB.WithContext(ctx).First(&user, id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {

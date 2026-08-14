@@ -17,16 +17,17 @@ function getErrorMessage(error: unknown) {
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const postId = Number(id);
+  const postId = id ?? "";
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(postId);
 
-  if (!id || !Number.isInteger(postId) || postId <= 0) {
+  if (!isUUID) {
     return <Navigate to="/board" replace />;
   }
 
   return <PostDetailContent postId={postId} />;
 }
 
-function PostDetailContent({ postId }: { postId: number }) {
+function PostDetailContent({ postId }: { postId: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -85,7 +86,7 @@ function PostDetailContent({ postId }: { postId: number }) {
       <div className={`grid gap-6 ${isOwner && !isEditing ? "lg:grid-cols-[minmax(0,1fr)_280px]" : ""}`}>
         <article className="rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6 sm:p-10">
           <div className="mb-8 flex flex-wrap justify-between gap-3 border-b border-white/[0.08] pb-4 text-xs uppercase tracking-[0.12em] text-[#5a5a6e]">
-            <span>POST / {String(post.id).padStart(4, "0")}</span>
+            <span>POST / {post.id}</span>
             <span>{post.author?.username ?? "unknown"}</span>
           </div>
           {isEditing ? (

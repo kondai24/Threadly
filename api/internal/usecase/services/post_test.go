@@ -13,7 +13,12 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-const testUserID uint = 7
+const (
+	testUserID      models.UUID = "11111111-1111-4111-8111-111111111111"
+	testOtherUserID models.UUID = "22222222-2222-4222-8222-222222222222"
+	testPostID      models.UUID = "33333333-3333-4333-8333-333333333333"
+	testMissingID   models.UUID = "99999999-9999-4999-8999-999999999999"
+)
 
 func newPostServiceTest(t *testing.T) (*PostService, *mocks.MockPostRepository) {
 	t.Helper()
@@ -30,16 +35,16 @@ func TestPostService_GetPostByID(t *testing.T) {
 	t.Run("所有者のPostを取得できる", func(t *testing.T) {
 		service, repo := newPostServiceTest(t)
 		expectedPost := &models.Post{
-			BaseModel: models.BaseModel{ID: 1},
-			AuthorID:  testUserID,
-			Title:     "hello",
-			Content:   "world",
+			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
+			AuthorID:      testUserID,
+			Title:         "hello",
+			Content:       "world",
 		}
 		repo.EXPECT().
-			GetByID(gomock.Any(), uint(1)).
+			GetByID(gomock.Any(), testPostID).
 			Return(expectedPost, nil)
 
-		post, err := service.GetPostByID(context.Background(), 1)
+		post, err := service.GetPostByID(context.Background(), testPostID)
 
 		require.NoError(t, err)
 		require.NotNil(t, post)
@@ -50,10 +55,10 @@ func TestPostService_GetPostByID(t *testing.T) {
 		service, repo := newPostServiceTest(t)
 		expectedErr := errors.New("db error")
 		repo.EXPECT().
-			GetByID(gomock.Any(), uint(999)).
+			GetByID(gomock.Any(), testMissingID).
 			Return(nil, expectedErr)
 
-		post, err := service.GetPostByID(context.Background(), 999)
+		post, err := service.GetPostByID(context.Background(), testMissingID)
 
 		require.Error(t, err)
 		assert.Nil(t, post)
@@ -65,8 +70,8 @@ func TestPostService_ListAllPosts(t *testing.T) {
 	t.Run("全Postを返す", func(t *testing.T) {
 		service, repo := newPostServiceTest(t)
 		expectedPosts := []*models.Post{
-			{BaseModel: models.BaseModel{ID: 1}, AuthorID: testUserID, Title: "hello", Content: "world"},
-			{BaseModel: models.BaseModel{ID: 2}, AuthorID: testUserID + 1, Title: "foo", Content: "bar"},
+			{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}, AuthorID: testUserID, Title: "hello", Content: "world"},
+			{UUIDBaseModel: models.UUIDBaseModel{ID: testMissingID}, AuthorID: testOtherUserID, Title: "foo", Content: "bar"},
 		}
 		repo.EXPECT().
 			ListAll(gomock.Any()).
@@ -133,10 +138,10 @@ func TestPostService_UpdatePost(t *testing.T) {
 	t.Run("所有者のPostを更新できる", func(t *testing.T) {
 		service, repo := newPostServiceTest(t)
 		post := &models.Post{
-			BaseModel: models.BaseModel{ID: 1},
-			AuthorID:  testUserID,
-			Title:     "test",
-			Content:   "this is a test",
+			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
+			AuthorID:      testUserID,
+			Title:         "test",
+			Content:       "this is a test",
 		}
 		repo.EXPECT().Update(gomock.Any(), testUserID, post).Return(nil)
 
@@ -148,10 +153,10 @@ func TestPostService_UpdatePost(t *testing.T) {
 	t.Run("他Userが所有するPostを拒否する", func(t *testing.T) {
 		service, _ := newPostServiceTest(t)
 		post := &models.Post{
-			BaseModel: models.BaseModel{ID: 1},
-			AuthorID:  testUserID + 1,
-			Title:     "test",
-			Content:   "this is a test",
+			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
+			AuthorID:      testOtherUserID,
+			Title:         "test",
+			Content:       "this is a test",
 		}
 
 		err := service.UpdatePost(context.Background(), testUserID, post)
@@ -185,10 +190,10 @@ func TestPostService_DeletePost(t *testing.T) {
 	t.Run("所有者のPostを削除できる", func(t *testing.T) {
 		service, repo := newPostServiceTest(t)
 		repo.EXPECT().
-			DeleteByID(gomock.Any(), testUserID, uint(1)).
+			DeleteByID(gomock.Any(), testUserID, testPostID).
 			Return(int64(1), nil)
 
-		err := service.DeletePost(context.Background(), testUserID, 1)
+		err := service.DeletePost(context.Background(), testUserID, testPostID)
 
 		require.NoError(t, err)
 	})
@@ -196,10 +201,10 @@ func TestPostService_DeletePost(t *testing.T) {
 	t.Run("所有者のPostを削除できない場合はNotFoundを返す", func(t *testing.T) {
 		service, repo := newPostServiceTest(t)
 		repo.EXPECT().
-			DeleteByID(gomock.Any(), testUserID, uint(999)).
+			DeleteByID(gomock.Any(), testUserID, testMissingID).
 			Return(int64(0), nil)
 
-		err := service.DeletePost(context.Background(), testUserID, 999)
+		err := service.DeletePost(context.Background(), testUserID, testMissingID)
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrPostNotFound)

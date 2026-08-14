@@ -1,6 +1,6 @@
 -- Create "users" table
 CREATE TABLE `users` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id` char(36) NOT NULL,
   `created_at` datetime(3) NULL,
   `updated_at` datetime(3) NULL,
   `deleted_at` datetime(3) NULL,
@@ -13,11 +13,11 @@ CREATE TABLE `users` (
 
 -- Create "posts" table
 CREATE TABLE `posts` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `id` char(36) NOT NULL,
   `created_at` datetime(3) NULL,
   `updated_at` datetime(3) NULL,
   `deleted_at` datetime(3) NULL,
-  `author_id` bigint unsigned NOT NULL,
+  `author_id` char(36) NOT NULL,
   `title` longtext NULL,
   `content` longtext NULL,
   PRIMARY KEY (`id`),

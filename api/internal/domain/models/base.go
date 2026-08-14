@@ -6,10 +6,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// gorm.Model の代わりに使う。json タグ付きで DB/API 両方に対応。
-// これによりswaggoとorvalがcamelCaseで生成される
-type BaseModel struct {
-	ID        uint           `gorm:"primarykey" json:"id"`
+// UUIDBaseModelはUUIDのIDと監査・論理削除フィールドを共通化する。
+type UUIDBaseModel struct {
+	ID        UUID           `gorm:"type:char(36);primaryKey" json:"id"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deletedAt"`

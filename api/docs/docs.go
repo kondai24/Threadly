@@ -299,7 +299,7 @@ const docTemplate = `{
                 "summary": "Get post by ID",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Post ID",
                         "name": "id",
                         "in": "path",
@@ -362,7 +362,7 @@ const docTemplate = `{
                 "summary": "Update current user's post",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Post ID",
                         "name": "id",
                         "in": "path",
@@ -428,7 +428,7 @@ const docTemplate = `{
                 "summary": "Delete current user's post",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "Post ID",
                         "name": "id",
                         "in": "path",
@@ -525,7 +525,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"
@@ -545,7 +545,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -565,7 +565,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -579,7 +579,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "updatedAt": {
                     "type": "string"

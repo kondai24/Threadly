@@ -17,7 +17,7 @@ export interface InternalInterfaceControllersUpdatePostRequest {
 
 export interface InternalInterfaceControllersUserResponse {
   createdAt?: string;
-  id?: number;
+  id?: string;
   updatedAt?: string;
   username?: string;
 }
@@ -32,7 +32,7 @@ export interface InternalInterfaceControllersCredentialsRequest {
 }
 
 export interface InternalInterfaceControllersPostAuthorResponse {
-  id?: number;
+  id?: string;
   username?: string;
 }
 
@@ -40,7 +40,7 @@ export interface InternalInterfaceControllersPostDetailResponse {
   author?: InternalInterfaceControllersPostAuthorResponse;
   content?: string;
   createdAt?: string;
-  id?: number;
+  id?: string;
   title?: string;
   updatedAt?: string;
 }
@@ -48,7 +48,7 @@ export interface InternalInterfaceControllersPostDetailResponse {
 export interface InternalInterfaceControllersPostListResponse {
   author?: InternalInterfaceControllersPostAuthorResponse;
   createdAt?: string;
-  id?: number;
+  id?: string;
   title?: string;
 }
 

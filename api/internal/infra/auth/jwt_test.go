@@ -6,12 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"Threadly/internal/domain/models"
 	"Threadly/internal/usecase/services"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestJWTIssuer_IssueAndParse(t *testing.T) {
+	const wantUserID models.UUID = "11111111-1111-4111-8111-111111111111"
+
 	issuer, err := NewJWTIssuer(strings.Repeat("s", minimumSecretLen))
 	if err != nil {
 		t.Fatalf("new jwt issuer: %v", err)
@@ -19,7 +22,7 @@ func TestJWTIssuer_IssueAndParse(t *testing.T) {
 	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
 	issuer.now = func() time.Time { return now }
 
-	rawToken, err := issuer.Issue(42)
+	rawToken, err := issuer.Issue(wantUserID)
 	if err != nil {
 		t.Fatalf("issue token: %v", err)
 	}
@@ -27,12 +30,14 @@ func TestJWTIssuer_IssueAndParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse token: %v", err)
 	}
-	if userID != 42 {
-		t.Fatalf("user ID = %d, want 42", userID)
+	if userID != wantUserID {
+		t.Fatalf("user ID = %s, want %s", userID, wantUserID)
 	}
 }
 
 func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
+	const wantUserID models.UUID = "11111111-1111-4111-8111-111111111111"
+
 	issuer, err := NewJWTIssuer(strings.Repeat("s", minimumSecretLen))
 	if err != nil {
 		t.Fatalf("new jwt issuer: %v", err)
@@ -40,7 +45,7 @@ func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 	now := time.Date(2026, time.August, 10, 12, 0, 0, 0, time.UTC)
 	issuer.now = func() time.Time { return now }
 	validClaims := jwt.RegisteredClaims{
-		Subject:   "42",
+		Subject:   string(wantUserID),
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
 	}
@@ -55,7 +60,7 @@ func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 			name:   "期限切れtokenを拒否する",
 			method: jwt.SigningMethodHS256,
 			claims: jwt.RegisteredClaims{
-				Subject:   "42",
+				Subject:   string(wantUserID),
 				IssuedAt:  jwt.NewNumericDate(now.Add(-2 * time.Hour)),
 				ExpiresAt: jwt.NewNumericDate(now.Add(-time.Hour)),
 			},
@@ -65,7 +70,7 @@ func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 			name:   "expのないtokenを拒否する",
 			method: jwt.SigningMethodHS256,
 			claims: jwt.RegisteredClaims{
-				Subject:  "42",
+				Subject:  string(wantUserID),
 				IssuedAt: jwt.NewNumericDate(now),
 			},
 			signingKey: issuer.secret,
@@ -74,7 +79,7 @@ func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 			name:   "未来のiatを拒否する",
 			method: jwt.SigningMethodHS256,
 			claims: jwt.RegisteredClaims{
-				Subject:   "42",
+				Subject:   string(wantUserID),
 				IssuedAt:  jwt.NewNumericDate(now.Add(time.Minute)),
 				ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
 			},
@@ -91,6 +96,16 @@ func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 			method:     jwt.SigningMethodHS256,
 			claims:     validClaims,
 			signingKey: []byte(strings.Repeat("x", minimumSecretLen)),
+		},
+		{
+			name:   "UUIDではないUser IDを拒否する",
+			method: jwt.SigningMethodHS256,
+			claims: jwt.RegisteredClaims{
+				Subject:   "42",
+				IssuedAt:  jwt.NewNumericDate(now),
+				ExpiresAt: jwt.NewNumericDate(now.Add(time.Hour)),
+			},
+			signingKey: issuer.secret,
 		},
 	}
 

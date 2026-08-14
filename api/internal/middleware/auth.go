@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"Threadly/internal/domain/models"
 	"Threadly/internal/usecase/services"
 
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,7 @@ func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 		}
 
 		userID, err := tokenIssuer.Parse(rawToken)
-		if err != nil || userID == 0 {
+		if err != nil || userID == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
@@ -44,7 +45,7 @@ func sessionToken(c *gin.Context) (string, bool) {
 	return "", false
 }
 
-func UserIDFromContext(ctx context.Context) (uint, bool) {
-	userID, ok := ctx.Value(userIDContextKey).(uint)
-	return userID, ok && userID > 0
+func UserIDFromContext(ctx context.Context) (models.UUID, bool) {
+	userID, ok := ctx.Value(userIDContextKey).(models.UUID)
+	return userID, ok && userID != ""
 }
