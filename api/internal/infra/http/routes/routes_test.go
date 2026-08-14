@@ -295,6 +295,36 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	}
 }
 
+func TestSetupRouter_HTTPDevelopmentUsesCompatibleSessionCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	t.Setenv("COOKIE_SECURE", "false")
+	router := newTestRouter(newRoutePostRepository())
+
+	response := performRequest(
+		router,
+		http.MethodPost,
+		"/api/auth/register",
+		"",
+		`{"username":"alice","password":"password"}`,
+	)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("register status = %d, want 201", response.Code)
+	}
+
+	cookie := sessionCookie(t, response)
+	if cookie.Name == middleware.SessionCookieName {
+		t.Fatalf("HTTP session cookie uses __Host- name: %q", cookie.Name)
+	}
+	if cookie.Secure || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("HTTP session cookie attributes = %+v, want non-secure HttpOnly SameSite=Lax", cookie)
+	}
+
+	meResponse := performCookieRequest(router, http.MethodGet, "/api/me", cookie, "")
+	if meResponse.Code != http.StatusOK {
+		t.Fatalf("me status = %d, want 200 with the HTTP session cookie", meResponse.Code)
+	}
+}
+
 func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestRouter(newRoutePostRepository())
@@ -415,10 +445,7 @@ func performRequest(
 		request.Header.Set("Content-Type", "application/json")
 	}
 	if cookieValue != "" {
-		request.AddCookie(&http.Cookie{
-			Name:  middleware.SessionCookieName,
-			Value: cookieValue,
-		})
+		request.AddCookie(middleware.NewSessionCookie(cookieValue))
 	}
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -447,10 +474,10 @@ func performCookieRequest(
 func sessionCookie(t *testing.T, response *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
 	for _, cookie := range response.Result().Cookies() {
-		if cookie.Name == middleware.SessionCookieName {
+		if strings.HasSuffix(cookie.Name, "threadly-session") {
 			return cookie
 		}
 	}
-	t.Fatalf("session cookie %q is missing from response", middleware.SessionCookieName)
+	t.Fatal("session cookie is missing from response")
 	return nil
 }
