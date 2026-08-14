@@ -133,7 +133,7 @@ func (r *commentRouteCommentRepository) Create(
 	comment *models.Comment,
 ) error {
 	r.store.nextID++
-	commentID := commentRouteOtherID
+	var commentID models.UUID
 	if comment.ParentID == nil {
 		commentID = commentRouteRootID
 		if r.store.nextID > 1 {
