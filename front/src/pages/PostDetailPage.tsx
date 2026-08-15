@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import CommentsSection from "../components/CommentsSection";
 import { useAuth } from "../lib/auth-context";
 import { formatLongDate } from "../lib/format";
 import {
@@ -160,6 +161,8 @@ function PostDetailContent({ postId }: { postId: string }) {
           </aside>
         )}
       </div>
+
+      <CommentsSection postId={postId} />
     </div>
   );
 }
