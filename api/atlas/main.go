@@ -14,6 +14,7 @@ func main() {
 	stmts, err := gormschema.New("mysql").Load(
 		&models.User{},
 		&models.Post{},
+		&models.Comment{},
 	)
 	if err != nil {
 		log.Fatalf("failed to load GORM schema: %v", err)

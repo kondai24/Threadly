@@ -67,3 +67,59 @@ func TestPostRepository_ReturnsPostNotFound(t *testing.T) {
 		require.ErrorIs(t, err, repositories.ErrPostNotFound)
 	})
 }
+//go:build integration
+
+package repository
+
+import (
+	"context"
+	"testing"
+
+	"Threadly/internal/domain/models"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestPostRepository_DeleteByIDSoftDeletesComments(t *testing.T) {
+	db := openTestDB(t)
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	t.Cleanup(func() {
+		require.NoError(t, tx.Rollback().Error)
+	})
+
+	user := &models.User{Username: "post-repository-user", PasswordHash: "hash"}
+	require.NoError(t, tx.Create(user).Error)
+	post := &models.Post{AuthorID: user.ID, Title: "post", Content: "content"}
+	require.NoError(t, tx.Create(post).Error)
+	root := &models.Comment{PostID: post.ID, AuthorID: user.ID, Content: "root"}
+	require.NoError(t, tx.Create(root).Error)
+	reply := &models.Comment{
+		PostID:   post.ID,
+		AuthorID: user.ID,
+		ParentID: &root.ID,
+		Content:  "reply",
+	}
+	require.NoError(t, tx.Create(reply).Error)
+
+	repo := &PostRepository{DB: tx}
+	rows, err := repo.DeleteByID(context.Background(), user.ID, post.ID)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rows)
+	var activePost models.Post
+	require.Error(t, tx.First(&activePost, post.ID).Error)
+	var activeComments []models.Comment
+	require.NoError(t, tx.Where("post_id = ?", post.ID).Find(&activeComments).Error)
+	require.Empty(t, activeComments)
+
+	var deletedPost models.Post
+	require.NoError(t, tx.Unscoped().First(&deletedPost, post.ID).Error)
+	require.True(t, deletedPost.DeletedAt.Valid)
+	var deletedComments []models.Comment
+	require.NoError(t, tx.Unscoped().Where("post_id = ?", post.ID).Find(&deletedComments).Error)
+	require.Len(t, deletedComments, 2)
+	for _, comment := range deletedComments {
+		require.True(t, comment.DeletedAt.Valid)
+	}
+}
