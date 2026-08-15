@@ -13,10 +13,10 @@ var (
 
 type Post struct {
 	UUIDBaseModel
-	AuthorID UUID   `gorm:"type:char(36);not null;index" json:"authorId"`
-	Author   User   `gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"-"`
-	Title    string `json:"title"`
-	Content  string `json:"content"`
+	AuthorID UUID `gorm:"type:char(36);not null;index"`
+	Author   User `gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	Title    string
+	Content  string
 }
 
 func (p *Post) BeforeCreate(_ *gorm.DB) error {
