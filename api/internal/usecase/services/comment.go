@@ -13,17 +13,17 @@ import (
 )
 
 type CommentService struct {
-	repo  repositories.CommentRepository
-	posts repositories.PostRepository
+	commentRepo repositories.CommentRepository
+	postRepo    repositories.PostRepository
 }
 
 func NewCommentService(
-	repo repositories.CommentRepository,
-	posts repositories.PostRepository,
+	commentRepo repositories.CommentRepository,
+	postRepo repositories.PostRepository,
 ) *CommentService {
 	return &CommentService{
-		repo:  repo,
-		posts: posts,
+		commentRepo: commentRepo,
+		postRepo:    postRepo,
 	}
 }
 
@@ -35,7 +35,7 @@ func (s *CommentService) ListComments(
 		return nil, err
 	}
 
-	comments, err := s.repo.ListByPostID(ctx, postID)
+	comments, err := s.commentRepo.ListByPostID(ctx, postID)
 	if err != nil {
 		return nil, fmt.Errorf("list comments: %w", err)
 	}
@@ -68,7 +68,7 @@ func (s *CommentService) CreateComment(
 		}
 	}
 
-	if err := s.repo.Create(ctx, comment); err != nil {
+	if err := s.commentRepo.Create(ctx, comment); err != nil {
 		return fmt.Errorf("create comment: %w", err)
 	}
 	return nil
@@ -85,7 +85,7 @@ func (s *CommentService) UpdateComment(
 		return err
 	}
 
-	rows, err := s.repo.Update(ctx, userID, commentID, comment.Content)
+	rows, err := s.commentRepo.Update(ctx, userID, commentID, comment.Content)
 	if err != nil {
 		if errors.Is(err, repositories.ErrCommentNotFound) {
 			return ErrCommentNotFound
@@ -103,7 +103,7 @@ func (s *CommentService) DeleteComment(
 	userID models.UUID,
 	commentID models.UUID,
 ) error {
-	rows, err := s.repo.DeleteByID(ctx, userID, commentID)
+	rows, err := s.commentRepo.DeleteByID(ctx, userID, commentID)
 	if err != nil {
 		return fmt.Errorf("delete comment: %w", err)
 	}
@@ -114,7 +114,7 @@ func (s *CommentService) DeleteComment(
 }
 
 func (s *CommentService) ensurePostExists(ctx context.Context, postID models.UUID) error {
-	_, err := s.posts.GetByID(ctx, postID)
+	_, err := s.postRepo.GetByID(ctx, postID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrPostNotFound
 	}
@@ -129,7 +129,7 @@ func (s *CommentService) validateParent(
 	postID models.UUID,
 	parentID models.UUID,
 ) error {
-	parent, err := s.repo.GetByID(ctx, parentID)
+	parent, err := s.commentRepo.GetByID(ctx, parentID)
 	if errors.Is(err, repositories.ErrCommentNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
 		return ErrCommentNotFound
 	}
