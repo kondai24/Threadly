@@ -59,6 +59,33 @@ Post の一覧取得・詳細取得は、JWTで認証されたUserが全Postを�
 
 UserとPostのIDは連番ではなくUUID文字列です。`/api/posts/{id}` の `id` にもUUIDを指定します。
 
+Commentは認証済みUserならPost作成者以外も作成できます。Post直下のCommentへの1段階返信だけを許可し、返信への返信は拒否します。Comment本文は前後空白を除去して1〜1,000文字で保存します。編集・削除はComment作成者本人だけが実行でき、Postまたは親Commentを削除すると配下も論理削除されます。
+
+```sh
+curl http://localhost:8080/api/posts/{post-id}/comments \
+  -b threadly.cookies
+
+curl -X POST http://localhost:8080/api/posts/{post-id}/comments \
+  -b threadly.cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"hello comment"}'
+
+curl -X POST http://localhost:8080/api/posts/{post-id}/comments \
+  -b threadly.cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"reply","parentId":"{comment-id}"}'
+
+curl -X PUT http://localhost:8080/api/comments/{comment-id} \
+  -b threadly.cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"updated comment"}'
+
+curl -X DELETE http://localhost:8080/api/comments/{comment-id} \
+  -b threadly.cookies
+```
+
+Comment一覧は親Commentを `replies` 配列へネストし、親と返信を `createdAt` 降順で返します。削除済みのPost・Commentは通常QueryとAPI responseへ含めません。
+
 詳細なリクエスト・レスポンスは `/swagger/index.html` を参照してください。
 
 ## テスト
