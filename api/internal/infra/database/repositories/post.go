@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"Threadly/internal/domain/models"
@@ -24,7 +25,13 @@ func (r *PostRepository) GetByID(ctx context.Context, postID models.UUID) (*mode
 		Preload("Author").
 		Where("id = ?", postID).
 		First(&post)
-	return &post, result.Error
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, repositories.ErrPostNotFound
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("find post by id: %w", result.Error)
+	}
+	return &post, nil
 }
 
 func (r *PostRepository) GetByIDForOwner(ctx context.Context, userID models.UUID, postID models.UUID) (*models.Post, error) {
@@ -33,7 +40,13 @@ func (r *PostRepository) GetByIDForOwner(ctx context.Context, userID models.UUID
 		Preload("Author").
 		Where("id = ? AND author_id = ?", postID, userID).
 		First(&post)
-	return &post, result.Error
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, repositories.ErrPostNotFound
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("find post by owner: %w", result.Error)
+	}
+	return &post, nil
 }
 
 func (r *PostRepository) Create(ctx context.Context, post *models.Post) error {
@@ -53,7 +66,7 @@ func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *m
 		return fmt.Errorf("update post: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		return repositories.ErrPostNotFound
 	}
 	return nil
 }

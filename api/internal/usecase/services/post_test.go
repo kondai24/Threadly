@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/domain/repositories"
 	"Threadly/internal/usecase/services/mocks"
 
 	"github.com/stretchr/testify/assert"
@@ -64,6 +65,30 @@ func TestPostService_GetPostByID(t *testing.T) {
 		assert.Nil(t, post)
 		assert.ErrorIs(t, err, expectedErr)
 	})
+
+	t.Run("存在しないPostはサービスエラーへ変換する", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
+		repo.EXPECT().
+			GetByID(gomock.Any(), testMissingID).
+			Return(nil, repositories.ErrPostNotFound)
+
+		post, err := service.GetPostByID(context.Background(), testMissingID)
+
+		require.ErrorIs(t, err, ErrPostNotFound)
+		require.Nil(t, post)
+	})
+}
+
+func TestPostService_GetPostByIDForOwner(t *testing.T) {
+	service, repo := newPostServiceTest(t)
+	repo.EXPECT().
+		GetByIDForOwner(gomock.Any(), testUserID, testMissingID).
+		Return(nil, repositories.ErrPostNotFound)
+
+	post, err := service.GetPostByIDForOwner(context.Background(), testUserID, testMissingID)
+
+	require.ErrorIs(t, err, ErrPostNotFound)
+	require.Nil(t, post)
 }
 
 func TestPostService_ListAllPosts(t *testing.T) {
@@ -148,6 +173,23 @@ func TestPostService_UpdatePost(t *testing.T) {
 		err := service.UpdatePost(context.Background(), testUserID, post)
 
 		require.NoError(t, err)
+	})
+
+	t.Run("RepositoryのNotFoundをサービスエラーへ変換する", func(t *testing.T) {
+		service, repo := newPostServiceTest(t)
+		post := &models.Post{
+			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
+			AuthorID:      testUserID,
+			Title:         "test",
+			Content:       "this is a test",
+		}
+		repo.EXPECT().
+			Update(gomock.Any(), testUserID, post).
+			Return(repositories.ErrPostNotFound)
+
+		err := service.UpdatePost(context.Background(), testUserID, post)
+
+		require.ErrorIs(t, err, ErrPostNotFound)
 	})
 
 	t.Run("他Userが所有するPostを拒否する", func(t *testing.T) {

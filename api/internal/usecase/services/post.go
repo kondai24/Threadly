@@ -1,9 +1,11 @@
 package services
 
 import (
+	"context"
+	"errors"
+
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"context"
 )
 
 type PostService struct {
@@ -17,12 +19,20 @@ func NewPostService(repo repositories.PostRepository) *PostService {
 
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
 func (s *PostService) GetPostByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
-	return s.repo.GetByID(ctx, postID)
+	post, err := s.repo.GetByID(ctx, postID)
+	if err != nil {
+		return nil, translatePostRepositoryError(err)
+	}
+	return post, nil
 }
 
 // 更新前の所有者確認など、所有者だけが扱うPostを取得する。
 func (s *PostService) GetPostByIDForOwner(ctx context.Context, userID models.UUID, postID models.UUID) (*models.Post, error) {
-	return s.repo.GetByIDForOwner(ctx, userID, postID)
+	post, err := s.repo.GetByIDForOwner(ctx, userID, postID)
+	if err != nil {
+		return nil, translatePostRepositoryError(err)
+	}
+	return post, nil
 }
 
 // 認証済みUserが閲覧できる全Postを取得する。
@@ -51,7 +61,10 @@ func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *
 	if err := post.Validate(); err != nil {
 		return err
 	}
-	return s.repo.Update(ctx, userID, post)
+	if err := s.repo.Update(ctx, userID, post); err != nil {
+		return translatePostRepositoryError(err)
+	}
+	return nil
 }
 
 // 削除もRepositoryでuserIDを条件に含め、所有者境界を維持する。
@@ -64,4 +77,11 @@ func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID
 		return ErrPostNotFound
 	}
 	return nil
+}
+
+func translatePostRepositoryError(err error) error {
+	if errors.Is(err, repositories.ErrPostNotFound) {
+		return ErrPostNotFound
+	}
+	return err
 }

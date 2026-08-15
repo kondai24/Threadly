@@ -10,7 +10,6 @@ import (
 	"Threadly/internal/usecase/services"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type PostController struct {
@@ -262,8 +261,7 @@ func toPostDetailResponse(post *models.Post) postDetailResponse {
 
 func writePostError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, services.ErrPostNotFound),
-		errors.Is(err, gorm.ErrRecordNotFound):
+	case errors.Is(err, services.ErrPostNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
 	case errors.Is(err, models.ErrInvalidTitle),
 		errors.Is(err, models.ErrInvalidContent):
