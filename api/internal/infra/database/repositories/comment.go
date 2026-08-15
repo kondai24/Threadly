@@ -100,6 +100,8 @@ func (r *CommentRepository) DeleteByID(
 			return fmt.Errorf("find comment for delete: %w", result.Error)
 		}
 
+		// ParentIDがnilの親Commentは、直接の返信も含めて論理削除する。
+		// ParentIDが非nilの返信Commentは、親や兄弟の返信を残すため自身だけを論理削除する。
 		deleteQuery := tx.Where("id = ?", comment.ID)
 		if comment.ParentID == nil {
 			deleteQuery = tx.Where("id = ? OR parent_id = ?", comment.ID, comment.ID)
