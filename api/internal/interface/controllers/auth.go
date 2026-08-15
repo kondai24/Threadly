@@ -3,10 +3,10 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"time"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
 	"Threadly/internal/usecase/services"
 
@@ -15,22 +15,6 @@ import (
 
 type AuthController struct {
 	service *services.AuthService
-}
-
-type credentialsRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type userResponse struct {
-	ID        models.UUID `json:"id"`
-	Username  string      `json:"username"`
-	CreatedAt time.Time   `json:"createdAt"`
-	UpdatedAt time.Time   `json:"updatedAt"`
-}
-
-type authResponse struct {
-	User userResponse `json:"user"`
 }
 
 func NewAuthController(service *services.AuthService) *AuthController {
@@ -43,16 +27,16 @@ func NewAuthController(service *services.AuthService) *AuthController {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body credentialsRequest true "Registration credentials"
-// @Success 201 {object} authResponse
-// @Failure 400 {object} map[string]interface{}
-// @Failure 409 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Param request body dto.CredentialsRequest true "Registration credentials"
+// @Success 201 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/auth/register [post]
 func (ac *AuthController) RegisterHandler(c *gin.Context) {
-	var req credentialsRequest
+	var req dto.CredentialsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
 
@@ -62,9 +46,7 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 		return
 	}
 	http.SetCookie(c.Writer, middleware.NewSessionCookie(token))
-	c.JSON(http.StatusCreated, authResponse{
-		User: toUserResponse(user),
-	})
+	c.JSON(http.StatusCreated, dto.AuthResponseFromModel(user))
 }
 
 // LoginHandler godoc
@@ -73,16 +55,16 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body credentialsRequest true "Login credentials"
-// @Success 200 {object} authResponse
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Param request body dto.CredentialsRequest true "Login credentials"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/auth/login [post]
 func (ac *AuthController) LoginHandler(c *gin.Context) {
-	var req credentialsRequest
+	var req dto.CredentialsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
 
@@ -92,9 +74,7 @@ func (ac *AuthController) LoginHandler(c *gin.Context) {
 		return
 	}
 	http.SetCookie(c.Writer, middleware.NewSessionCookie(token))
-	c.JSON(http.StatusOK, authResponse{
-		User: toUserResponse(user),
-	})
+	c.JSON(http.StatusOK, dto.AuthResponseFromModel(user))
 }
 
 // LogoutHandler godoc
@@ -114,50 +94,40 @@ func (ac *AuthController) LogoutHandler(c *gin.Context) {
 // @Tags auth
 // @Produce json
 // @Security SessionCookie
-// @Success 200 {object} userResponse
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Success 200 {object} dto.UserResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/me [get]
 func (ac *AuthController) MeHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
 	user, err := ac.service.GetMe(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "user not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 		return
 	}
-	c.JSON(http.StatusOK, toUserResponse(user))
-}
-
-func toUserResponse(user *models.User) userResponse {
-	// 永続化モデルをそのまま返さず、PasswordHashを含まない公開項目だけに変換する。
-	return userResponse{
-		ID:        user.ID,
-		Username:  user.Username,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
+	c.JSON(http.StatusOK, dto.UserResponseFromModel(user))
 }
 
 func writeAuthError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, models.ErrInvalidUsername),
 		errors.Is(err, models.ErrInvalidPassword):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credentials format"})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid credentials format"})
 	case errors.Is(err, services.ErrInvalidCredentials):
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "invalid credentials"})
 	case errors.Is(err, services.ErrUsernameAlreadyExists):
-		c.JSON(http.StatusConflict, gin.H{"error": "username already exists"})
+		c.JSON(http.StatusConflict, dto.ErrorResponse{Error: "username already exists"})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 	}
 }

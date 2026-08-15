@@ -3,9 +3,9 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"time"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
 	"Threadly/internal/usecase/services"
 
@@ -14,37 +14,6 @@ import (
 
 type PostController struct {
 	service *services.PostService
-}
-
-type CreatePostRequest struct {
-	Title   string `json:"title" binding:"required"`
-	Content string `json:"content" binding:"required"`
-}
-
-type UpdatePostRequest struct {
-	Title   *string `json:"title"`
-	Content *string `json:"content"`
-}
-
-type postAuthorResponse struct {
-	ID       models.UUID `json:"id"`
-	Username string      `json:"username"`
-}
-
-type postListResponse struct {
-	ID        models.UUID        `json:"id"`
-	Title     string             `json:"title"`
-	Author    postAuthorResponse `json:"author"`
-	CreatedAt time.Time          `json:"createdAt"`
-}
-
-type postDetailResponse struct {
-	ID        models.UUID        `json:"id"`
-	Title     string             `json:"title"`
-	Content   string             `json:"content"`
-	Author    postAuthorResponse `json:"author"`
-	CreatedAt time.Time          `json:"createdAt"`
-	UpdatedAt time.Time          `json:"updatedAt"`
 }
 
 func NewPostController(service *services.PostService) *PostController {
@@ -57,21 +26,17 @@ func NewPostController(service *services.PostService) *PostController {
 // @Tags posts
 // @Produce json
 // @Security SessionCookie
-// @Success 200 {array} postListResponse
-// @Failure 401 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Success 200 {array} dto.PostListResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts [get]
 func (pc *PostController) ListPostsHandler(c *gin.Context) {
 	posts, err := pc.service.ListAllPosts(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 		return
 	}
-	responses := make([]postListResponse, 0, len(posts))
-	for _, post := range posts {
-		responses = append(responses, toPostListResponse(post))
-	}
-	c.JSON(http.StatusOK, responses)
+	c.JSON(http.StatusOK, dto.PostListResponsesFromModels(posts))
 }
 
 // GetPostByIDHandler godoc
@@ -81,11 +46,11 @@ func (pc *PostController) ListPostsHandler(c *gin.Context) {
 // @Produce json
 // @Security SessionCookie
 // @Param id path string true "Post ID"
-// @Success 200 {object} postDetailResponse
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Success 200 {object} dto.PostDetailResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [get]
 func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
 	postID, ok := parsePostIDParam(c)
@@ -98,7 +63,7 @@ func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
 		writePostError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toPostDetailResponse(post))
+	c.JSON(http.StatusOK, dto.PostDetailResponseFromModel(post))
 }
 
 // CreatePostHandler godoc
@@ -108,22 +73,22 @@ func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security SessionCookie
-// @Param request body CreatePostRequest true "Create post payload"
+// @Param request body dto.CreatePostRequest true "Create post payload"
 // @Success 201
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts [post]
 func (pc *PostController) CreatePostHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
-	var req CreatePostRequest
+	var req dto.CreatePostRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
 
@@ -142,17 +107,17 @@ func (pc *PostController) CreatePostHandler(c *gin.Context) {
 // @Produce json
 // @Security SessionCookie
 // @Param id path string true "Post ID"
-// @Param request body UpdatePostRequest true "Update post payload"
+// @Param request body dto.UpdatePostRequest true "Update post payload"
 // @Success 200
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [put]
 func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
@@ -167,13 +132,13 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 		return
 	}
 
-	var req UpdatePostRequest
+	var req dto.UpdatePostRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
 	if req.Title == nil && req.Content == nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "title or content is required"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "title or content is required"})
 		return
 	}
 	if req.Title != nil {
@@ -198,15 +163,15 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 // @Security SessionCookie
 // @Param id path string true "Post ID"
 // @Success 204
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [delete]
 func (pc *PostController) DeletePostHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
@@ -226,47 +191,20 @@ func parsePostIDParam(c *gin.Context) (models.UUID, bool) {
 	rawPostID := c.Param("id")
 	parsedPostID, err := models.ParseUUID(rawPostID)
 	if err != nil || parsedPostID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid post id"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid post id"})
 		return "", false
 	}
 	return parsedPostID, true
 }
 
-func toPostAuthorResponse(author models.User) postAuthorResponse {
-	return postAuthorResponse{
-		ID:       author.ID,
-		Username: author.Username,
-	}
-}
-
-func toPostListResponse(post *models.Post) postListResponse {
-	return postListResponse{
-		ID:        post.ID,
-		Title:     post.Title,
-		Author:    toPostAuthorResponse(post.Author),
-		CreatedAt: post.CreatedAt,
-	}
-}
-
-func toPostDetailResponse(post *models.Post) postDetailResponse {
-	return postDetailResponse{
-		ID:        post.ID,
-		Title:     post.Title,
-		Content:   post.Content,
-		Author:    toPostAuthorResponse(post.Author),
-		CreatedAt: post.CreatedAt,
-		UpdatedAt: post.UpdatedAt,
-	}
-}
-
 func writePostError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, services.ErrPostNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "post not found"})
 	case errors.Is(err, models.ErrInvalidTitle),
 		errors.Is(err, models.ErrInvalidContent):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid post"})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid post"})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 	}
 }

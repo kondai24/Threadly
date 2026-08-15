@@ -9,17 +9,18 @@ import (
 	"testing"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/interface/dto"
 
 	"github.com/gin-gonic/gin"
 )
 
-func TestToUserResponseDoesNotExposePasswordHash(t *testing.T) {
+func TestUserResponseFromModelDoesNotExposePasswordHash(t *testing.T) {
 	user := &models.User{
 		Username:     "alice",
 		PasswordHash: "secret-hash-must-not-leak",
 	}
 
-	body, err := json.Marshal(toUserResponse(user))
+	body, err := json.Marshal(dto.UserResponseFromModel(user))
 	if err != nil {
 		t.Fatalf("marshal user response: %v", err)
 	}

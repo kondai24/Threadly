@@ -35,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.credentialsRequest"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.CredentialsRequest"
                         }
                     }
                 ],
@@ -43,28 +43,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.authResponse"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.AuthResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -104,7 +101,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.credentialsRequest"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.CredentialsRequest"
                         }
                     }
                 ],
@@ -112,28 +109,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.authResponse"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.AuthResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -171,7 +165,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.updateCommentRequest"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.UpdateCommentRequest"
                         }
                     }
                 ],
@@ -182,29 +176,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -239,29 +229,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -286,28 +272,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.userResponse"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.UserResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -334,22 +317,20 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/internal_interface_controllers.postListResponse"
+                                "$ref": "#/definitions/Threadly_internal_interface_dto.PostListResponse"
                             }
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -378,7 +359,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.CreatePostRequest"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.CreatePostRequest"
                         }
                     }
                 ],
@@ -389,22 +370,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -438,35 +416,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.postDetailResponse"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.PostDetailResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -502,7 +476,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.UpdatePostRequest"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.UpdatePostRequest"
                         }
                     }
                 ],
@@ -513,29 +487,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -570,29 +540,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -628,36 +594,32 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/internal_interface_controllers.commentResponse"
+                                "$ref": "#/definitions/Threadly_internal_interface_dto.CommentResponse"
                             }
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -693,7 +655,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_interface_controllers.createCommentRequest"
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.CreateCommentRequest"
                         }
                     }
                 ],
@@ -704,29 +666,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/Threadly_internal_interface_dto.ErrorResponse"
                         }
                     }
                 }
@@ -734,56 +692,19 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_interface_controllers.CreatePostRequest": {
-            "type": "object",
-            "required": [
-                "content",
-                "title"
-            ],
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_interface_controllers.UpdatePostRequest": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "title": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_interface_controllers.authResponse": {
+        "Threadly_internal_interface_dto.AuthResponse": {
             "type": "object",
             "properties": {
                 "user": {
-                    "$ref": "#/definitions/internal_interface_controllers.userResponse"
+                    "$ref": "#/definitions/Threadly_internal_interface_dto.UserResponse"
                 }
             }
         },
-        "internal_interface_controllers.commentAuthorResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_interface_controllers.commentResponse": {
+        "Threadly_internal_interface_dto.CommentResponse": {
             "type": "object",
             "properties": {
                 "author": {
-                    "$ref": "#/definitions/internal_interface_controllers.commentAuthorResponse"
+                    "$ref": "#/definitions/Threadly_internal_interface_dto.PublicUserResponse"
                 },
                 "content": {
                     "type": "string"
@@ -797,7 +718,7 @@ const docTemplate = `{
                 "replies": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_interface_controllers.commentResponse"
+                        "$ref": "#/definitions/Threadly_internal_interface_dto.CommentResponse"
                     }
                 },
                 "updatedAt": {
@@ -805,7 +726,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_interface_controllers.createCommentRequest": {
+        "Threadly_internal_interface_dto.CreateCommentRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -823,7 +744,22 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_interface_controllers.credentialsRequest": {
+        "Threadly_internal_interface_dto.CreatePostRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "title"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "Threadly_internal_interface_dto.CredentialsRequest": {
             "type": "object",
             "required": [
                 "password",
@@ -838,22 +774,19 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_interface_controllers.postAuthorResponse": {
+        "Threadly_internal_interface_dto.ErrorResponse": {
             "type": "object",
             "properties": {
-                "id": {
-                    "type": "string"
-                },
-                "username": {
+                "error": {
                     "type": "string"
                 }
             }
         },
-        "internal_interface_controllers.postDetailResponse": {
+        "Threadly_internal_interface_dto.PostDetailResponse": {
             "type": "object",
             "properties": {
                 "author": {
-                    "$ref": "#/definitions/internal_interface_controllers.postAuthorResponse"
+                    "$ref": "#/definitions/Threadly_internal_interface_dto.PublicUserResponse"
                 },
                 "content": {
                     "type": "string"
@@ -872,11 +805,11 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_interface_controllers.postListResponse": {
+        "Threadly_internal_interface_dto.PostListResponse": {
             "type": "object",
             "properties": {
                 "author": {
-                    "$ref": "#/definitions/internal_interface_controllers.postAuthorResponse"
+                    "$ref": "#/definitions/Threadly_internal_interface_dto.PublicUserResponse"
                 },
                 "createdAt": {
                     "type": "string"
@@ -889,7 +822,18 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_interface_controllers.updateCommentRequest": {
+        "Threadly_internal_interface_dto.PublicUserResponse": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "Threadly_internal_interface_dto.UpdateCommentRequest": {
             "type": "object",
             "required": [
                 "content"
@@ -903,7 +847,18 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_interface_controllers.userResponse": {
+        "Threadly_internal_interface_dto.UpdatePostRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "Threadly_internal_interface_dto.UserResponse": {
             "type": "object",
             "properties": {
                 "createdAt": {
