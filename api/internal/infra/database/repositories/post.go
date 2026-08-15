@@ -9,6 +9,7 @@ import (
 	"Threadly/internal/domain/repositories"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PostRepository struct {
@@ -72,10 +73,34 @@ func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *m
 }
 
 func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, postID models.UUID) (int64, error) {
-	result := r.DB.WithContext(ctx).
-		Where("id = ? AND author_id = ?", postID, userID).
-		Delete(&models.Post{})
-	return result.RowsAffected, result.Error
+	var rowsAffected int64
+	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var post models.Post
+		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND author_id = ?", postID, userID).
+			First(&post)
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if result.Error != nil {
+			return fmt.Errorf("find post for delete: %w", result.Error)
+		}
+
+		if result := tx.Where("post_id = ?", post.ID).Delete(&models.Comment{}); result.Error != nil {
+			return fmt.Errorf("delete post comments: %w", result.Error)
+		}
+
+		result = tx.Where("id = ?", post.ID).Delete(&models.Post{})
+		if result.Error != nil {
+			return fmt.Errorf("delete post: %w", result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return rowsAffected, nil
 }
 
 func (r *PostRepository) ListAll(ctx context.Context) ([]*models.Post, error) {
