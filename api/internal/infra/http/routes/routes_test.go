@@ -18,7 +18,6 @@ import (
 	"Threadly/internal/usecase/services"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 type routePostRepository struct {
@@ -40,7 +39,7 @@ func newRoutePostRepository() *routePostRepository {
 func (r *routePostRepository) GetByID(_ context.Context, postID models.UUID) (*models.Post, error) {
 	post, ok := r.posts[postID]
 	if !ok {
-		return nil, gorm.ErrRecordNotFound
+		return nil, repositories.ErrPostNotFound
 	}
 	return clonePost(post), nil
 }
@@ -48,7 +47,7 @@ func (r *routePostRepository) GetByID(_ context.Context, postID models.UUID) (*m
 func (r *routePostRepository) GetByIDForOwner(_ context.Context, userID models.UUID, id models.UUID) (*models.Post, error) {
 	post, ok := r.posts[id]
 	if !ok || post.AuthorID != userID {
-		return nil, gorm.ErrRecordNotFound
+		return nil, repositories.ErrPostNotFound
 	}
 	return clonePost(post), nil
 }
@@ -66,7 +65,7 @@ func (r *routePostRepository) Create(_ context.Context, post *models.Post) error
 func (r *routePostRepository) Update(_ context.Context, userID models.UUID, post *models.Post) error {
 	stored, ok := r.posts[post.ID]
 	if !ok || stored.AuthorID != userID {
-		return gorm.ErrRecordNotFound
+		return repositories.ErrPostNotFound
 	}
 	stored.Title = post.Title
 	stored.Content = post.Content

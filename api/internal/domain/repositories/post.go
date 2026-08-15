@@ -1,8 +1,14 @@
 package repositories
 
 import (
-	"Threadly/internal/domain/models"
 	"context"
+	"errors"
+
+	"Threadly/internal/domain/models"
+)
+
+var (
+	ErrPostNotFound = errors.New("post not found")
 )
 
 type PostRepository interface {
