@@ -24,6 +24,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  DeleteApiCommentsId400,
+  DeleteApiCommentsId401,
+  DeleteApiCommentsId404,
+  DeleteApiCommentsId500,
   DeleteApiPostsId400,
   DeleteApiPostsId401,
   DeleteApiPostsId404,
@@ -37,11 +41,18 @@ import type {
   GetApiPostsId401,
   GetApiPostsId404,
   GetApiPostsId500,
+  GetApiPostsIdComments400,
+  GetApiPostsIdComments401,
+  GetApiPostsIdComments404,
+  GetApiPostsIdComments500,
   InternalInterfaceControllersAuthResponse,
+  InternalInterfaceControllersCommentResponse,
+  InternalInterfaceControllersCreateCommentRequest,
   InternalInterfaceControllersCreatePostRequest,
   InternalInterfaceControllersCredentialsRequest,
   InternalInterfaceControllersPostDetailResponse,
   InternalInterfaceControllersPostListResponse,
+  InternalInterfaceControllersUpdateCommentRequest,
   InternalInterfaceControllersUpdatePostRequest,
   InternalInterfaceControllersUserResponse,
   PostApiAuthLogin400,
@@ -53,6 +64,14 @@ import type {
   PostApiPosts400,
   PostApiPosts401,
   PostApiPosts500,
+  PostApiPostsIdComments400,
+  PostApiPostsIdComments401,
+  PostApiPostsIdComments404,
+  PostApiPostsIdComments500,
+  PutApiCommentsId400,
+  PutApiCommentsId401,
+  PutApiCommentsId404,
+  PutApiCommentsId500,
   PutApiPostsId400,
   PutApiPostsId401,
   PutApiPostsId404,
@@ -356,6 +375,213 @@ export const usePostApiAuthRegister = <
     getPostApiAuthRegisterMutationOptions(options),
     queryClient,
   );
+};
+
+export const getDeleteApiCommentsIdUrl = (id: string) => {
+  return `/api/comments/${id}`;
+};
+
+/**
+ * Soft-delete a comment and its direct replies when the authenticated user is its author.
+ * @summary Delete a comment
+ */
+export const deleteApiCommentsId = async (
+  id: string,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<void> => {
+  return customInstance<void>(getDeleteApiCommentsIdUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteApiCommentsIdMutationOptions = <
+  TError =
+    | DeleteApiCommentsId400
+    | DeleteApiCommentsId401
+    | DeleteApiCommentsId404
+    | DeleteApiCommentsId500,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteApiCommentsId>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteApiCommentsId>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteApiCommentsId"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteApiCommentsId>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteApiCommentsId(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteApiCommentsIdMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiCommentsId>>
+>;
+
+export type DeleteApiCommentsIdMutationError =
+  | DeleteApiCommentsId400
+  | DeleteApiCommentsId401
+  | DeleteApiCommentsId404
+  | DeleteApiCommentsId500;
+
+/**
+ * @summary Delete a comment
+ */
+export const useDeleteApiCommentsId = <
+  TError =
+    | DeleteApiCommentsId400
+    | DeleteApiCommentsId401
+    | DeleteApiCommentsId404
+    | DeleteApiCommentsId500,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteApiCommentsId>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteApiCommentsId>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getDeleteApiCommentsIdMutationOptions(options),
+    queryClient,
+  );
+};
+
+export const getPutApiCommentsIdUrl = (id: string) => {
+  return `/api/comments/${id}`;
+};
+
+/**
+ * Update a comment when the authenticated user is its author.
+ * @summary Update a comment
+ */
+export const putApiCommentsId = async (
+  id: string,
+  internalInterfaceControllersUpdateCommentRequest: InternalInterfaceControllersUpdateCommentRequest,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<void> => {
+  return customInstance<void>(getPutApiCommentsIdUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(internalInterfaceControllersUpdateCommentRequest),
+  });
+};
+
+export const getPutApiCommentsIdMutationOptions = <
+  TError =
+    | PutApiCommentsId400
+    | PutApiCommentsId401
+    | PutApiCommentsId404
+    | PutApiCommentsId500,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putApiCommentsId>>,
+    TError,
+    { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putApiCommentsId>>,
+  TError,
+  { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+  TContext
+> => {
+  const mutationKey = ["putApiCommentsId"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putApiCommentsId>>,
+    { id: string; data: InternalInterfaceControllersUpdateCommentRequest }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return putApiCommentsId(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutApiCommentsIdMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putApiCommentsId>>
+>;
+export type PutApiCommentsIdMutationBody =
+  InternalInterfaceControllersUpdateCommentRequest;
+export type PutApiCommentsIdMutationError =
+  | PutApiCommentsId400
+  | PutApiCommentsId401
+  | PutApiCommentsId404
+  | PutApiCommentsId500;
+
+/**
+ * @summary Update a comment
+ */
+export const usePutApiCommentsId = <
+  TError =
+    | PutApiCommentsId400
+    | PutApiCommentsId401
+    | PutApiCommentsId404
+    | PutApiCommentsId500,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putApiCommentsId>>,
+      TError,
+      { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putApiCommentsId>>,
+  TError,
+  { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+  TContext
+> => {
+  return useMutation(getPutApiCommentsIdMutationOptions(options), queryClient);
 };
 
 export const getGetApiMeUrl = () => {
@@ -1452,4 +1678,464 @@ export const usePutApiPostsId = <
   TContext
 > => {
   return useMutation(getPutApiPostsIdMutationOptions(options), queryClient);
+};
+
+export const getGetApiPostsIdCommentsUrl = (id: string) => {
+  return `/api/posts/${id}/comments`;
+};
+
+/**
+ * Get active comments nested by root comment and one-level replies.
+ * @summary List comments for a post
+ */
+export const getApiPostsIdComments = async (
+  id: string,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<InternalInterfaceControllersCommentResponse[]> => {
+  return customInstance<InternalInterfaceControllersCommentResponse[]>(
+    getGetApiPostsIdCommentsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetApiPostsIdCommentsQueryKey = (id: string) => {
+  return [`/api/posts/${id}/comments`] as const;
+};
+
+export const getGetApiPostsIdCommentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiPostsIdCommentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiPostsIdComments>>
+  > = ({ signal }) => getApiPostsIdComments(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getApiPostsIdComments>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiPostsIdCommentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiPostsIdComments>>
+>;
+export type GetApiPostsIdCommentsQueryError =
+  | GetApiPostsIdComments400
+  | GetApiPostsIdComments401
+  | GetApiPostsIdComments404
+  | GetApiPostsIdComments500;
+
+export function useGetApiPostsIdComments<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiPostsIdComments>>,
+          TError,
+          Awaited<ReturnType<typeof getApiPostsIdComments>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetApiPostsIdComments<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getApiPostsIdComments>>,
+          TError,
+          Awaited<ReturnType<typeof getApiPostsIdComments>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetApiPostsIdComments<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List comments for a post
+ */
+
+export function useGetApiPostsIdComments<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetApiPostsIdCommentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getGetApiPostsIdCommentsSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetApiPostsIdCommentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getApiPostsIdComments>>
+  > = ({ signal }) => getApiPostsIdComments(id, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getApiPostsIdComments>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetApiPostsIdCommentsSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getApiPostsIdComments>>
+>;
+export type GetApiPostsIdCommentsSuspenseQueryError =
+  | GetApiPostsIdComments400
+  | GetApiPostsIdComments401
+  | GetApiPostsIdComments404
+  | GetApiPostsIdComments500;
+
+export function useGetApiPostsIdCommentsSuspense<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetApiPostsIdCommentsSuspense<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetApiPostsIdCommentsSuspense<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary List comments for a post
+ */
+
+export function useGetApiPostsIdCommentsSuspense<
+  TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
+  TError =
+    | GetApiPostsIdComments400
+    | GetApiPostsIdComments401
+    | GetApiPostsIdComments404
+    | GetApiPostsIdComments500,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getApiPostsIdComments>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetApiPostsIdCommentsSuspenseQueryOptions(
+    id,
+    options,
+  );
+
+  const query = useSuspenseQuery(
+    queryOptions,
+    queryClient,
+  ) as UseSuspenseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPostApiPostsIdCommentsUrl = (id: string) => {
+  return `/api/posts/${id}/comments`;
+};
+
+/**
+ * Create a root comment or one-level reply for a post.
+ * @summary Create a comment
+ */
+export const postApiPostsIdComments = async (
+  id: string,
+  internalInterfaceControllersCreateCommentRequest: InternalInterfaceControllersCreateCommentRequest,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<void> => {
+  return customInstance<void>(getPostApiPostsIdCommentsUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(internalInterfaceControllersCreateCommentRequest),
+  });
+};
+
+export const getPostApiPostsIdCommentsMutationOptions = <
+  TError =
+    | PostApiPostsIdComments400
+    | PostApiPostsIdComments401
+    | PostApiPostsIdComments404
+    | PostApiPostsIdComments500,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postApiPostsIdComments>>,
+    TError,
+    { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postApiPostsIdComments>>,
+  TError,
+  { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+  TContext
+> => {
+  const mutationKey = ["postApiPostsIdComments"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postApiPostsIdComments>>,
+    { id: string; data: InternalInterfaceControllersCreateCommentRequest }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return postApiPostsIdComments(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostApiPostsIdCommentsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postApiPostsIdComments>>
+>;
+export type PostApiPostsIdCommentsMutationBody =
+  InternalInterfaceControllersCreateCommentRequest;
+export type PostApiPostsIdCommentsMutationError =
+  | PostApiPostsIdComments400
+  | PostApiPostsIdComments401
+  | PostApiPostsIdComments404
+  | PostApiPostsIdComments500;
+
+/**
+ * @summary Create a comment
+ */
+export const usePostApiPostsIdComments = <
+  TError =
+    | PostApiPostsIdComments400
+    | PostApiPostsIdComments401
+    | PostApiPostsIdComments404
+    | PostApiPostsIdComments500,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postApiPostsIdComments>>,
+      TError,
+      { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postApiPostsIdComments>>,
+  TError,
+  { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+  TContext
+> => {
+  return useMutation(
+    getPostApiPostsIdCommentsMutationOptions(options),
+    queryClient,
+  );
 };
