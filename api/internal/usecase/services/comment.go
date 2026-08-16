@@ -14,6 +14,7 @@ type CommentService struct {
 	commentRepo repositories.CommentRepository
 	postRepo    repositories.PostRepository
 	uow         repositories.UnitOfWork
+	likeService *LikeService
 }
 
 func NewCommentService(
@@ -25,6 +26,20 @@ func NewCommentService(
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
 		uow:         uow,
+	}
+}
+
+func NewCommentServiceWithLikes(
+	commentRepo repositories.CommentRepository,
+	postRepo repositories.PostRepository,
+	uow repositories.UnitOfWork,
+	likeService *LikeService,
+) *CommentService {
+	return &CommentService{
+		commentRepo: commentRepo,
+		postRepo:    postRepo,
+		uow:         uow,
+		likeService: likeService,
 	}
 }
 
@@ -41,6 +56,41 @@ func (s *CommentService) ListComments(
 		return nil, fmt.Errorf("list comments: %w", err)
 	}
 	return comments, nil
+}
+
+func (s *CommentService) ListCommentsForUser(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (CommentListRead, error) {
+	comments, err := s.ListComments(ctx, postID)
+	if err != nil {
+		return CommentListRead{}, err
+	}
+	commentIDs := make([]models.UUID, 0)
+	for _, comment := range comments {
+		appendCommentIDs(&commentIDs, comment)
+	}
+	var summaries map[models.UUID]models.LikeSummary
+	if s.likeService == nil {
+		summaries = makeLikeSummaries(commentIDs)
+	} else {
+		summaries, err = s.likeService.CommentSummaries(ctx, userID, commentIDs)
+		if err != nil {
+			return CommentListRead{}, err
+		}
+	}
+	return CommentListRead{Comments: comments, Summaries: summaries}, nil
+}
+
+func appendCommentIDs(ids *[]models.UUID, comment *models.Comment) {
+	if comment == nil {
+		return
+	}
+	*ids = append(*ids, comment.ID)
+	for _, reply := range comment.Replies {
+		appendCommentIDs(ids, reply)
+	}
 }
 
 func (s *CommentService) CreateComment(
