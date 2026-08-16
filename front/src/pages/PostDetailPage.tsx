@@ -50,6 +50,7 @@ function PostDetailContent({ postId }: { postId: string }) {
       { id: postId, data: { title: title.trim(), content: content.trim() } },
       {
         onSuccess: async () => {
+          // 詳細と一覧は別Queryのため、編集後に両方を無効化して表示を同じ状態へ更新する。
           await queryClient.invalidateQueries({ queryKey: getGetApiPostsIdQueryKey(postId) });
           await queryClient.invalidateQueries({ queryKey: getGetApiPostsQueryKey() });
           setIsEditing(false);
@@ -67,6 +68,7 @@ function PostDetailContent({ postId }: { postId: string }) {
       { id: postId },
       {
         onSuccess: async () => {
+          // 詳細画面を離れる前に一覧キャッシュを無効化し、削除済みPostがボードに残らないようにする。
           await queryClient.invalidateQueries({ queryKey: getGetApiPostsQueryKey() });
           navigate("/board");
         },

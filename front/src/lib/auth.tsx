@@ -24,10 +24,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   useEffect(() => {
+    // /meの応答が遅れても、Provider破棄後に古い応答で認証状態を書き換えない。
     let isCurrent = true;
 
     const loadUser = async () => {
       try {
+        // リロード後もCookieを根拠にサーバーからUserを復元し、認証情報をブラウザストレージへ複製しない。
         const me = await getApiMe();
 
         if (!isCurrent) return;

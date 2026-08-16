@@ -55,6 +55,7 @@ func (r *CommentRepository) GetByID(
 	var comment models.Comment
 	result := r.DB.WithContext(ctx).First(&comment, "id = ?", commentID)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		// GORMのNotFoundをRepository契約へ変換し、上位層がORMのエラー型に依存しないようにする。
 		return nil, repositories.ErrCommentNotFound
 	}
 	if result.Error != nil {
@@ -88,8 +89,10 @@ func (r *CommentRepository) DeleteByID(
 	commentID models.UUID,
 ) (int64, error) {
 	var rowsAffected int64
+	// Comment本体と返信の削除範囲を同じTransactionで確定し、親子の一方だけが残る状態を防ぐ。
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var comment models.Comment
+		// 削除対象の親子関係を確定するまで対象行をロックし、同時処理との競合を抑える。
 		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND author_id = ?", commentID, userID).
 			First(&comment)
@@ -100,11 +103,13 @@ func (r *CommentRepository) DeleteByID(
 			return fmt.Errorf("find comment for delete: %w", result.Error)
 		}
 
-		// ParentIDがnilの親Commentは、直接の返信も含めて論理削除する。
-		// ParentIDが非nilの返信Commentは、親や兄弟の返信を残すため自身だけを論理削除する。
-		deleteQuery := tx.Where("id = ?", comment.ID)
+		var deleteQuery *gorm.DB
 		if comment.ParentID == nil {
+			// 親Commentは、会話の階層を部分的に残さないよう直接の返信も削除範囲に含める。
 			deleteQuery = tx.Where("id = ? OR parent_id = ?", comment.ID, comment.ID)
+		} else {
+			// 返信は親Commentと兄弟の返信を残し、自身だけを削除範囲にする。
+			deleteQuery = tx.Where("id = ?", comment.ID)
 		}
 		result = deleteQuery.Delete(&models.Comment{})
 		if result.Error != nil {

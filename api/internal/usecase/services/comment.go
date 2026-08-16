@@ -137,6 +137,7 @@ func (s *CommentService) validateParent(
 		return fmt.Errorf("find comment parent: %w", err)
 	}
 
+	// 返信先は同じPostの有効なルートCommentに限定し、別Post参照と2段目の返信を拒否する。
 	if parent.PostID != postID {
 		return ErrCommentNotFound
 	}

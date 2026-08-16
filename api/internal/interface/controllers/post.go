@@ -126,6 +126,7 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 		return
 	}
 
+	// 本文のバインドより先に所有者条件で取得し、非所有者へPostの存在を推測させない。
 	post, err := pc.service.GetPostByIDForOwner(c.Request.Context(), userID, postID)
 	if err != nil {
 		writePostError(c, err)
