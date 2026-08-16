@@ -67,18 +67,6 @@ func TestPostRepository_ReturnsPostNotFound(t *testing.T) {
 		require.ErrorIs(t, err, repositories.ErrPostNotFound)
 	})
 }
-//go:build integration
-
-package repository
-
-import (
-	"context"
-	"testing"
-
-	"Threadly/internal/domain/models"
-
-	"github.com/stretchr/testify/require"
-)
 
 func TestPostRepository_DeleteByIDSoftDeletesComments(t *testing.T) {
 	db := openTestDB(t)
@@ -101,6 +89,9 @@ func TestPostRepository_DeleteByIDSoftDeletesComments(t *testing.T) {
 		Content:  "reply",
 	}
 	require.NoError(t, tx.Create(reply).Error)
+	require.NoError(t, tx.Create(&models.PostLike{UserID: user.ID, PostID: post.ID}).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: root.ID}).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: reply.ID}).Error)
 
 	repo := &PostRepository{DB: tx}
 	rows, err := repo.DeleteByID(context.Background(), user.ID, post.ID)
@@ -122,4 +113,10 @@ func TestPostRepository_DeleteByIDSoftDeletesComments(t *testing.T) {
 	for _, comment := range deletedComments {
 		require.True(t, comment.DeletedAt.Valid)
 	}
+	var postLikes []models.PostLike
+	require.NoError(t, tx.Where("post_id = ?", post.ID).Find(&postLikes).Error)
+	require.Empty(t, postLikes)
+	var commentLikes []models.CommentLike
+	require.NoError(t, tx.Where("comment_id IN ?", []models.UUID{root.ID, reply.ID}).Find(&commentLikes).Error)
+	require.Empty(t, commentLikes)
 }

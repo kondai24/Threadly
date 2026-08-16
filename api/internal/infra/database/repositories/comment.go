@@ -103,6 +103,20 @@ func (r *CommentRepository) DeleteByID(
 			return fmt.Errorf("find comment for delete: %w", result.Error)
 		}
 
+		commentIDs := []models.UUID{comment.ID}
+		if comment.ParentID == nil {
+			var replyIDs []models.UUID
+			if result := tx.Model(&models.Comment{}).
+				Where("parent_id = ?", comment.ID).
+				Pluck("id", &replyIDs); result.Error != nil {
+				return fmt.Errorf("find reply ids for like cleanup: %w", result.Error)
+			}
+			commentIDs = append(commentIDs, replyIDs...)
+		}
+		if result := tx.Where("comment_id IN ?", commentIDs).Delete(&models.CommentLike{}); result.Error != nil {
+			return fmt.Errorf("delete comment likes: %w", result.Error)
+		}
+
 		var deleteQuery *gorm.DB
 		if comment.ParentID == nil {
 			// 親Commentは、会話の階層を部分的に残さないよう直接の返信も削除範囲に含める。
