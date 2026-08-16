@@ -15,6 +15,8 @@ func main() {
 		&models.User{},
 		&models.Post{},
 		&models.Comment{},
+		&models.PostLike{},
+		&models.CommentLike{},
 	)
 	if err != nil {
 		log.Fatalf("failed to load GORM schema: %v", err)
