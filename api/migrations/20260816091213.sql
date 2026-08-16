@@ -1,6 +1,6 @@
 -- Create "comment_likes" table
 CREATE TABLE `comment_likes` (
-  `id` char(36) NOT NULL,
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` char(36) NOT NULL,
   `comment_id` char(36) NOT NULL,
   `created_at` datetime(3) NULL,
@@ -12,7 +12,7 @@ CREATE TABLE `comment_likes` (
 ) CHARSET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 -- Create "post_likes" table
 CREATE TABLE `post_likes` (
-  `id` char(36) NOT NULL,
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` char(36) NOT NULL,
   `post_id` char(36) NOT NULL,
   `created_at` datetime(3) NULL,
