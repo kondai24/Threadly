@@ -1,0 +1,4 @@
+interface:
+  display_name: "Threadly Code Comments"
+  short_description: "Threadlyの意図・時系列・責務に沿うコメント基準"
+  default_prompt: "Use $threadly-code-comments to review and write comments that explain Threadly intent, execution timing, and layer responsibility."
