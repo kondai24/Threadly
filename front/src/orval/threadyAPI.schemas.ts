@@ -26,6 +26,29 @@ export interface InternalInterfaceControllersAuthResponse {
   user?: InternalInterfaceControllersUserResponse;
 }
 
+export interface InternalInterfaceControllersCommentAuthorResponse {
+  id?: string;
+  username?: string;
+}
+
+export interface InternalInterfaceControllersCommentResponse {
+  author?: InternalInterfaceControllersCommentAuthorResponse;
+  content?: string;
+  createdAt?: string;
+  id?: string;
+  replies?: InternalInterfaceControllersCommentResponse[];
+  updatedAt?: string;
+}
+
+export interface InternalInterfaceControllersCreateCommentRequest {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  content: string;
+  parentId?: string;
+}
+
 export interface InternalInterfaceControllersCredentialsRequest {
   password: string;
   username: string;
@@ -52,6 +75,14 @@ export interface InternalInterfaceControllersPostListResponse {
   title?: string;
 }
 
+export interface InternalInterfaceControllersUpdateCommentRequest {
+  /**
+   * @minLength 1
+   * @maxLength 1000
+   */
+  content: string;
+}
+
 export type PostApiAuthLogin400 = { [key: string]: unknown };
 
 export type PostApiAuthLogin401 = { [key: string]: unknown };
@@ -63,6 +94,22 @@ export type PostApiAuthRegister400 = { [key: string]: unknown };
 export type PostApiAuthRegister409 = { [key: string]: unknown };
 
 export type PostApiAuthRegister500 = { [key: string]: unknown };
+
+export type DeleteApiCommentsId400 = { [key: string]: unknown };
+
+export type DeleteApiCommentsId401 = { [key: string]: unknown };
+
+export type DeleteApiCommentsId404 = { [key: string]: unknown };
+
+export type DeleteApiCommentsId500 = { [key: string]: unknown };
+
+export type PutApiCommentsId400 = { [key: string]: unknown };
+
+export type PutApiCommentsId401 = { [key: string]: unknown };
+
+export type PutApiCommentsId404 = { [key: string]: unknown };
+
+export type PutApiCommentsId500 = { [key: string]: unknown };
 
 export type GetApiMe401 = { [key: string]: unknown };
 
@@ -103,3 +150,19 @@ export type PutApiPostsId401 = { [key: string]: unknown };
 export type PutApiPostsId404 = { [key: string]: unknown };
 
 export type PutApiPostsId500 = { [key: string]: unknown };
+
+export type GetApiPostsIdComments400 = { [key: string]: unknown };
+
+export type GetApiPostsIdComments401 = { [key: string]: unknown };
+
+export type GetApiPostsIdComments404 = { [key: string]: unknown };
+
+export type GetApiPostsIdComments500 = { [key: string]: unknown };
+
+export type PostApiPostsIdComments400 = { [key: string]: unknown };
+
+export type PostApiPostsIdComments401 = { [key: string]: unknown };
+
+export type PostApiPostsIdComments404 = { [key: string]: unknown };
+
+export type PostApiPostsIdComments500 = { [key: string]: unknown };
