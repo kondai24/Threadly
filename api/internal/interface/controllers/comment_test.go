@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/interface/dto"
 
 	"github.com/gin-gonic/gin"
 )
 
-func TestToCommentResponseHidesInternalFieldsAndUsesEmptyReplies(t *testing.T) {
+func TestCommentResponseFromModelHidesInternalFieldsAndUsesEmptyReplies(t *testing.T) {
 	comment := &models.Comment{
 		UUIDBaseModel: models.UUIDBaseModel{ID: "77777777-7777-4777-8777-777777777777"},
 		Content:       "comment",
@@ -24,7 +25,7 @@ func TestToCommentResponseHidesInternalFieldsAndUsesEmptyReplies(t *testing.T) {
 		},
 	}
 
-	body, err := json.Marshal(toCommentResponse(comment))
+	body, err := json.Marshal(dto.CommentResponseFromModel(comment))
 	if err != nil {
 		t.Fatalf("marshal comment response: %v", err)
 	}

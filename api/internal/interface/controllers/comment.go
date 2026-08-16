@@ -3,10 +3,10 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"time"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
 	"Threadly/internal/usecase/services"
 
@@ -16,29 +16,6 @@ import (
 
 type CommentController struct {
 	service *services.CommentService
-}
-
-type createCommentRequest struct {
-	Content  string  `json:"content" binding:"required" minLength:"1" maxLength:"1000" example:"コメント本文"`
-	ParentID *string `json:"parentId,omitempty" example:"33333333-3333-4333-8333-333333333333"`
-}
-
-type updateCommentRequest struct {
-	Content string `json:"content" binding:"required" minLength:"1" maxLength:"1000" example:"更新したコメント本文"`
-}
-
-type commentAuthorResponse struct {
-	ID       models.UUID `json:"id"`
-	Username string      `json:"username"`
-}
-
-type commentResponse struct {
-	ID        models.UUID           `json:"id"`
-	Content   string                `json:"content"`
-	Author    commentAuthorResponse `json:"author"`
-	CreatedAt time.Time             `json:"createdAt"`
-	UpdatedAt time.Time             `json:"updatedAt"`
-	Replies   []commentResponse     `json:"replies"`
 }
 
 func NewCommentController(service *services.CommentService) *CommentController {
@@ -52,11 +29,11 @@ func NewCommentController(service *services.CommentService) *CommentController {
 // @Produce json
 // @Security SessionCookie
 // @Param id path string true "Post ID"
-// @Success 200 {array} commentResponse
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Success 200 {array} dto.CommentResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/comments [get]
 func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
 	postID, ok := parseCommentIDParam(c, "post id")
@@ -70,11 +47,7 @@ func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
 		return
 	}
 
-	responses := make([]commentResponse, 0, len(comments))
-	for _, comment := range comments {
-		responses = append(responses, toCommentResponse(comment))
-	}
-	c.JSON(http.StatusOK, responses)
+	c.JSON(http.StatusOK, dto.CommentResponsesFromModels(comments))
 }
 
 // CreateCommentHandler godoc
@@ -85,17 +58,17 @@ func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
 // @Produce json
 // @Security SessionCookie
 // @Param id path string true "Post ID"
-// @Param request body createCommentRequest true "Create comment payload"
+// @Param request body dto.CreateCommentRequest true "Create comment payload"
 // @Success 201
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/comments [post]
 func (cc *CommentController) CreateCommentHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
@@ -104,15 +77,15 @@ func (cc *CommentController) CreateCommentHandler(c *gin.Context) {
 		return
 	}
 
-	var req createCommentRequest
+	var req dto.CreateCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
 
 	parentID, err := parseOptionalCommentID(req.ParentID)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid parent id"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid parent id"})
 		return
 	}
 
@@ -137,17 +110,17 @@ func (cc *CommentController) CreateCommentHandler(c *gin.Context) {
 // @Produce json
 // @Security SessionCookie
 // @Param id path string true "Comment ID"
-// @Param request body updateCommentRequest true "Update comment payload"
+// @Param request body dto.UpdateCommentRequest true "Update comment payload"
 // @Success 200
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/comments/{id} [put]
 func (cc *CommentController) UpdateCommentHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
@@ -156,9 +129,9 @@ func (cc *CommentController) UpdateCommentHandler(c *gin.Context) {
 		return
 	}
 
-	var req updateCommentRequest
+	var req dto.UpdateCommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
 		return
 	}
 
@@ -182,15 +155,15 @@ func (cc *CommentController) UpdateCommentHandler(c *gin.Context) {
 // @Security SessionCookie
 // @Param id path string true "Comment ID"
 // @Success 204
-// @Failure 400 {object} map[string]interface{}
-// @Failure 401 {object} map[string]interface{}
-// @Failure 404 {object} map[string]interface{}
-// @Failure 500 {object} map[string]interface{}
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 404 {object} dto.ErrorResponse
+// @Failure 500 {object} dto.ErrorResponse
 // @Router /api/comments/{id} [delete]
 func (cc *CommentController) DeleteCommentHandler(c *gin.Context) {
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
 		return
 	}
 
@@ -209,7 +182,7 @@ func (cc *CommentController) DeleteCommentHandler(c *gin.Context) {
 func parseCommentIDParam(c *gin.Context, name string) (models.UUID, bool) {
 	parsedID, err := models.ParseUUID(c.Param("id"))
 	if err != nil || parsedID == "" {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid " + name})
+		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid " + name})
 		return "", false
 	}
 	return parsedID, true
@@ -227,36 +200,18 @@ func parseOptionalCommentID(rawID *string) (*models.UUID, error) {
 	return &parsedID, nil
 }
 
-func toCommentResponse(comment *models.Comment) commentResponse {
-	replies := make([]commentResponse, 0, len(comment.Replies))
-	for _, reply := range comment.Replies {
-		replies = append(replies, toCommentResponse(reply))
-	}
-	return commentResponse{
-		ID:      comment.ID,
-		Content: comment.Content,
-		Author: commentAuthorResponse{
-			ID:       comment.Author.ID,
-			Username: comment.Author.Username,
-		},
-		CreatedAt: comment.CreatedAt,
-		UpdatedAt: comment.UpdatedAt,
-		Replies:   replies,
-	}
-}
-
 func writeCommentError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, models.ErrInvalidCommentContent):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment"})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid comment"})
 	case errors.Is(err, services.ErrCommentReplyNotAllowed):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "comment reply is not allowed"})
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "comment reply is not allowed"})
 	case errors.Is(err, services.ErrPostNotFound),
 		errors.Is(err, services.ErrCommentNotFound),
 		errors.Is(err, repositories.ErrCommentNotFound),
 		errors.Is(err, gorm.ErrRecordNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "comment or post not found"})
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "comment or post not found"})
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 	}
 }

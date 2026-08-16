@@ -19,8 +19,8 @@ var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_]{3,32}$`)
 
 type User struct {
 	UUIDBaseModel
-	Username     string `gorm:"size:32;not null;uniqueIndex" json:"username"`
-	PasswordHash string `gorm:"size:255;not null" json:"-"`
+	Username     string `gorm:"size:32;not null;uniqueIndex"`
+	PasswordHash string `gorm:"size:255;not null"`
 }
 
 func (u *User) BeforeCreate(_ *gorm.DB) error {

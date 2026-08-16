@@ -1,37 +1,13 @@
 definitions:
-  internal_interface_controllers.CreatePostRequest:
-    properties:
-      content:
-        type: string
-      title:
-        type: string
-    required:
-    - content
-    - title
-    type: object
-  internal_interface_controllers.UpdatePostRequest:
-    properties:
-      content:
-        type: string
-      title:
-        type: string
-    type: object
-  internal_interface_controllers.authResponse:
+  Threadly_internal_interface_dto.AuthResponse:
     properties:
       user:
-        $ref: '#/definitions/internal_interface_controllers.userResponse'
+        $ref: '#/definitions/Threadly_internal_interface_dto.UserResponse'
     type: object
-  internal_interface_controllers.commentAuthorResponse:
-    properties:
-      id:
-        type: string
-      username:
-        type: string
-    type: object
-  internal_interface_controllers.commentResponse:
+  Threadly_internal_interface_dto.CommentResponse:
     properties:
       author:
-        $ref: '#/definitions/internal_interface_controllers.commentAuthorResponse'
+        $ref: '#/definitions/Threadly_internal_interface_dto.PublicUserResponse'
       content:
         type: string
       createdAt:
@@ -40,12 +16,12 @@ definitions:
         type: string
       replies:
         items:
-          $ref: '#/definitions/internal_interface_controllers.commentResponse'
+          $ref: '#/definitions/Threadly_internal_interface_dto.CommentResponse'
         type: array
       updatedAt:
         type: string
     type: object
-  internal_interface_controllers.createCommentRequest:
+  Threadly_internal_interface_dto.CreateCommentRequest:
     properties:
       content:
         example: コメント本文
@@ -58,7 +34,17 @@ definitions:
     required:
     - content
     type: object
-  internal_interface_controllers.credentialsRequest:
+  Threadly_internal_interface_dto.CreatePostRequest:
+    properties:
+      content:
+        type: string
+      title:
+        type: string
+    required:
+    - content
+    - title
+    type: object
+  Threadly_internal_interface_dto.CredentialsRequest:
     properties:
       password:
         type: string
@@ -68,17 +54,15 @@ definitions:
     - password
     - username
     type: object
-  internal_interface_controllers.postAuthorResponse:
+  Threadly_internal_interface_dto.ErrorResponse:
     properties:
-      id:
-        type: string
-      username:
+      error:
         type: string
     type: object
-  internal_interface_controllers.postDetailResponse:
+  Threadly_internal_interface_dto.PostDetailResponse:
     properties:
       author:
-        $ref: '#/definitions/internal_interface_controllers.postAuthorResponse'
+        $ref: '#/definitions/Threadly_internal_interface_dto.PublicUserResponse'
       content:
         type: string
       createdAt:
@@ -90,10 +74,10 @@ definitions:
       updatedAt:
         type: string
     type: object
-  internal_interface_controllers.postListResponse:
+  Threadly_internal_interface_dto.PostListResponse:
     properties:
       author:
-        $ref: '#/definitions/internal_interface_controllers.postAuthorResponse'
+        $ref: '#/definitions/Threadly_internal_interface_dto.PublicUserResponse'
       createdAt:
         type: string
       id:
@@ -101,7 +85,14 @@ definitions:
       title:
         type: string
     type: object
-  internal_interface_controllers.updateCommentRequest:
+  Threadly_internal_interface_dto.PublicUserResponse:
+    properties:
+      id:
+        type: string
+      username:
+        type: string
+    type: object
+  Threadly_internal_interface_dto.UpdateCommentRequest:
     properties:
       content:
         example: 更新したコメント本文
@@ -111,7 +102,14 @@ definitions:
     required:
     - content
     type: object
-  internal_interface_controllers.userResponse:
+  Threadly_internal_interface_dto.UpdatePostRequest:
+    properties:
+      content:
+        type: string
+      title:
+        type: string
+    type: object
+  Threadly_internal_interface_dto.UserResponse:
     properties:
       createdAt:
         type: string
@@ -141,29 +139,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_interface_controllers.credentialsRequest'
+          $ref: '#/definitions/Threadly_internal_interface_dto.CredentialsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_interface_controllers.authResponse'
+            $ref: '#/definitions/Threadly_internal_interface_dto.AuthResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       summary: Login
       tags:
       - auth
@@ -188,29 +183,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_interface_controllers.credentialsRequest'
+          $ref: '#/definitions/Threadly_internal_interface_dto.CredentialsRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_interface_controllers.authResponse'
+            $ref: '#/definitions/Threadly_internal_interface_dto.AuthResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       summary: Register a user
       tags:
       - auth
@@ -232,23 +224,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Delete a comment
@@ -269,7 +257,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_interface_controllers.updateCommentRequest'
+          $ref: '#/definitions/Threadly_internal_interface_dto.UpdateCommentRequest'
       produces:
       - application/json
       responses:
@@ -278,23 +266,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Update a comment
@@ -309,22 +293,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_interface_controllers.userResponse'
+            $ref: '#/definitions/Threadly_internal_interface_dto.UserResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Get current user
@@ -340,18 +321,16 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/internal_interface_controllers.postListResponse'
+              $ref: '#/definitions/Threadly_internal_interface_dto.PostListResponse'
             type: array
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: List posts
@@ -367,7 +346,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_interface_controllers.CreatePostRequest'
+          $ref: '#/definitions/Threadly_internal_interface_dto.CreatePostRequest'
       produces:
       - application/json
       responses:
@@ -376,18 +355,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Create post
@@ -410,23 +386,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Delete current user's post
@@ -446,27 +418,23 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_interface_controllers.postDetailResponse'
+            $ref: '#/definitions/Threadly_internal_interface_dto.PostDetailResponse'
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Get post by ID
@@ -487,7 +455,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_interface_controllers.UpdatePostRequest'
+          $ref: '#/definitions/Threadly_internal_interface_dto.UpdatePostRequest'
       produces:
       - application/json
       responses:
@@ -496,23 +464,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Update current user's post
@@ -534,28 +498,24 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/internal_interface_controllers.commentResponse'
+              $ref: '#/definitions/Threadly_internal_interface_dto.CommentResponse'
             type: array
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: List comments for a post
@@ -576,7 +536,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_interface_controllers.createCommentRequest'
+          $ref: '#/definitions/Threadly_internal_interface_dto.CreateCommentRequest'
       produces:
       - application/json
       responses:
@@ -585,23 +545,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/Threadly_internal_interface_dto.ErrorResponse'
       security:
       - SessionCookie: []
       summary: Create a comment

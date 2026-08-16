@@ -18,14 +18,14 @@ var ErrInvalidCommentContent = errors.New("invalid comment content")
 // CommentはPost直下またはPost直下Commentへの1段階返信を表す。
 type Comment struct {
 	UUIDBaseModel
-	PostID   UUID       `gorm:"type:char(36);not null;index" json:"postId"`
-	Post     Post       `gorm:"foreignKey:PostID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"-"`
-	AuthorID UUID       `gorm:"type:char(36);not null;index" json:"authorId"`
-	Author   User       `gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"-"`
-	ParentID *UUID      `gorm:"type:char(36);index" json:"parentId,omitempty"`
-	Parent   *Comment   `gorm:"foreignKey:ParentID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"-"`
-	Replies  []*Comment `gorm:"foreignKey:ParentID" json:"-"`
-	Content  string     `gorm:"type:text;not null" json:"content"`
+	PostID   UUID       `gorm:"type:char(36);not null;index"`
+	Post     Post       `gorm:"foreignKey:PostID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	AuthorID UUID       `gorm:"type:char(36);not null;index"`
+	Author   User       `gorm:"foreignKey:AuthorID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	ParentID *UUID      `gorm:"type:char(36);index"`
+	Parent   *Comment   `gorm:"foreignKey:ParentID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
+	Replies  []*Comment `gorm:"foreignKey:ParentID"`
+	Content  string     `gorm:"type:text;not null"`
 }
 
 func (c *Comment) BeforeCreate(_ *gorm.DB) error {
