@@ -30,7 +30,7 @@ func SetupRouter(h Handlers) *gin.Engine {
 	api := router.Group("/api")
 	registerAuthRoutes(api, h)
 
-	// /meとPost APIはすべて同じ認証Middlewareを通す。
+	// /me、Post、Comment APIを同じ認証Middleware配下に置き、Controllerへ認証済みUser IDを渡す。
 	protected := api.Group("")
 	protected.Use(middleware.RequireAuth(h.TokenIssuer))
 	protected.GET("/me", h.Auth.MeHandler)

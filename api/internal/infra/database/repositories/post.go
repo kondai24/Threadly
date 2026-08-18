@@ -74,8 +74,10 @@ func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *m
 
 func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, postID models.UUID) (int64, error) {
 	var rowsAffected int64
+	// Postと配下のCommentを同じTransactionで論理削除し、Postだけが消えてCommentが残る状態を防ぐ。
 	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var post models.Post
+		// 削除対象を確定するまでPost行をロックし、子行と本体で同じPostを扱う。
 		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("id = ? AND author_id = ?", postID, userID).
 			First(&post)
@@ -86,6 +88,7 @@ func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, pos
 			return fmt.Errorf("find post for delete: %w", result.Error)
 		}
 
+		// Postに属する親Commentと返信を先に論理削除し、通常Queryからも一緒に除外する。
 		if result := tx.Where("post_id = ?", post.ID).Delete(&models.Comment{}); result.Error != nil {
 			return fmt.Errorf("delete post comments: %w", result.Error)
 		}

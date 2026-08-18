@@ -1,6 +1,7 @@
 import Axios from "axios";
 import type { AxiosRequestConfig } from "axios";
 
+// 認証情報はHttpOnly Cookieで管理するため、生成APIの各リクエストにもCookieを添付する。
 export const api = Axios.create({
   baseURL: "",
   withCredentials: true,

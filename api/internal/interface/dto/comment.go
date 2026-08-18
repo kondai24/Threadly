@@ -39,6 +39,7 @@ func CommentResponseFromModel(comment *models.Comment) CommentResponse {
 }
 
 func CommentResponsesFromModels(comments []*models.Comment) []CommentResponse {
+	// repliesをnilではなく空配列で返し、Frontが親Commentと返信を同じ契約で描画できるようにする。
 	responses := make([]CommentResponse, 0, len(comments))
 	for _, comment := range comments {
 		if comment == nil {

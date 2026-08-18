@@ -52,6 +52,7 @@ function CommentComposer({
       {
         onSuccess: async () => {
           setContent("");
+          // 作成後の一覧を再取得し、親Commentとrepliesのネストをサーバーの正規データで同期する。
           await queryClient.invalidateQueries({
             queryKey: getGetApiPostsIdCommentsQueryKey(postId),
           });
@@ -138,6 +139,7 @@ type CommentCardProps = {
 function CommentCard({ postId, comment, isReply = false }: CommentCardProps) {
   const [isReplying, setIsReplying] = useState(false);
   const replies = comment.replies ?? [];
+  // APIは1段階返信までの契約なので、返信カードからさらに返信する操作を表示しない。
   const canReply = !isReply && comment.id !== undefined;
   const authorName = comment.author?.username ?? "unknown";
   const commentKey =
@@ -211,6 +213,7 @@ export default function CommentsSection({ postId }: { postId: string }) {
     isPending,
     refetch,
   } = useGetApiPostsIdComments(postId);
+  // APIは返信をrepliesへネストして返すため、表示件数では親と返信を合算する。
   const commentCount = comments.reduce(
     (count, comment) => count + 1 + (comment.replies?.length ?? 0),
     0,
