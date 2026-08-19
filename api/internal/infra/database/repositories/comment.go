@@ -109,10 +109,11 @@ func (r *CommentRepository) DeleteByID(
 		if comment.ParentID == nil {
 			commentIDQuery = commentIDQuery.Or("parent_id = ?", comment.ID)
 		}
-		if err := tx.
+		result = tx.
 			Where("comment_id IN (?)", commentIDQuery).
-			Delete(&models.CommentLike{}).Error; err != nil {
-			return fmt.Errorf("delete comment likes: %w", err)
+			Delete(&models.CommentLike{})
+		if result.Error != nil {
+			return fmt.Errorf("delete comment likes: %w", result.Error)
 		}
 
 		var deleteQuery *gorm.DB
