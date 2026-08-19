@@ -89,16 +89,13 @@ func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, pos
 		}
 
 		// Postに属する親Commentと返信を先に論理削除し、通常Queryからも一緒に除外する。
-		var commentIDs []models.UUID
-		if result := tx.Model(&models.Comment{}).
-			Where("post_id = ?", post.ID).
-			Pluck("id", &commentIDs); result.Error != nil {
-			return fmt.Errorf("find post comment ids for like cleanup: %w", result.Error)
-		}
-		if len(commentIDs) > 0 {
-			if result := tx.Where("comment_id IN ?", commentIDs).Delete(&models.CommentLike{}); result.Error != nil {
-				return fmt.Errorf("delete post comment likes: %w", result.Error)
-			}
+		commentIDQuery := tx.Model(&models.Comment{}).
+			Select("id").
+			Where("post_id = ?", post.ID)
+		if err := tx.
+			Where("comment_id IN (?)", commentIDQuery).
+			Delete(&models.CommentLike{}).Error; err != nil {
+			return fmt.Errorf("delete post comment likes: %w", err)
 		}
 		if result := tx.Where("post_id = ?", post.ID).Delete(&models.PostLike{}); result.Error != nil {
 			return fmt.Errorf("delete post likes: %w", result.Error)

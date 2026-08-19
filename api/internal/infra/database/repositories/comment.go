@@ -103,18 +103,16 @@ func (r *CommentRepository) DeleteByID(
 			return fmt.Errorf("find comment for delete: %w", result.Error)
 		}
 
-		commentIDs := []models.UUID{comment.ID}
+		commentIDQuery := tx.Model(&models.Comment{}).
+			Select("id").
+			Where("id = ?", comment.ID)
 		if comment.ParentID == nil {
-			var replyIDs []models.UUID
-			if result := tx.Model(&models.Comment{}).
-				Where("parent_id = ?", comment.ID).
-				Pluck("id", &replyIDs); result.Error != nil {
-				return fmt.Errorf("find reply ids for like cleanup: %w", result.Error)
-			}
-			commentIDs = append(commentIDs, replyIDs...)
+			commentIDQuery = commentIDQuery.Or("parent_id = ?", comment.ID)
 		}
-		if result := tx.Where("comment_id IN ?", commentIDs).Delete(&models.CommentLike{}); result.Error != nil {
-			return fmt.Errorf("delete comment likes: %w", result.Error)
+		if err := tx.
+			Where("comment_id IN (?)", commentIDQuery).
+			Delete(&models.CommentLike{}).Error; err != nil {
+			return fmt.Errorf("delete comment likes: %w", err)
 		}
 
 		var deleteQuery *gorm.DB
