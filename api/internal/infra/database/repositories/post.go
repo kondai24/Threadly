@@ -92,9 +92,10 @@ func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, pos
 		commentIDQuery := tx.Model(&models.Comment{}).
 			Select("id").
 			Where("post_id = ?", post.ID)
-		if err := tx.
+		err := tx.
 			Where("comment_id IN (?)", commentIDQuery).
-			Delete(&models.CommentLike{}).Error; err != nil {
+			Delete(&models.CommentLike{}).Error
+		if err != nil {
 			return fmt.Errorf("delete post comment likes: %w", err)
 		}
 		if result := tx.Where("post_id = ?", post.ID).Delete(&models.PostLike{}); result.Error != nil {
