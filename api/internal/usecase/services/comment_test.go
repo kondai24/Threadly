@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"gorm.io/gorm"
 )
 
 const (
@@ -30,8 +29,42 @@ func newCommentServiceTest(
 
 	commentRepo := mocks.NewMockCommentRepository(ctrl)
 	postRepo := mocks.NewMockPostRepository(ctrl)
-	service := NewCommentService(commentRepo, postRepo)
+	service := NewCommentService(
+		commentRepo,
+		postRepo,
+		testUnitOfWork{
+			repos: repositories.TransactionRepositories{
+				Post:    postRepo,
+				Comment: commentRepo,
+			},
+		},
+	)
 	return service, commentRepo, postRepo
+}
+
+func newCommentDeleteServiceTest(
+	t *testing.T,
+) (
+	*CommentService,
+	*mocks.MockCommentRepository,
+	*testCommentLikeRepository,
+) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	commentRepo := mocks.NewMockCommentRepository(ctrl)
+	postRepo := mocks.NewMockPostRepository(ctrl)
+	commentLikeRepo := &testCommentLikeRepository{}
+	service := NewCommentService(commentRepo, postRepo, testUnitOfWork{
+		repos: repositories.TransactionRepositories{
+			Post:        postRepo,
+			Comment:     commentRepo,
+			CommentLike: commentLikeRepo,
+		},
+	})
+	return service, commentRepo, commentLikeRepo
 }
 
 func TestCommentService_ListComments(t *testing.T) {
@@ -56,7 +89,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 	t.Run("Post直下Commentを作成する", func(t *testing.T) {
 		service, commentRepo, postRepo := newCommentServiceTest(t)
 		postRepo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
+			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
 		commentRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
@@ -83,10 +116,10 @@ func TestCommentService_CreateComment(t *testing.T) {
 		service, commentRepo, postRepo := newCommentServiceTest(t)
 		parentID := testCommentID
 		postRepo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
+			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
 		commentRepo.EXPECT().
-			GetByID(gomock.Any(), parentID).
+			GetByIDForUpdate(gomock.Any(), parentID).
 			Return(&models.Comment{
 				UUIDBaseModel: models.UUIDBaseModel{ID: parentID},
 				PostID:        testPostID,
@@ -115,10 +148,10 @@ func TestCommentService_CreateComment(t *testing.T) {
 		service, commentRepo, postRepo := newCommentServiceTest(t)
 		parentID := testReplyID
 		postRepo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
+			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
 		commentRepo.EXPECT().
-			GetByID(gomock.Any(), parentID).
+			GetByIDForUpdate(gomock.Any(), parentID).
 			Return(&models.Comment{
 				UUIDBaseModel: models.UUIDBaseModel{ID: parentID},
 				PostID:        testPostID,
@@ -140,10 +173,10 @@ func TestCommentService_CreateComment(t *testing.T) {
 		service, commentRepo, postRepo := newCommentServiceTest(t)
 		parentID := testCommentID
 		postRepo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
+			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
 		commentRepo.EXPECT().
-			GetByID(gomock.Any(), parentID).
+			GetByIDForUpdate(gomock.Any(), parentID).
 			Return(&models.Comment{
 				UUIDBaseModel: models.UUIDBaseModel{ID: parentID},
 				PostID:        testOtherPostID,
@@ -164,10 +197,10 @@ func TestCommentService_CreateComment(t *testing.T) {
 		service, commentRepo, postRepo := newCommentServiceTest(t)
 		parentID := testCommentID
 		postRepo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
+			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
 		commentRepo.EXPECT().
-			GetByID(gomock.Any(), parentID).
+			GetByIDForUpdate(gomock.Any(), parentID).
 			Return(nil, repositories.ErrCommentNotFound)
 
 		err := service.CreateComment(
@@ -184,8 +217,8 @@ func TestCommentService_CreateComment(t *testing.T) {
 	t.Run("削除済みPostへのCommentを拒否する", func(t *testing.T) {
 		service, _, postRepo := newCommentServiceTest(t)
 		postRepo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
-			Return(nil, gorm.ErrRecordNotFound)
+			GetByIDForUpdate(gomock.Any(), testPostID).
+			Return(nil, repositories.ErrPostNotFound)
 
 		err := service.CreateComment(
 			context.Background(),
@@ -235,23 +268,51 @@ func TestCommentService_UpdateComment(t *testing.T) {
 
 func TestCommentService_DeleteComment(t *testing.T) {
 	t.Run("本人のCommentを削除する", func(t *testing.T) {
-		service, commentRepo, _ := newCommentServiceTest(t)
+		service, commentRepo, commentLikeRepo := newCommentDeleteServiceTest(t)
+		replyID := testReplyID
+		commentRepo.EXPECT().
+			GetByIDForUpdate(gomock.Any(), testCommentID).
+			Return(&models.Comment{
+				UUIDBaseModel: models.UUIDBaseModel{ID: testCommentID},
+				AuthorID:      testUserID,
+			}, nil)
+		commentRepo.EXPECT().
+			ListIDsByParentID(gomock.Any(), testCommentID).
+			Return([]models.UUID{replyID}, nil)
 		commentRepo.EXPECT().
 			DeleteByID(gomock.Any(), testUserID, testCommentID).
-			Return(int64(2), nil)
+			Return(int64(1), nil)
+		commentRepo.EXPECT().
+			DeleteRepliesByParentID(gomock.Any(), testCommentID).
+			Return(int64(1), nil)
 
 		err := service.DeleteComment(context.Background(), testUserID, testCommentID)
 
 		require.NoError(t, err)
+		require.Equal(t, [][]models.UUID{{testCommentID, replyID}}, commentLikeRepo.deletedCommentIDs)
 	})
 
 	t.Run("他Userまたは削除済みのCommentをNotFoundにする", func(t *testing.T) {
-		service, commentRepo, _ := newCommentServiceTest(t)
+		service, commentRepo, _ := newCommentDeleteServiceTest(t)
 		commentRepo.EXPECT().
-			DeleteByID(gomock.Any(), testOtherUserID, testCommentID).
-			Return(int64(0), nil)
+			GetByIDForUpdate(gomock.Any(), testCommentID).
+			Return(&models.Comment{
+				UUIDBaseModel: models.UUIDBaseModel{ID: testCommentID},
+				AuthorID:      testUserID,
+			}, nil)
 
 		err := service.DeleteComment(context.Background(), testOtherUserID, testCommentID)
+
+		require.ErrorIs(t, err, ErrCommentNotFound)
+	})
+
+	t.Run("存在しないCommentをNotFoundにする", func(t *testing.T) {
+		service, commentRepo, _ := newCommentDeleteServiceTest(t)
+		commentRepo.EXPECT().
+			GetByIDForUpdate(gomock.Any(), testCommentID).
+			Return(nil, repositories.ErrCommentNotFound)
+
+		err := service.DeleteComment(context.Background(), testUserID, testCommentID)
 
 		require.ErrorIs(t, err, ErrCommentNotFound)
 	})

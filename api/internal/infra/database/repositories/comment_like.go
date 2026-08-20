@@ -52,6 +52,23 @@ func (r *CommentLikeRepository) Delete(
 	return nil
 }
 
+func (r *CommentLikeRepository) DeleteByCommentIDs(
+	ctx context.Context,
+	commentIDs []models.UUID,
+) error {
+	if len(commentIDs) == 0 {
+		return nil
+	}
+
+	result := r.DB.WithContext(ctx).
+		Where("comment_id IN ?", commentIDs).
+		Delete(&models.CommentLike{})
+	if result.Error != nil {
+		return fmt.Errorf("delete comment likes by comments: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *CommentLikeRepository) CountByCommentIDs(
 	ctx context.Context,
 	commentIDs []models.UUID,

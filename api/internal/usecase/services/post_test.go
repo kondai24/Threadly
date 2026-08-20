@@ -28,8 +28,39 @@ func newPostServiceTest(t *testing.T) (*PostService, *mocks.MockPostRepository) 
 	t.Cleanup(ctrl.Finish)
 
 	repo := mocks.NewMockPostRepository(ctrl)
-	service := NewPostService(repo)
+	service := NewPostService(repo, testUnitOfWork{
+		repos: repositories.TransactionRepositories{Post: repo},
+	})
 	return service, repo
+}
+
+func newPostDeleteServiceTest(
+	t *testing.T,
+) (
+	*PostService,
+	*mocks.MockPostRepository,
+	*mocks.MockCommentRepository,
+	*testPostLikeRepository,
+	*testCommentLikeRepository,
+) {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	postRepo := mocks.NewMockPostRepository(ctrl)
+	commentRepo := mocks.NewMockCommentRepository(ctrl)
+	postLikeRepo := &testPostLikeRepository{}
+	commentLikeRepo := &testCommentLikeRepository{}
+	service := NewPostService(postRepo, testUnitOfWork{
+		repos: repositories.TransactionRepositories{
+			Post:        postRepo,
+			Comment:     commentRepo,
+			PostLike:    postLikeRepo,
+			CommentLike: commentLikeRepo,
+		},
+	})
+	return service, postRepo, commentRepo, postLikeRepo, commentLikeRepo
 }
 
 func TestPostService_GetPostByID(t *testing.T) {
@@ -230,25 +261,54 @@ func TestPostService_UpdatePost(t *testing.T) {
 
 func TestPostService_DeletePost(t *testing.T) {
 	t.Run("所有者のPostを削除できる", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
-		repo.EXPECT().
+		service, postRepo, commentRepo, postLikeRepo, commentLikeRepo := newPostDeleteServiceTest(t)
+		commentID := testCommentID
+		postRepo.EXPECT().
+			GetByIDForUpdate(gomock.Any(), testPostID).
+			Return(&models.Post{
+				UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
+				AuthorID:      testUserID,
+			}, nil)
+		commentRepo.EXPECT().
+			ListIDsByPostID(gomock.Any(), testPostID).
+			Return([]models.UUID{commentID}, nil)
+		commentRepo.EXPECT().
+			DeleteByPostID(gomock.Any(), testPostID).
+			Return(int64(1), nil)
+		postRepo.EXPECT().
 			DeleteByID(gomock.Any(), testUserID, testPostID).
 			Return(int64(1), nil)
 
 		err := service.DeletePost(context.Background(), testUserID, testPostID)
 
 		require.NoError(t, err)
+		require.Equal(t, []models.UUID{testPostID}, postLikeRepo.deletedPostIDs)
+		require.Equal(t, [][]models.UUID{{commentID}}, commentLikeRepo.deletedCommentIDs)
 	})
 
 	t.Run("所有者のPostを削除できない場合はNotFoundを返す", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
-		repo.EXPECT().
-			DeleteByID(gomock.Any(), testUserID, testMissingID).
-			Return(int64(0), nil)
+		service, postRepo, _, _, _ := newPostDeleteServiceTest(t)
+		postRepo.EXPECT().
+			GetByIDForUpdate(gomock.Any(), testMissingID).
+			Return(nil, repositories.ErrPostNotFound)
 
 		err := service.DeletePost(context.Background(), testUserID, testMissingID)
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrPostNotFound)
+	})
+
+	t.Run("所有者でないPostの削除をNotFoundにする", func(t *testing.T) {
+		service, postRepo, _, _, _ := newPostDeleteServiceTest(t)
+		postRepo.EXPECT().
+			GetByIDForUpdate(gomock.Any(), testPostID).
+			Return(&models.Post{
+				UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
+				AuthorID:      testOtherUserID,
+			}, nil)
+
+		err := service.DeletePost(context.Background(), testUserID, testPostID)
+
+		require.ErrorIs(t, err, ErrPostNotFound)
 	})
 }

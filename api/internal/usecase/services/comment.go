@@ -8,22 +8,23 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-
-	"gorm.io/gorm"
 )
 
 type CommentService struct {
 	commentRepo repositories.CommentRepository
 	postRepo    repositories.PostRepository
+	uow         repositories.UnitOfWork
 }
 
 func NewCommentService(
 	commentRepo repositories.CommentRepository,
 	postRepo repositories.PostRepository,
+	uow repositories.UnitOfWork,
 ) *CommentService {
 	return &CommentService{
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
+		uow:         uow,
 	}
 }
 
@@ -31,7 +32,7 @@ func (s *CommentService) ListComments(
 	ctx context.Context,
 	postID models.UUID,
 ) ([]*models.Comment, error) {
-	if err := s.ensurePostExists(ctx, postID); err != nil {
+	if err := s.ensurePostExists(ctx, s.postRepo, postID); err != nil {
 		return nil, err
 	}
 
@@ -59,19 +60,21 @@ func (s *CommentService) CreateComment(
 		return err
 	}
 
-	if err := s.ensurePostExists(ctx, postID); err != nil {
-		return err
-	}
-	if parentID != nil {
-		if err := s.validateParent(ctx, postID, *parentID); err != nil {
+	return s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+		if err := s.ensurePostExistsForUpdate(ctx, tx.Post, postID); err != nil {
 			return err
 		}
-	}
+		if parentID != nil {
+			if err := s.validateParent(ctx, tx.Comment, postID, *parentID); err != nil {
+				return err
+			}
+		}
 
-	if err := s.commentRepo.Create(ctx, comment); err != nil {
-		return fmt.Errorf("create comment: %w", err)
-	}
-	return nil
+		if err := tx.Comment.Create(ctx, comment); err != nil {
+			return fmt.Errorf("create comment: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *CommentService) UpdateComment(
@@ -98,13 +101,54 @@ func (s *CommentService) UpdateComment(
 	return nil
 }
 
+// CommentLikeとCommentを同じTransactionで削除し、Likeだけが残る状態を防ぐ。
 func (s *CommentService) DeleteComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
 ) error {
-	rows, err := s.commentRepo.DeleteByID(ctx, userID, commentID)
+	var rows int64
+	err := s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+		comment, err := tx.Comment.GetByIDForUpdate(ctx, commentID)
+		if err != nil {
+			return err
+		}
+		if comment.AuthorID != userID {
+			return repositories.ErrCommentNotFound
+		}
+
+		commentIDs := []models.UUID{comment.ID}
+		if comment.ParentID == nil {
+			replyIDs, err := tx.Comment.ListIDsByParentID(ctx, comment.ID)
+			if err != nil {
+				return fmt.Errorf("list comment reply ids: %w", err)
+			}
+			commentIDs = append(commentIDs, replyIDs...)
+		}
+		if err := tx.CommentLike.DeleteByCommentIDs(ctx, commentIDs); err != nil {
+			return fmt.Errorf("delete comment likes: %w", err)
+		}
+
+		rows, err = tx.Comment.DeleteByID(ctx, userID, comment.ID)
+		if err != nil {
+			return fmt.Errorf("delete comment: %w", err)
+		}
+		if rows == 0 {
+			return repositories.ErrCommentNotFound
+		}
+		if comment.ParentID == nil {
+			deletedReplies, err := tx.Comment.DeleteRepliesByParentID(ctx, comment.ID)
+			if err != nil {
+				return fmt.Errorf("delete comment replies: %w", err)
+			}
+			rows += deletedReplies
+		}
+		return nil
+	})
 	if err != nil {
+		if errors.Is(err, repositories.ErrCommentNotFound) {
+			return ErrCommentNotFound
+		}
 		return fmt.Errorf("delete comment: %w", err)
 	}
 	if rows == 0 {
@@ -113,12 +157,31 @@ func (s *CommentService) DeleteComment(
 	return nil
 }
 
-func (s *CommentService) ensurePostExists(ctx context.Context, postID models.UUID) error {
-	_, err := s.postRepo.GetByID(ctx, postID)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return ErrPostNotFound
-	}
+func (s *CommentService) ensurePostExists(
+	ctx context.Context,
+	postRepo repositories.PostRepository,
+	postID models.UUID,
+) error {
+	_, err := postRepo.GetByID(ctx, postID)
 	if err != nil {
+		if translated := translatePostRepositoryError(err); errors.Is(translated, ErrPostNotFound) {
+			return translated
+		}
+		return fmt.Errorf("find post for comment: %w", err)
+	}
+	return nil
+}
+
+func (s *CommentService) ensurePostExistsForUpdate(
+	ctx context.Context,
+	postRepo repositories.PostRepository,
+	postID models.UUID,
+) error {
+	_, err := postRepo.GetByIDForUpdate(ctx, postID)
+	if err != nil {
+		if translated := translatePostRepositoryError(err); errors.Is(translated, ErrPostNotFound) {
+			return translated
+		}
 		return fmt.Errorf("find post for comment: %w", err)
 	}
 	return nil
@@ -126,11 +189,12 @@ func (s *CommentService) ensurePostExists(ctx context.Context, postID models.UUI
 
 func (s *CommentService) validateParent(
 	ctx context.Context,
+	commentRepo repositories.CommentRepository,
 	postID models.UUID,
 	parentID models.UUID,
 ) error {
-	parent, err := s.commentRepo.GetByID(ctx, parentID)
-	if errors.Is(err, repositories.ErrCommentNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+	parent, err := commentRepo.GetByIDForUpdate(ctx, parentID)
+	if errors.Is(err, repositories.ErrCommentNotFound) {
 		return ErrCommentNotFound
 	}
 	if err != nil {

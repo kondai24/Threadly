@@ -52,9 +52,16 @@ func (r *commentRoutePostRepository) GetByID(
 ) (*models.Post, error) {
 	post, ok := r.store.posts[postID]
 	if !ok || post.DeletedAt.Valid {
-		return nil, gorm.ErrRecordNotFound
+		return nil, repositories.ErrPostNotFound
 	}
 	return cloneCommentRoutePost(post), nil
+}
+
+func (r *commentRoutePostRepository) GetByIDForUpdate(
+	ctx context.Context,
+	postID models.UUID,
+) (*models.Post, error) {
+	return r.GetByID(ctx, postID)
 }
 
 func (r *commentRoutePostRepository) GetByIDForOwner(
@@ -64,7 +71,7 @@ func (r *commentRoutePostRepository) GetByIDForOwner(
 ) (*models.Post, error) {
 	post, err := r.GetByID(context.Background(), postID)
 	if err != nil || post.AuthorID != userID {
-		return nil, gorm.ErrRecordNotFound
+		return nil, repositories.ErrPostNotFound
 	}
 	return post, nil
 }
@@ -89,7 +96,7 @@ func (r *commentRoutePostRepository) Update(
 ) error {
 	stored, ok := r.store.posts[post.ID]
 	if !ok || stored.DeletedAt.Valid || stored.AuthorID != userID {
-		return gorm.ErrRecordNotFound
+		return repositories.ErrPostNotFound
 	}
 	stored.Title = post.Title
 	stored.Content = post.Content
@@ -108,11 +115,6 @@ func (r *commentRoutePostRepository) DeleteByID(
 
 	now := time.Now()
 	post.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-	for _, comment := range r.store.comments {
-		if comment.PostID == postID && !comment.DeletedAt.Valid {
-			comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-		}
-	}
 	return 1, nil
 }
 
@@ -178,6 +180,32 @@ func (r *commentRouteCommentRepository) ListByPostID(
 	return roots, nil
 }
 
+func (r *commentRouteCommentRepository) ListIDsByPostID(
+	_ context.Context,
+	postID models.UUID,
+) ([]models.UUID, error) {
+	commentIDs := make([]models.UUID, 0)
+	for _, comment := range r.store.comments {
+		if comment.PostID == postID && !comment.DeletedAt.Valid {
+			commentIDs = append(commentIDs, comment.ID)
+		}
+	}
+	return commentIDs, nil
+}
+
+func (r *commentRouteCommentRepository) ListIDsByParentID(
+	_ context.Context,
+	parentID models.UUID,
+) ([]models.UUID, error) {
+	commentIDs := make([]models.UUID, 0)
+	for _, comment := range r.store.comments {
+		if comment.ParentID != nil && *comment.ParentID == parentID && !comment.DeletedAt.Valid {
+			commentIDs = append(commentIDs, comment.ID)
+		}
+	}
+	return commentIDs, nil
+}
+
 func (r *commentRouteCommentRepository) GetByID(
 	_ context.Context,
 	commentID models.UUID,
@@ -187,6 +215,13 @@ func (r *commentRouteCommentRepository) GetByID(
 		return nil, repositories.ErrCommentNotFound
 	}
 	return cloneCommentRouteComment(comment), nil
+}
+
+func (r *commentRouteCommentRepository) GetByIDForUpdate(
+	ctx context.Context,
+	commentID models.UUID,
+) (*models.Comment, error) {
+	return r.GetByID(ctx, commentID)
 }
 
 func (r *commentRouteCommentRepository) Update(
@@ -204,6 +239,38 @@ func (r *commentRouteCommentRepository) Update(
 	return 1, nil
 }
 
+func (r *commentRouteCommentRepository) DeleteByPostID(
+	_ context.Context,
+	postID models.UUID,
+) (int64, error) {
+	now := time.Now()
+	var rows int64
+	for _, comment := range r.store.comments {
+		if comment.PostID != postID || comment.DeletedAt.Valid {
+			continue
+		}
+		comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
+		rows++
+	}
+	return rows, nil
+}
+
+func (r *commentRouteCommentRepository) DeleteRepliesByParentID(
+	_ context.Context,
+	parentID models.UUID,
+) (int64, error) {
+	now := time.Now()
+	var rows int64
+	for _, comment := range r.store.comments {
+		if comment.ParentID == nil || *comment.ParentID != parentID || comment.DeletedAt.Valid {
+			continue
+		}
+		comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
+		rows++
+	}
+	return rows, nil
+}
+
 func (r *commentRouteCommentRepository) DeleteByID(
 	_ context.Context,
 	userID models.UUID,
@@ -216,16 +283,7 @@ func (r *commentRouteCommentRepository) DeleteByID(
 
 	now := time.Now()
 	comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-	rows := int64(1)
-	if comment.ParentID == nil {
-		for _, reply := range r.store.comments {
-			if reply.ParentID != nil && *reply.ParentID == commentID && !reply.DeletedAt.Valid {
-				reply.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-				rows++
-			}
-		}
-	}
-	return rows, nil
+	return 1, nil
 }
 
 func newCommentRouteRouter(store *commentRouteStore) *gin.Engine {
@@ -237,11 +295,12 @@ func newCommentRouteRouter(store *commentRouteStore) *gin.Engine {
 	)
 	postRepo := &commentRoutePostRepository{store: store}
 	commentRepo := &commentRouteCommentRepository{store: store}
+	uow := routeUnitOfWork{post: postRepo, comment: commentRepo}
 	return SetupRouter(Handlers{
 		Auth: controllers.NewAuthController(authService),
-		Post: controllers.NewPostController(services.NewPostService(postRepo)),
+		Post: controllers.NewPostController(services.NewPostService(postRepo, uow)),
 		Comment: controllers.NewCommentController(
-			services.NewCommentService(commentRepo, postRepo),
+			services.NewCommentService(commentRepo, postRepo, uow),
 		),
 		TokenIssuer: tokenIssuer,
 	})

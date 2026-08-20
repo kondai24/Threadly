@@ -100,6 +100,21 @@ func (mr *MockPostRepositoryMockRecorder) GetByIDForOwner(ctx, userID, postID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDForOwner", reflect.TypeOf((*MockPostRepository)(nil).GetByIDForOwner), ctx, userID, postID)
 }
 
+// GetByIDForUpdate mocks base method.
+func (m *MockPostRepository) GetByIDForUpdate(ctx context.Context, postID models.UUID) (*models.Post, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDForUpdate", ctx, postID)
+	ret0, _ := ret[0].(*models.Post)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDForUpdate indicates an expected call of GetByIDForUpdate.
+func (mr *MockPostRepositoryMockRecorder) GetByIDForUpdate(ctx, postID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDForUpdate", reflect.TypeOf((*MockPostRepository)(nil).GetByIDForUpdate), ctx, postID)
+}
+
 // ListAll mocks base method.
 func (m *MockPostRepository) ListAll(ctx context.Context) ([]*models.Post, error) {
 	m.ctrl.T.Helper()

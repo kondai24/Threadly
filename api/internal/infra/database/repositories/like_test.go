@@ -53,6 +53,9 @@ func TestPostLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, post.ID))
 	require.NoError(t, tx.Model(&models.PostLike{}).Where("user_id = ? AND post_id = ?", user.ID, post.ID).Count(&rows).Error)
 	require.Equal(t, int64(1), rows)
+	require.NoError(t, repo.DeleteByPostID(context.Background(), post.ID))
+	require.NoError(t, tx.Model(&models.PostLike{}).Where("post_id = ?", post.ID).Count(&rows).Error)
+	require.Zero(t, rows)
 }
 
 func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
@@ -77,6 +80,7 @@ func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 
 	require.NoError(t, repo.Delete(context.Background(), user.ID, comment.ID))
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, comment.ID))
+	require.NoError(t, repo.DeleteByCommentIDs(context.Background(), []models.UUID{comment.ID}))
 	var rows int64
 	require.NoError(t, tx.Model(&models.CommentLike{}).Where("user_id = ? AND comment_id = ?", user.ID, comment.ID).Count(&rows).Error)
 	require.Equal(t, int64(1), rows)
