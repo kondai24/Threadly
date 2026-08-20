@@ -63,6 +63,15 @@ func (r *likeRoutePostLikeRepository) Delete(_ context.Context, userID, postID m
 	return nil
 }
 
+func (r *likeRoutePostLikeRepository) DeleteByPostID(_ context.Context, postID models.UUID) error {
+	for key := range r.likes {
+		if key.targetID == postID {
+			delete(r.likes, key)
+		}
+	}
+	return nil
+}
+
 func (r *likeRoutePostLikeRepository) CountByPostIDs(
 	_ context.Context,
 	postIDs []models.UUID,
@@ -103,6 +112,22 @@ func (r *likeRouteCommentLikeRepository) Ensure(_ context.Context, userID, comme
 
 func (r *likeRouteCommentLikeRepository) Delete(_ context.Context, userID, commentID models.UUID) error {
 	delete(r.likes, likeRouteKey{userID: userID, targetID: commentID})
+	return nil
+}
+
+func (r *likeRouteCommentLikeRepository) DeleteByCommentIDs(
+	_ context.Context,
+	commentIDs []models.UUID,
+) error {
+	targets := make(map[models.UUID]struct{}, len(commentIDs))
+	for _, commentID := range commentIDs {
+		targets[commentID] = struct{}{}
+	}
+	for key := range r.likes {
+		if _, ok := targets[key.targetID]; ok {
+			delete(r.likes, key)
+		}
+	}
 	return nil
 }
 
@@ -148,14 +173,20 @@ func newLikeRouteRouter(store *commentRouteStore) *gin.Engine {
 	commentRepo := &commentRouteCommentRepository{store: store}
 	postLikeRepo := &likeRoutePostLikeRepository{likes: make(map[likeRouteKey]struct{})}
 	commentLikeRepo := &likeRouteCommentLikeRepository{likes: make(map[likeRouteKey]struct{})}
+	uow := routeUnitOfWork{
+		post:        postRepo,
+		comment:     commentRepo,
+		postLike:    postLikeRepo,
+		commentLike: commentLikeRepo,
+	}
 	likeService := services.NewLikeService(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
 	return SetupRouter(Handlers{
 		Auth: controllers.NewAuthController(authService),
 		Post: controllers.NewPostController(
-			services.NewPostServiceWithLikes(postRepo, likeService),
+			services.NewPostServiceWithLikes(postRepo, uow, likeService),
 		),
 		Comment: controllers.NewCommentController(
-			services.NewCommentServiceWithLikes(commentRepo, postRepo, likeService),
+			services.NewCommentServiceWithLikes(commentRepo, postRepo, uow, likeService),
 		),
 		Like:        controllers.NewLikeController(likeService),
 		TokenIssuer: tokenIssuer,
