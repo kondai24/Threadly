@@ -70,6 +70,20 @@ func (mr *MockPostLikeRepositoryMockRecorder) Delete(ctx, userID, postID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockPostLikeRepository)(nil).Delete), ctx, userID, postID)
 }
 
+// DeleteByPostID mocks base method.
+func (m *MockPostLikeRepository) DeleteByPostID(ctx context.Context, postID models.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByPostID", ctx, postID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByPostID indicates an expected call of DeleteByPostID.
+func (mr *MockPostLikeRepositoryMockRecorder) DeleteByPostID(ctx, postID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByPostID", reflect.TypeOf((*MockPostLikeRepository)(nil).DeleteByPostID), ctx, postID)
+}
+
 // Ensure mocks base method.
 func (m *MockPostLikeRepository) Ensure(ctx context.Context, userID, postID models.UUID) error {
 	m.ctrl.T.Helper()
@@ -150,6 +164,20 @@ func (m *MockCommentLikeRepository) Delete(ctx context.Context, userID, commentI
 func (mr *MockCommentLikeRepositoryMockRecorder) Delete(ctx, userID, commentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockCommentLikeRepository)(nil).Delete), ctx, userID, commentID)
+}
+
+// DeleteByCommentIDs mocks base method.
+func (m *MockCommentLikeRepository) DeleteByCommentIDs(ctx context.Context, commentIDs []models.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByCommentIDs", ctx, commentIDs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByCommentIDs indicates an expected call of DeleteByCommentIDs.
+func (mr *MockCommentLikeRepositoryMockRecorder) DeleteByCommentIDs(ctx, commentIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByCommentIDs", reflect.TypeOf((*MockCommentLikeRepository)(nil).DeleteByCommentIDs), ctx, commentIDs)
 }
 
 // Ensure mocks base method.
