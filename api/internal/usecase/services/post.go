@@ -10,8 +10,9 @@ import (
 )
 
 type PostService struct {
-	repo repositories.PostRepository
-	uow  repositories.UnitOfWork
+	repo        repositories.PostRepository
+	uow         repositories.UnitOfWork
+	likeService *LikeService
 }
 
 func NewPostService(
@@ -21,6 +22,14 @@ func NewPostService(
 	return &PostService{repo: repo, uow: uow}
 }
 
+func NewPostServiceWithLikes(
+	repo repositories.PostRepository,
+	uow repositories.UnitOfWork,
+	likeService *LikeService,
+) *PostService {
+	return &PostService{repo: repo, uow: uow, likeService: likeService}
+}
+
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
 func (s *PostService) GetPostByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
 	post, err := s.repo.GetByID(ctx, postID)
@@ -28,6 +37,22 @@ func (s *PostService) GetPostByID(ctx context.Context, postID models.UUID) (*mod
 		return nil, translatePostRepositoryError(err)
 	}
 	return post, nil
+}
+
+func (s *PostService) GetPostByIDForUser(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (*PostRead, error) {
+	post, err := s.GetPostByID(ctx, postID)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := s.postSummary(ctx, userID, postID)
+	if err != nil {
+		return nil, err
+	}
+	return &PostRead{Post: post, Summary: summary}, nil
 }
 
 // 更新前の所有者確認など、所有者だけが扱うPostを取得する。
@@ -42,6 +67,60 @@ func (s *PostService) GetPostByIDForOwner(ctx context.Context, userID models.UUI
 // 認証済みUserが閲覧できる全Postを取得する。
 func (s *PostService) ListAllPosts(ctx context.Context) ([]*models.Post, error) {
 	return s.repo.ListAll(ctx)
+}
+
+func (s *PostService) ListAllPostsForUser(
+	ctx context.Context,
+	userID models.UUID,
+) ([]PostRead, error) {
+	posts, err := s.ListAllPosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	postIDs := make([]models.UUID, 0, len(posts))
+	for _, post := range posts {
+		if post != nil {
+			postIDs = append(postIDs, post.ID)
+		}
+	}
+	summaries, err := s.postSummaries(ctx, userID, postIDs)
+	if err != nil {
+		return nil, err
+	}
+	reads := make([]PostRead, 0, len(posts))
+	for _, post := range posts {
+		if post == nil {
+			continue
+		}
+		reads = append(reads, PostRead{Post: post, Summary: summaries[post.ID]})
+	}
+	return reads, nil
+}
+
+func (s *PostService) postSummary(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (models.LikeSummary, error) {
+	if s.likeService == nil {
+		return models.LikeSummary{}, nil
+	}
+	summaries, err := s.likeService.PostSummaries(ctx, userID, []models.UUID{postID})
+	if err != nil {
+		return models.LikeSummary{}, err
+	}
+	return summaries[postID], nil
+}
+
+func (s *PostService) postSummaries(
+	ctx context.Context,
+	userID models.UUID,
+	postIDs []models.UUID,
+) (map[models.UUID]models.LikeSummary, error) {
+	if s.likeService == nil {
+		return makeLikeSummaries(postIDs), nil
+	}
+	return s.likeService.PostSummaries(ctx, userID, postIDs)
 }
 
 // author_idはリクエストではなく、検証済みtokenのUser IDから設定する。
