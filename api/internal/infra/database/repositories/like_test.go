@@ -83,5 +83,5 @@ func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 	require.NoError(t, repo.DeleteByCommentIDs(context.Background(), []models.UUID{comment.ID}))
 	var rows int64
 	require.NoError(t, tx.Model(&models.CommentLike{}).Where("user_id = ? AND comment_id = ?", user.ID, comment.ID).Count(&rows).Error)
-	require.Equal(t, int64(1), rows)
+	require.Zero(t, rows)
 }
