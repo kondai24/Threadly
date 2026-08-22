@@ -24,10 +24,20 @@ func TestMigration_CreatesUserAndPostSchema(t *testing.T) {
 	require.True(t, migrator.HasIndex(&models.Comment{}, "idx_comments_post_id"))
 	require.True(t, migrator.HasIndex(&models.Comment{}, "idx_comments_author_id"))
 	require.True(t, migrator.HasIndex(&models.Comment{}, "idx_comments_parent_id"))
+	require.True(t, migrator.HasTable(&models.PostLike{}))
+	require.True(t, migrator.HasTable(&models.CommentLike{}))
+	require.True(t, migrator.HasIndex(&models.PostLike{}, "idx_post_likes_post_id"))
+	require.True(t, migrator.HasIndex(&models.CommentLike{}, "idx_comment_likes_comment_id"))
+	require.True(t, migrator.HasIndex(&models.PostLike{}, "uidx_post_likes_user_post"))
+	require.True(t, migrator.HasIndex(&models.CommentLike{}, "uidx_comment_likes_user_comment"))
 	require.True(t, migrator.HasConstraint(&models.Post{}, "Author"))
 	require.True(t, migrator.HasConstraint(&models.Comment{}, "Post"))
 	require.True(t, migrator.HasConstraint(&models.Comment{}, "Author"))
 	require.True(t, migrator.HasConstraint(&models.Comment{}, "Replies"))
+	require.True(t, migrator.HasConstraint(&models.PostLike{}, "User"))
+	require.True(t, migrator.HasConstraint(&models.PostLike{}, "Post"))
+	require.True(t, migrator.HasConstraint(&models.CommentLike{}, "User"))
+	require.True(t, migrator.HasConstraint(&models.CommentLike{}, "Comment"))
 }
 
 func TestMigration_EnforcesUserAndPostConstraints(t *testing.T) {
