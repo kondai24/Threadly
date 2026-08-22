@@ -166,6 +166,20 @@ func (mr *MockCommentLikeRepositoryMockRecorder) Delete(ctx, userID, commentID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockCommentLikeRepository)(nil).Delete), ctx, userID, commentID)
 }
 
+// DeleteByCommentIDWithReplies mocks base method.
+func (m *MockCommentLikeRepository) DeleteByCommentIDWithReplies(ctx context.Context, commentID models.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByCommentIDWithReplies", ctx, commentID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByCommentIDWithReplies indicates an expected call of DeleteByCommentIDWithReplies.
+func (mr *MockCommentLikeRepositoryMockRecorder) DeleteByCommentIDWithReplies(ctx, commentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByCommentIDWithReplies", reflect.TypeOf((*MockCommentLikeRepository)(nil).DeleteByCommentIDWithReplies), ctx, commentID)
+}
+
 // DeleteByCommentIDs mocks base method.
 func (m *MockCommentLikeRepository) DeleteByCommentIDs(ctx context.Context, commentIDs []models.UUID) error {
 	m.ctrl.T.Helper()
@@ -178,6 +192,20 @@ func (m *MockCommentLikeRepository) DeleteByCommentIDs(ctx context.Context, comm
 func (mr *MockCommentLikeRepositoryMockRecorder) DeleteByCommentIDs(ctx, commentIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByCommentIDs", reflect.TypeOf((*MockCommentLikeRepository)(nil).DeleteByCommentIDs), ctx, commentIDs)
+}
+
+// DeleteByCommentsOfPostID mocks base method.
+func (m *MockCommentLikeRepository) DeleteByCommentsOfPostID(ctx context.Context, postID models.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByCommentsOfPostID", ctx, postID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteByCommentsOfPostID indicates an expected call of DeleteByCommentsOfPostID.
+func (mr *MockCommentLikeRepositoryMockRecorder) DeleteByCommentsOfPostID(ctx, postID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByCommentsOfPostID", reflect.TypeOf((*MockCommentLikeRepository)(nil).DeleteByCommentsOfPostID), ctx, postID)
 }
 
 // Ensure mocks base method.
