@@ -103,6 +103,7 @@ func (r *likeRoutePostLikeRepository) FindLikedPostIDs(
 
 type likeRouteCommentLikeRepository struct {
 	likes map[likeRouteKey]struct{}
+	store *commentRouteStore
 }
 
 func (r *likeRouteCommentLikeRepository) Ensure(_ context.Context, userID, commentID models.UUID) error {
@@ -129,6 +130,39 @@ func (r *likeRouteCommentLikeRepository) DeleteByCommentIDs(
 		}
 	}
 	return nil
+}
+
+func (r *likeRouteCommentLikeRepository) DeleteByCommentIDWithReplies(
+	ctx context.Context,
+	commentID models.UUID,
+) error {
+	commentIDs := []models.UUID{commentID}
+	if r.store != nil {
+		for _, comment := range r.store.comments {
+			if comment == nil || comment.ParentID == nil || *comment.ParentID != commentID {
+				continue
+			}
+			commentIDs = append(commentIDs, comment.ID)
+		}
+	}
+	return r.DeleteByCommentIDs(ctx, commentIDs)
+}
+
+func (r *likeRouteCommentLikeRepository) DeleteByCommentsOfPostID(
+	ctx context.Context,
+	postID models.UUID,
+) error {
+	if r.store == nil {
+		return nil
+	}
+	commentIDs := make([]models.UUID, 0)
+	for _, comment := range r.store.comments {
+		if comment == nil || comment.PostID != postID {
+			continue
+		}
+		commentIDs = append(commentIDs, comment.ID)
+	}
+	return r.DeleteByCommentIDs(ctx, commentIDs)
 }
 
 func (r *likeRouteCommentLikeRepository) CountByCommentIDs(
@@ -172,7 +206,10 @@ func newLikeRouteRouter(store *commentRouteStore) *gin.Engine {
 	}
 	commentRepo := &commentRouteCommentRepository{store: store}
 	postLikeRepo := &likeRoutePostLikeRepository{likes: make(map[likeRouteKey]struct{})}
-	commentLikeRepo := &likeRouteCommentLikeRepository{likes: make(map[likeRouteKey]struct{})}
+	commentLikeRepo := &likeRouteCommentLikeRepository{
+		likes: make(map[likeRouteKey]struct{}),
+		store: store,
+	}
 	uow := routeUnitOfWork{
 		post:        postRepo,
 		comment:     commentRepo,
