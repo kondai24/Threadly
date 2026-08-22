@@ -107,6 +107,7 @@ func (r *CommentRepository) DeleteByID(
 			Select("id").
 			Where("id = ?", comment.ID)
 		if comment.ParentID == nil {
+			// ParentID == nil は最上位のCommentを表すため、親自身に加えて直接の返信のLikeもcleanupする。
 			commentIDQuery = commentIDQuery.Or("parent_id = ?", comment.ID)
 		}
 		result = tx.

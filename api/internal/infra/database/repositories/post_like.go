@@ -25,6 +25,7 @@ func (r *PostLikeRepository) Ensure(
 	postID models.UUID,
 ) error {
 	like := &models.PostLike{UserID: userID, PostID: postID}
+	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返してもエラーにしない。
 	result := r.DB.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "user_id"}, {Name: "post_id"}},
