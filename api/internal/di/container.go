@@ -24,6 +24,7 @@ func NewContainer() (*dig.Container, error) {
 		provideUserRepository,
 		providePostRepository,
 		provideCommentRepository,
+		provideUnitOfWork,
 		providePasswordHasher,
 		provideTokenIssuer,
 		services.NewAuthService,
@@ -55,6 +56,10 @@ func provideUserRepository(db *gorm.DB) repositories.UserRepository {
 
 func provideCommentRepository(db *gorm.DB) repositories.CommentRepository {
 	return dbrepository.NewCommentRepository(db)
+}
+
+func provideUnitOfWork(db *gorm.DB) repositories.UnitOfWork {
+	return dbrepository.NewUnitOfWork(db)
 }
 
 func providePasswordHasher() services.PasswordHasher {

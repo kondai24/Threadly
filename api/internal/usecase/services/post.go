@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
@@ -10,11 +11,14 @@ import (
 
 type PostService struct {
 	repo repositories.PostRepository
+	uow  repositories.UnitOfWork
 }
 
-func NewPostService(repo repositories.PostRepository) *PostService {
-	return &PostService{repo: repo}
-
+func NewPostService(
+	repo repositories.PostRepository,
+	uow repositories.UnitOfWork,
+) *PostService {
+	return &PostService{repo: repo, uow: uow}
 }
 
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
@@ -67,11 +71,37 @@ func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *
 	return nil
 }
 
-// 削除もRepositoryでuserIDを条件に含め、所有者境界を維持する。
+// CommentLike、PostLike、Comment、Postを同じTransactionで削除し、部分削除を防ぐ。
 func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
-	rows, err := s.repo.DeleteByID(ctx, userID, postID)
+	var rows int64
+	err := s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+		post, err := tx.Post.GetByIDForUpdate(ctx, postID)
+		if err != nil {
+			return err
+		}
+		if post.AuthorID != userID {
+			return repositories.ErrPostNotFound
+		}
+
+		// CommentLikeは別Tableのため、Post配下CommentのLikeを先に同じTransactionで物理削除する。
+		if err := tx.CommentLike.DeleteByCommentsOfPostID(ctx, post.ID); err != nil {
+			return fmt.Errorf("delete post comment likes: %w", err)
+		}
+		if err := tx.PostLike.DeleteByPostID(ctx, post.ID); err != nil {
+			return fmt.Errorf("delete post likes: %w", err)
+		}
+		if _, err := tx.Comment.DeleteByPostID(ctx, post.ID); err != nil {
+			return fmt.Errorf("delete post comments: %w", err)
+		}
+
+		rows, err = tx.Post.DeleteByID(ctx, userID, post.ID)
+		if err != nil {
+			return fmt.Errorf("delete post: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return err
+		return translatePostRepositoryError(err)
 	}
 	if rows == 0 {
 		return ErrPostNotFound

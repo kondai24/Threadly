@@ -53,6 +53,9 @@ func TestPostLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, post.ID))
 	require.NoError(t, tx.Model(&models.PostLike{}).Where("user_id = ? AND post_id = ?", user.ID, post.ID).Count(&rows).Error)
 	require.Equal(t, int64(1), rows)
+	require.NoError(t, repo.DeleteByPostID(context.Background(), post.ID))
+	require.NoError(t, tx.Model(&models.PostLike{}).Where("post_id = ?", post.ID).Count(&rows).Error)
+	require.Zero(t, rows)
 }
 
 func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
@@ -77,7 +80,55 @@ func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 
 	require.NoError(t, repo.Delete(context.Background(), user.ID, comment.ID))
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, comment.ID))
+	require.NoError(t, repo.DeleteByCommentIDs(context.Background(), []models.UUID{comment.ID}))
 	var rows int64
 	require.NoError(t, tx.Model(&models.CommentLike{}).Where("user_id = ? AND comment_id = ?", user.ID, comment.ID).Count(&rows).Error)
-	require.Equal(t, int64(1), rows)
+	require.Zero(t, rows)
+}
+
+func TestCommentLikeRepository_DeleteByCommentIDWithReplies(t *testing.T) {
+	db := openTestDB(t)
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	t.Cleanup(func() { require.NoError(t, tx.Rollback().Error) })
+
+	user, post, root := seedLikeRepositoryData(t, tx)
+	reply := &models.Comment{PostID: post.ID, AuthorID: user.ID, ParentID: &root.ID, Content: "reply"}
+	require.NoError(t, tx.Create(reply).Error)
+	otherRoot := &models.Comment{PostID: post.ID, AuthorID: user.ID, Content: "other root"}
+	require.NoError(t, tx.Create(otherRoot).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: root.ID}).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: reply.ID}).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: otherRoot.ID}).Error)
+
+	repo := &CommentLikeRepository{DB: tx}
+	require.NoError(t, repo.DeleteByCommentIDWithReplies(context.Background(), root.ID))
+
+	var likes []models.CommentLike
+	require.NoError(t, tx.Find(&likes).Error)
+	require.Len(t, likes, 1)
+	require.Equal(t, otherRoot.ID, likes[0].CommentID)
+}
+
+func TestCommentLikeRepository_DeleteByCommentsOfPostID(t *testing.T) {
+	db := openTestDB(t)
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	t.Cleanup(func() { require.NoError(t, tx.Rollback().Error) })
+
+	user, post, comment := seedLikeRepositoryData(t, tx)
+	otherPost := &models.Post{AuthorID: user.ID, Title: "other post", Content: "content"}
+	require.NoError(t, tx.Create(otherPost).Error)
+	otherComment := &models.Comment{PostID: otherPost.ID, AuthorID: user.ID, Content: "other comment"}
+	require.NoError(t, tx.Create(otherComment).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: comment.ID}).Error)
+	require.NoError(t, tx.Create(&models.CommentLike{UserID: user.ID, CommentID: otherComment.ID}).Error)
+
+	repo := &CommentLikeRepository{DB: tx}
+	require.NoError(t, repo.DeleteByCommentsOfPostID(context.Background(), post.ID))
+
+	var likes []models.CommentLike
+	require.NoError(t, tx.Find(&likes).Error)
+	require.Len(t, likes, 1)
+	require.Equal(t, otherComment.ID, likes[0].CommentID)
 }

@@ -35,6 +35,24 @@ func (r *PostRepository) GetByID(ctx context.Context, postID models.UUID) (*mode
 	return &post, nil
 }
 
+func (r *PostRepository) GetByIDForUpdate(
+	ctx context.Context,
+	postID models.UUID,
+) (*models.Post, error) {
+	var post models.Post
+	result := r.DB.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ?", postID).
+		First(&post)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, repositories.ErrPostNotFound
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("find post for update: %w", result.Error)
+	}
+	return &post, nil
+}
+
 func (r *PostRepository) GetByIDForOwner(ctx context.Context, userID models.UUID, postID models.UUID) (*models.Post, error) {
 	var post models.Post
 	result := r.DB.WithContext(ctx).
@@ -73,49 +91,13 @@ func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *m
 }
 
 func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, postID models.UUID) (int64, error) {
-	var rowsAffected int64
-	// Postと配下のCommentを同じTransactionで論理削除し、Postだけが消えてCommentが残る状態を防ぐ。
-	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var post models.Post
-		// 削除対象を確定するまでPost行をロックし、子行と本体で同じPostを扱う。
-		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND author_id = ?", postID, userID).
-			First(&post)
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		if result.Error != nil {
-			return fmt.Errorf("find post for delete: %w", result.Error)
-		}
-
-		// Postに属する親Commentと返信を先に論理削除し、通常Queryからも一緒に除外する。
-		commentIDQuery := tx.Model(&models.Comment{}).
-			Select("id").
-			Where("post_id = ?", post.ID)
-		result = tx.
-			Where("comment_id IN (?)", commentIDQuery).
-			Delete(&models.CommentLike{})
-		if result.Error != nil {
-			return fmt.Errorf("delete post comment likes: %w", result.Error)
-		}
-		if result := tx.Where("post_id = ?", post.ID).Delete(&models.PostLike{}); result.Error != nil {
-			return fmt.Errorf("delete post likes: %w", result.Error)
-		}
-		if result := tx.Where("post_id = ?", post.ID).Delete(&models.Comment{}); result.Error != nil {
-			return fmt.Errorf("delete post comments: %w", result.Error)
-		}
-
-		result = tx.Where("id = ?", post.ID).Delete(&models.Post{})
-		if result.Error != nil {
-			return fmt.Errorf("delete post: %w", result.Error)
-		}
-		rowsAffected = result.RowsAffected
-		return nil
-	})
-	if err != nil {
-		return 0, err
+	result := r.DB.WithContext(ctx).
+		Where("id = ? AND author_id = ?", postID, userID).
+		Delete(&models.Post{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("delete post: %w", result.Error)
 	}
-	return rowsAffected, nil
+	return result.RowsAffected, nil
 }
 
 func (r *PostRepository) ListAll(ctx context.Context) ([]*models.Post, error) {

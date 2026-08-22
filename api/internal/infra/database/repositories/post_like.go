@@ -52,6 +52,19 @@ func (r *PostLikeRepository) Delete(
 	return nil
 }
 
+func (r *PostLikeRepository) DeleteByPostID(
+	ctx context.Context,
+	postID models.UUID,
+) error {
+	result := r.DB.WithContext(ctx).
+		Where("post_id = ?", postID).
+		Delete(&models.PostLike{})
+	if result.Error != nil {
+		return fmt.Errorf("delete post likes by post: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *PostLikeRepository) CountByPostIDs(
 	ctx context.Context,
 	postIDs []models.UUID,
