@@ -71,7 +71,7 @@ func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *
 	return nil
 }
 
-// Like、Comment、Postを同じTransactionで削除し、途中失敗による部分削除を防ぐ。
+// CommentLike、PostLike、Comment、Postを同じTransactionで削除し、部分削除を防ぐ。
 func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
 	var rows int64
 	err := s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
@@ -83,11 +83,8 @@ func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID
 			return repositories.ErrPostNotFound
 		}
 
-		commentIDs, err := tx.Comment.ListIDsByPostID(ctx, post.ID)
-		if err != nil {
-			return fmt.Errorf("list post comment ids: %w", err)
-		}
-		if err := tx.CommentLike.DeleteByCommentIDs(ctx, commentIDs); err != nil {
+		// CommentLikeは別Tableのため、Post配下CommentのLikeを先に同じTransactionで物理削除する。
+		if err := tx.CommentLike.DeleteByCommentsOfPostID(ctx, post.ID); err != nil {
 			return fmt.Errorf("delete post comment likes: %w", err)
 		}
 		if err := tx.PostLike.DeleteByPostID(ctx, post.ID); err != nil {

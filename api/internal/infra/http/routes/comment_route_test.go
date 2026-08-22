@@ -180,32 +180,6 @@ func (r *commentRouteCommentRepository) ListByPostID(
 	return roots, nil
 }
 
-func (r *commentRouteCommentRepository) ListIDsByPostID(
-	_ context.Context,
-	postID models.UUID,
-) ([]models.UUID, error) {
-	commentIDs := make([]models.UUID, 0)
-	for _, comment := range r.store.comments {
-		if comment.PostID == postID && !comment.DeletedAt.Valid {
-			commentIDs = append(commentIDs, comment.ID)
-		}
-	}
-	return commentIDs, nil
-}
-
-func (r *commentRouteCommentRepository) ListIDsByParentID(
-	_ context.Context,
-	parentID models.UUID,
-) ([]models.UUID, error) {
-	commentIDs := make([]models.UUID, 0)
-	for _, comment := range r.store.comments {
-		if comment.ParentID != nil && *comment.ParentID == parentID && !comment.DeletedAt.Valid {
-			commentIDs = append(commentIDs, comment.ID)
-		}
-	}
-	return commentIDs, nil
-}
-
 func (r *commentRouteCommentRepository) GetByID(
 	_ context.Context,
 	commentID models.UUID,
@@ -255,23 +229,7 @@ func (r *commentRouteCommentRepository) DeleteByPostID(
 	return rows, nil
 }
 
-func (r *commentRouteCommentRepository) DeleteRepliesByParentID(
-	_ context.Context,
-	parentID models.UUID,
-) (int64, error) {
-	now := time.Now()
-	var rows int64
-	for _, comment := range r.store.comments {
-		if comment.ParentID == nil || *comment.ParentID != parentID || comment.DeletedAt.Valid {
-			continue
-		}
-		comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-		rows++
-	}
-	return rows, nil
-}
-
-func (r *commentRouteCommentRepository) DeleteByID(
+func (r *commentRouteCommentRepository) DeleteByIDWithReplies(
 	_ context.Context,
 	userID models.UUID,
 	commentID models.UUID,
@@ -283,7 +241,15 @@ func (r *commentRouteCommentRepository) DeleteByID(
 
 	now := time.Now()
 	comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-	return 1, nil
+	var rows int64 = 1
+	for _, reply := range r.store.comments {
+		if reply.ParentID == nil || *reply.ParentID != commentID || reply.DeletedAt.Valid {
+			continue
+		}
+		reply.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
+		rows++
+	}
+	return rows, nil
 }
 
 func newCommentRouteRouter(store *commentRouteStore) *gin.Engine {

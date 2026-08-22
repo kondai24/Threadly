@@ -90,6 +90,22 @@ func (r *testCommentLikeRepository) DeleteByCommentIDs(
 	return nil
 }
 
+func (r *testCommentLikeRepository) DeleteByCommentIDWithReplies(
+	_ context.Context,
+	commentID models.UUID,
+) error {
+	r.deletedCommentIDs = append(r.deletedCommentIDs, []models.UUID{commentID})
+	return nil
+}
+
+func (r *testCommentLikeRepository) DeleteByCommentsOfPostID(
+	_ context.Context,
+	postID models.UUID,
+) error {
+	r.deletedCommentIDs = append(r.deletedCommentIDs, []models.UUID{postID})
+	return nil
+}
+
 func (r *testCommentLikeRepository) CountByCommentIDs(
 	_ context.Context,
 	_ []models.UUID,

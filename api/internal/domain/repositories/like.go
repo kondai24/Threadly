@@ -20,6 +20,8 @@ type CommentLikeRepository interface {
 	Ensure(ctx context.Context, userID models.UUID, commentID models.UUID) error
 	Delete(ctx context.Context, userID models.UUID, commentID models.UUID) error
 	DeleteByCommentIDs(ctx context.Context, commentIDs []models.UUID) error
+	DeleteByCommentIDWithReplies(ctx context.Context, commentID models.UUID) error
+	DeleteByCommentsOfPostID(ctx context.Context, postID models.UUID) error
 	CountByCommentIDs(ctx context.Context, commentIDs []models.UUID) (map[models.UUID]int64, error)
 	FindLikedCommentIDs(ctx context.Context, userID models.UUID, commentIDs []models.UUID) (map[models.UUID]struct{}, error)
 }

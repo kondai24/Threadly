@@ -101,7 +101,7 @@ func (s *CommentService) UpdateComment(
 	return nil
 }
 
-// CommentLikeとCommentを同じTransactionで削除し、Likeだけが残る状態を防ぐ。
+// CommentLikeの物理削除と、Comment・直接返信の論理削除を同じTransactionで実行する。
 func (s *CommentService) DeleteComment(
 	ctx context.Context,
 	userID models.UUID,
@@ -117,31 +117,17 @@ func (s *CommentService) DeleteComment(
 			return repositories.ErrCommentNotFound
 		}
 
-		commentIDs := []models.UUID{comment.ID}
-		if comment.ParentID == nil {
-			replyIDs, err := tx.Comment.ListIDsByParentID(ctx, comment.ID)
-			if err != nil {
-				return fmt.Errorf("list comment reply ids: %w", err)
-			}
-			commentIDs = append(commentIDs, replyIDs...)
-		}
-		if err := tx.CommentLike.DeleteByCommentIDs(ctx, commentIDs); err != nil {
+		// CommentLikeは別Table、Commentと直接返信はCommentRepositoryが扱うため、削除順序だけをUsecaseで組み合わせる。
+		if err := tx.CommentLike.DeleteByCommentIDWithReplies(ctx, comment.ID); err != nil {
 			return fmt.Errorf("delete comment likes: %w", err)
 		}
 
-		rows, err = tx.Comment.DeleteByID(ctx, userID, comment.ID)
+		rows, err = tx.Comment.DeleteByIDWithReplies(ctx, userID, comment.ID)
 		if err != nil {
-			return fmt.Errorf("delete comment: %w", err)
+			return fmt.Errorf("delete comment with replies: %w", err)
 		}
 		if rows == 0 {
 			return repositories.ErrCommentNotFound
-		}
-		if comment.ParentID == nil {
-			deletedReplies, err := tx.Comment.DeleteRepliesByParentID(ctx, comment.ID)
-			if err != nil {
-				return fmt.Errorf("delete comment replies: %w", err)
-			}
-			rows += deletedReplies
 		}
 		return nil
 	})

@@ -262,16 +262,12 @@ func TestPostService_UpdatePost(t *testing.T) {
 func TestPostService_DeletePost(t *testing.T) {
 	t.Run("所有者のPostを削除できる", func(t *testing.T) {
 		service, postRepo, commentRepo, postLikeRepo, commentLikeRepo := newPostDeleteServiceTest(t)
-		commentID := testCommentID
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{
 				UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
 				AuthorID:      testUserID,
 			}, nil)
-		commentRepo.EXPECT().
-			ListIDsByPostID(gomock.Any(), testPostID).
-			Return([]models.UUID{commentID}, nil)
 		commentRepo.EXPECT().
 			DeleteByPostID(gomock.Any(), testPostID).
 			Return(int64(1), nil)
@@ -283,7 +279,7 @@ func TestPostService_DeletePost(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, []models.UUID{testPostID}, postLikeRepo.deletedPostIDs)
-		require.Equal(t, [][]models.UUID{{commentID}}, commentLikeRepo.deletedCommentIDs)
+		require.Equal(t, [][]models.UUID{{testPostID}}, commentLikeRepo.deletedCommentIDs)
 	})
 
 	t.Run("所有者のPostを削除できない場合はNotFoundを返す", func(t *testing.T) {

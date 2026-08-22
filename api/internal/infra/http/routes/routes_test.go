@@ -202,6 +202,14 @@ func (routeCommentLikeRepository) DeleteByCommentIDs(context.Context, []models.U
 	return nil
 }
 
+func (routeCommentLikeRepository) DeleteByCommentIDWithReplies(context.Context, models.UUID) error {
+	return nil
+}
+
+func (routeCommentLikeRepository) DeleteByCommentsOfPostID(context.Context, models.UUID) error {
+	return nil
+}
+
 func (routeCommentLikeRepository) CountByCommentIDs(
 	context.Context,
 	[]models.UUID,

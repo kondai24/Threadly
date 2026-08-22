@@ -269,7 +269,6 @@ func TestCommentService_UpdateComment(t *testing.T) {
 func TestCommentService_DeleteComment(t *testing.T) {
 	t.Run("本人のCommentを削除する", func(t *testing.T) {
 		service, commentRepo, commentLikeRepo := newCommentDeleteServiceTest(t)
-		replyID := testReplyID
 		commentRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testCommentID).
 			Return(&models.Comment{
@@ -277,19 +276,13 @@ func TestCommentService_DeleteComment(t *testing.T) {
 				AuthorID:      testUserID,
 			}, nil)
 		commentRepo.EXPECT().
-			ListIDsByParentID(gomock.Any(), testCommentID).
-			Return([]models.UUID{replyID}, nil)
-		commentRepo.EXPECT().
-			DeleteByID(gomock.Any(), testUserID, testCommentID).
-			Return(int64(1), nil)
-		commentRepo.EXPECT().
-			DeleteRepliesByParentID(gomock.Any(), testCommentID).
+			DeleteByIDWithReplies(gomock.Any(), testUserID, testCommentID).
 			Return(int64(1), nil)
 
 		err := service.DeleteComment(context.Background(), testUserID, testCommentID)
 
 		require.NoError(t, err)
-		require.Equal(t, [][]models.UUID{{testCommentID, replyID}}, commentLikeRepo.deletedCommentIDs)
+		require.Equal(t, [][]models.UUID{{testCommentID}}, commentLikeRepo.deletedCommentIDs)
 	})
 
 	t.Run("他Userまたは削除済みのCommentをNotFoundにする", func(t *testing.T) {

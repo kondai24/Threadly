@@ -48,38 +48,6 @@ func (r *CommentRepository) ListByPostID(
 	return comments, nil
 }
 
-func (r *CommentRepository) ListIDsByPostID(
-	ctx context.Context,
-	postID models.UUID,
-) ([]models.UUID, error) {
-	commentIDs := make([]models.UUID, 0)
-	result := r.DB.WithContext(ctx).
-		Model(&models.Comment{}).
-		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("post_id = ?", postID).
-		Pluck("id", &commentIDs)
-	if result.Error != nil {
-		return nil, fmt.Errorf("list comment ids by post: %w", result.Error)
-	}
-	return commentIDs, nil
-}
-
-func (r *CommentRepository) ListIDsByParentID(
-	ctx context.Context,
-	parentID models.UUID,
-) ([]models.UUID, error) {
-	commentIDs := make([]models.UUID, 0)
-	result := r.DB.WithContext(ctx).
-		Model(&models.Comment{}).
-		Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("parent_id = ?", parentID).
-		Pluck("id", &commentIDs)
-	if result.Error != nil {
-		return nil, fmt.Errorf("list comment ids by parent: %w", result.Error)
-	}
-	return commentIDs, nil
-}
-
 func (r *CommentRepository) GetByID(
 	ctx context.Context,
 	commentID models.UUID,
@@ -145,20 +113,9 @@ func (r *CommentRepository) DeleteByPostID(
 	return result.RowsAffected, nil
 }
 
-func (r *CommentRepository) DeleteRepliesByParentID(
-	ctx context.Context,
-	parentID models.UUID,
-) (int64, error) {
-	result := r.DB.WithContext(ctx).
-		Where("parent_id = ?", parentID).
-		Delete(&models.Comment{})
-	if result.Error != nil {
-		return 0, fmt.Errorf("delete comment replies: %w", result.Error)
-	}
-	return result.RowsAffected, nil
-}
-
-func (r *CommentRepository) DeleteByID(
+// DeleteByIDWithRepliesは、所有者が削除できるCommentと、その直接の返信を同じ論理削除処理で扱う。
+// 先に対象Commentの所有者条件を確認するため、権限のない場合に返信だけが削除されることはない。
+func (r *CommentRepository) DeleteByIDWithReplies(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
@@ -167,7 +124,17 @@ func (r *CommentRepository) DeleteByID(
 		Where("id = ? AND author_id = ?", commentID, userID).
 		Delete(&models.Comment{})
 	if result.Error != nil {
-		return 0, fmt.Errorf("delete comment: %w", result.Error)
+		return 0, fmt.Errorf("delete comment with replies: %w", result.Error)
 	}
-	return result.RowsAffected, nil
+	if result.RowsAffected == 0 {
+		return 0, nil
+	}
+
+	replyResult := r.DB.WithContext(ctx).
+		Where("parent_id = ?", commentID).
+		Delete(&models.Comment{})
+	if replyResult.Error != nil {
+		return 0, fmt.Errorf("delete comment replies: %w", replyResult.Error)
+	}
+	return result.RowsAffected + replyResult.RowsAffected, nil
 }
