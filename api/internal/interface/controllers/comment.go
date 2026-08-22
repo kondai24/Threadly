@@ -36,18 +36,24 @@ func NewCommentController(service *services.CommentService) *CommentController {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/comments [get]
 func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
 	postID, ok := parseCommentIDParam(c, "post id")
 	if !ok {
 		return
 	}
 
-	comments, err := cc.service.ListComments(c.Request.Context(), postID)
+	comments, err := cc.service.ListCommentsForUser(c.Request.Context(), userID, postID)
 	if err != nil {
 		writeCommentError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.CommentResponsesFromModels(comments))
+	c.JSON(http.StatusOK, dto.CommentResponsesFromRead(comments))
 }
 
 // CreateCommentHandler godoc

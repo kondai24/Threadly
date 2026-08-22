@@ -31,12 +31,18 @@ func NewPostController(service *services.PostService) *PostController {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts [get]
 func (pc *PostController) ListPostsHandler(c *gin.Context) {
-	posts, err := pc.service.ListAllPosts(c.Request.Context())
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
+	posts, err := pc.service.ListAllPostsForUser(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 		return
 	}
-	c.JSON(http.StatusOK, dto.PostListResponsesFromModels(posts))
+	c.JSON(http.StatusOK, dto.PostListResponsesFromReads(posts))
 }
 
 // GetPostByIDHandler godoc
@@ -53,17 +59,23 @@ func (pc *PostController) ListPostsHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [get]
 func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
+	userID, ok := middleware.UserIDFromContext(c.Request.Context())
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+
 	postID, ok := parsePostIDParam(c)
 	if !ok {
 		return
 	}
 
-	post, err := pc.service.GetPostByID(c.Request.Context(), postID)
+	post, err := pc.service.GetPostByIDForUser(c.Request.Context(), userID, postID)
 	if err != nil {
 		writePostError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.PostDetailResponseFromModel(post))
+	c.JSON(http.StatusOK, dto.PostDetailResponseFromRead(*post))
 }
 
 // CreatePostHandler godoc
