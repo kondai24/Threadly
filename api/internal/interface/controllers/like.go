@@ -14,11 +14,11 @@ import (
 
 // LikeControllerは、LikeUsecaseの結果をHTTP statusとLike操作DTOへ変換するadapterである。
 type LikeController struct {
-	usecase usecase.LikeUsecase
+	usecase *usecase.LikeUsecase
 }
 
 // NewLikeControllerは、LikeUsecaseをHTTP adapterへ注入する。
-func NewLikeController(likeUsecase usecase.LikeUsecase) *LikeController {
+func NewLikeController(likeUsecase *usecase.LikeUsecase) *LikeController {
 	return &LikeController{usecase: likeUsecase}
 }
 

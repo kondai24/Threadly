@@ -44,7 +44,7 @@ func newAuthUsecaseTest(
 	t *testing.T,
 	hasher PasswordHasher,
 	tokens TokenIssuer,
-) (AuthUsecase, *mocks.MockUserRepository) {
+) (*AuthUsecase, *mocks.MockUserRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)

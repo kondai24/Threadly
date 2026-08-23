@@ -14,11 +14,11 @@ import (
 
 // PostControllerは、PostUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type PostController struct {
-	usecase usecase.PostUsecase
+	usecase *usecase.PostUsecase
 }
 
 // NewPostControllerは、PostUsecaseをHTTP adapterへ注入する。
-func NewPostController(postUsecase usecase.PostUsecase) *PostController {
+func NewPostController(postUsecase *usecase.PostUsecase) *PostController {
 	return &PostController{usecase: postUsecase}
 }
 

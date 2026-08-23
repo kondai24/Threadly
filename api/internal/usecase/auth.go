@@ -30,16 +30,9 @@ type TokenIssuer interface {
 	Parse(rawToken string) (models.UUID, error)
 }
 
-// AuthUsecaseは、認証Controllerが必要とする業務操作の契約を定義する。
-type AuthUsecase interface {
-	Register(ctx context.Context, username string, password string) (*models.User, string, error)
-	Login(ctx context.Context, username string, password string) (*models.User, string, error)
-	GetMe(ctx context.Context, userID models.UUID) (*models.User, error)
-}
-
-// authUsecaseは、認証情報の検証・Userの永続化・セッション発行を組み立てるUsecaseである。
+// AuthUsecaseは、認証情報の検証・Userの永続化・セッション発行を組み立てるUsecaseである。
 // HTTPのstatusやCookie操作はControllerへ、DB操作はUserRepositoryへ委譲する。
-type authUsecase struct {
+type AuthUsecase struct {
 	repo   repositories.UserRepository
 	hasher PasswordHasher
 	tokens TokenIssuer
@@ -50,15 +43,15 @@ func NewAuthUsecase(
 	repo repositories.UserRepository,
 	hasher PasswordHasher,
 	tokens TokenIssuer,
-) AuthUsecase {
-	return &authUsecase{
+) *AuthUsecase {
+	return &AuthUsecase{
 		repo:   repo,
 		hasher: hasher,
 		tokens: tokens,
 	}
 }
 
-func (u *authUsecase) Register(
+func (u *AuthUsecase) Register(
 	ctx context.Context,
 	username string,
 	password string,
@@ -93,7 +86,7 @@ func (u *authUsecase) Register(
 	return user, token, nil
 }
 
-func (u *authUsecase) Login(
+func (u *AuthUsecase) Login(
 	ctx context.Context,
 	username string,
 	password string,
@@ -128,7 +121,7 @@ func (u *authUsecase) Login(
 	return user, token, nil
 }
 
-func (u *authUsecase) GetMe(ctx context.Context, userID models.UUID) (*models.User, error) {
+func (u *AuthUsecase) GetMe(ctx context.Context, userID models.UUID) (*models.User, error) {
 	user, err := u.repo.FindByID(ctx, userID)
 	if errors.Is(err, repositories.ErrUserNotFound) {
 		// RepositoryのNotFoundをUsecaseの契約へ変換し、Controllerへ永続化層を漏らさない。

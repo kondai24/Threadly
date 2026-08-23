@@ -20,33 +20,9 @@ type CommentLikeSummaryReader interface {
 	) (map[models.UUID]models.LikeSummary, error)
 }
 
-// CommentUsecaseは、CommentControllerが必要とする業務操作の契約を定義する。
-type CommentUsecase interface {
-	ListComments(ctx context.Context, postID models.UUID) ([]*models.Comment, error)
-	ListCommentsForUser(
-		ctx context.Context,
-		userID models.UUID,
-		postID models.UUID,
-	) (CommentListRead, error)
-	CreateComment(
-		ctx context.Context,
-		userID models.UUID,
-		postID models.UUID,
-		content string,
-		parentID *models.UUID,
-	) error
-	UpdateComment(
-		ctx context.Context,
-		userID models.UUID,
-		commentID models.UUID,
-		content string,
-	) error
-	DeleteComment(ctx context.Context, userID models.UUID, commentID models.UUID) error
-}
-
-// commentUsecaseは、Commentの取得・作成・所有者操作を組み立てるUsecaseである。
+// CommentUsecaseは、Commentの取得・作成・所有者操作を組み立てるUsecaseである。
 // 返信作成と削除は、親子関係の確認と書き込みを同じUnit of Workへ束ねる。
-type commentUsecase struct {
+type CommentUsecase struct {
 	commentRepo repositories.CommentRepository
 	postRepo    repositories.PostRepository
 	uow         repositories.UnitOfWork
@@ -58,8 +34,8 @@ func NewCommentUsecase(
 	commentRepo repositories.CommentRepository,
 	postRepo repositories.PostRepository,
 	uow repositories.UnitOfWork,
-) CommentUsecase {
-	return &commentUsecase{
+) *CommentUsecase {
+	return &CommentUsecase{
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
 		uow:         uow,
@@ -72,8 +48,8 @@ func NewCommentUsecaseWithLikeReader(
 	postRepo repositories.PostRepository,
 	uow repositories.UnitOfWork,
 	likeReader CommentLikeSummaryReader,
-) CommentUsecase {
-	return &commentUsecase{
+) *CommentUsecase {
+	return &CommentUsecase{
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
 		uow:         uow,
@@ -81,7 +57,7 @@ func NewCommentUsecaseWithLikeReader(
 	}
 }
 
-func (u *commentUsecase) ListComments(
+func (u *CommentUsecase) ListComments(
 	ctx context.Context,
 	postID models.UUID,
 ) ([]*models.Comment, error) {
@@ -98,7 +74,7 @@ func (u *commentUsecase) ListComments(
 	return comments, nil
 }
 
-func (u *commentUsecase) ListCommentsForUser(
+func (u *CommentUsecase) ListCommentsForUser(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
@@ -133,7 +109,7 @@ func appendCommentIDs(ids *[]models.UUID, comment *models.Comment) {
 	}
 }
 
-func (u *commentUsecase) CreateComment(
+func (u *CommentUsecase) CreateComment(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
@@ -169,7 +145,7 @@ func (u *commentUsecase) CreateComment(
 	})
 }
 
-func (u *commentUsecase) UpdateComment(
+func (u *CommentUsecase) UpdateComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
@@ -196,7 +172,7 @@ func (u *commentUsecase) UpdateComment(
 // DeleteCommentは、CommentLikeの物理削除とComment・直接返信の論理削除を
 // 同じTransactionで実行する。
 // CommentRepositoryはCommentの削除範囲を、CommentLikeRepositoryはLikeの削除範囲を担当する。
-func (u *commentUsecase) DeleteComment(
+func (u *CommentUsecase) DeleteComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
@@ -238,7 +214,7 @@ func (u *commentUsecase) DeleteComment(
 	return nil
 }
 
-func (u *commentUsecase) ensurePostExists(
+func (u *CommentUsecase) ensurePostExists(
 	ctx context.Context,
 	postRepo repositories.PostRepository,
 	postID models.UUID,
@@ -253,7 +229,7 @@ func (u *commentUsecase) ensurePostExists(
 	return nil
 }
 
-func (u *commentUsecase) ensurePostExistsForUpdate(
+func (u *CommentUsecase) ensurePostExistsForUpdate(
 	ctx context.Context,
 	postRepo repositories.PostRepository,
 	postID models.UUID,
@@ -268,7 +244,7 @@ func (u *commentUsecase) ensurePostExistsForUpdate(
 	return nil
 }
 
-func (u *commentUsecase) validateParent(
+func (u *CommentUsecase) validateParent(
 	ctx context.Context,
 	commentRepo repositories.CommentRepository,
 	postID models.UUID,

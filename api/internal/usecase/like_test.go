@@ -14,7 +14,7 @@ import (
 )
 
 func newLikeUsecaseTest(t *testing.T) (
-	LikeUsecase,
+	*LikeUsecase,
 	*mocks.MockPostRepository,
 	*mocks.MockCommentRepository,
 	*mocks.MockPostLikeRepository,

@@ -14,11 +14,11 @@ import (
 
 // AuthControllerは、認証Usecaseの結果をHTTP status・Cookie・DTOへ変換するadapterである。
 type AuthController struct {
-	usecase usecase.AuthUsecase
+	usecase *usecase.AuthUsecase
 }
 
 // NewAuthControllerは、認証UsecaseをHTTP adapterへ注入する。
-func NewAuthController(authUsecase usecase.AuthUsecase) *AuthController {
+func NewAuthController(authUsecase *usecase.AuthUsecase) *AuthController {
 	return &AuthController{usecase: authUsecase}
 }
 

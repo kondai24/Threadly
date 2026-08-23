@@ -21,7 +21,7 @@ const (
 	testMissingID   models.UUID = "99999999-9999-4999-8999-999999999999"
 )
 
-func newPostUsecaseTest(t *testing.T) (PostUsecase, *mocks.MockPostRepository) {
+func newPostUsecaseTest(t *testing.T) (*PostUsecase, *mocks.MockPostRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -37,7 +37,7 @@ func newPostUsecaseTest(t *testing.T) (PostUsecase, *mocks.MockPostRepository) {
 func newPostDeleteUsecaseTest(
 	t *testing.T,
 ) (
-	PostUsecase,
+	*PostUsecase,
 	*mocks.MockPostRepository,
 	*mocks.MockCommentRepository,
 	*testPostLikeRepository,

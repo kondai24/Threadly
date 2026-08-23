@@ -14,11 +14,11 @@ import (
 
 // CommentControllerは、CommentUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type CommentController struct {
-	usecase usecase.CommentUsecase
+	usecase *usecase.CommentUsecase
 }
 
 // NewCommentControllerは、CommentUsecaseをHTTP adapterへ注入する。
-func NewCommentController(commentUsecase usecase.CommentUsecase) *CommentController {
+func NewCommentController(commentUsecase *usecase.CommentUsecase) *CommentController {
 	return &CommentController{usecase: commentUsecase}
 }
 

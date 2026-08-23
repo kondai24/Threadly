@@ -21,7 +21,7 @@ const (
 
 func newCommentUsecaseTest(
 	t *testing.T,
-) (CommentUsecase, *mocks.MockCommentRepository, *mocks.MockPostRepository) {
+) (*CommentUsecase, *mocks.MockCommentRepository, *mocks.MockPostRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -45,7 +45,7 @@ func newCommentUsecaseTest(
 func newCommentDeleteUsecaseTest(
 	t *testing.T,
 ) (
-	CommentUsecase,
+	*CommentUsecase,
 	*mocks.MockCommentRepository,
 	*testCommentLikeRepository,
 ) {

@@ -76,11 +76,11 @@ func provideCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepositor
 	return dbrepository.NewCommentLikeRepository(db)
 }
 
-func providePostLikeSummaryReader(likeUsecase usecase.LikeUsecase) usecase.PostLikeSummaryReader {
+func providePostLikeSummaryReader(likeUsecase *usecase.LikeUsecase) usecase.PostLikeSummaryReader {
 	return likeUsecase
 }
 
-func provideCommentLikeSummaryReader(likeUsecase usecase.LikeUsecase) usecase.CommentLikeSummaryReader {
+func provideCommentLikeSummaryReader(likeUsecase *usecase.LikeUsecase) usecase.CommentLikeSummaryReader {
 	return likeUsecase
 }
 

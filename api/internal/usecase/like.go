@@ -29,43 +29,9 @@ type CommentListRead struct {
 	Summaries map[models.UUID]models.LikeSummary
 }
 
-// LikeUsecaseは、LikeControllerが必要とする冪等なLike操作と、一覧表示用の集計を定義する。
-type LikeUsecase interface {
-	LikePost(
-		ctx context.Context,
-		userID models.UUID,
-		postID models.UUID,
-	) (LikeActionResult, error)
-	UnlikePost(
-		ctx context.Context,
-		userID models.UUID,
-		postID models.UUID,
-	) (LikeActionResult, error)
-	LikeComment(
-		ctx context.Context,
-		userID models.UUID,
-		commentID models.UUID,
-	) (LikeActionResult, error)
-	UnlikeComment(
-		ctx context.Context,
-		userID models.UUID,
-		commentID models.UUID,
-	) (LikeActionResult, error)
-	PostSummaries(
-		ctx context.Context,
-		userID models.UUID,
-		postIDs []models.UUID,
-	) (map[models.UUID]models.LikeSummary, error)
-	CommentSummaries(
-		ctx context.Context,
-		userID models.UUID,
-		commentIDs []models.UUID,
-	) (map[models.UUID]models.LikeSummary, error)
-}
-
-// likeUsecaseは、Like対象の存在確認、冪等なLike操作、操作後の集計を組み立てるUsecaseである。
+// LikeUsecaseは、Like対象の存在確認、冪等なLike操作、操作後の集計を組み立てるUsecaseである。
 // Likeの内部行は公開せず、対象IDとLikeSummaryだけを上位層へ返す。
-type likeUsecase struct {
+type LikeUsecase struct {
 	postRepo        repositories.PostRepository
 	commentRepo     repositories.CommentRepository
 	postLikeRepo    repositories.PostLikeRepository
@@ -78,8 +44,8 @@ func NewLikeUsecase(
 	commentRepo repositories.CommentRepository,
 	postLikeRepo repositories.PostLikeRepository,
 	commentLikeRepo repositories.CommentLikeRepository,
-) LikeUsecase {
-	return &likeUsecase{
+) *LikeUsecase {
+	return &LikeUsecase{
 		postRepo:        postRepo,
 		commentRepo:     commentRepo,
 		postLikeRepo:    postLikeRepo,
@@ -88,7 +54,7 @@ func NewLikeUsecase(
 }
 
 // LikePostは、有効なPostへLikeを作成または維持し、最新の集計を返す。
-func (u *likeUsecase) LikePost(
+func (u *LikeUsecase) LikePost(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
@@ -107,7 +73,7 @@ func (u *likeUsecase) LikePost(
 }
 
 // UnlikePostは、有効なPostから認証済みUserのLikeを削除し、最新の集計を返す。
-func (u *likeUsecase) UnlikePost(
+func (u *LikeUsecase) UnlikePost(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
@@ -126,7 +92,7 @@ func (u *likeUsecase) UnlikePost(
 }
 
 // LikeCommentは、有効なCommentへLikeを作成または維持し、最新の集計を返す。
-func (u *likeUsecase) LikeComment(
+func (u *LikeUsecase) LikeComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
@@ -145,7 +111,7 @@ func (u *likeUsecase) LikeComment(
 }
 
 // UnlikeCommentは、有効なCommentから認証済みUserのLikeを削除し、最新の集計を返す。
-func (u *likeUsecase) UnlikeComment(
+func (u *LikeUsecase) UnlikeComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
@@ -164,7 +130,7 @@ func (u *likeUsecase) UnlikeComment(
 }
 
 // PostSummariesは、対象Post集合の件数とcurrent-userのLike状態を一括取得する。
-func (u *likeUsecase) PostSummaries(
+func (u *LikeUsecase) PostSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	postIDs []models.UUID,
@@ -196,7 +162,7 @@ func (u *likeUsecase) PostSummaries(
 }
 
 // CommentSummariesは、対象Comment集合の件数とcurrent-userのLike状態を一括取得する。
-func (u *likeUsecase) CommentSummaries(
+func (u *LikeUsecase) CommentSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	commentIDs []models.UUID,
@@ -227,7 +193,7 @@ func (u *likeUsecase) CommentSummaries(
 	return summaries, nil
 }
 
-func (u *likeUsecase) ensurePost(ctx context.Context, postID models.UUID) error {
+func (u *LikeUsecase) ensurePost(ctx context.Context, postID models.UUID) error {
 	_, err := u.postRepo.GetByID(ctx, postID)
 	if errors.Is(err, repositories.ErrPostNotFound) {
 		return ErrLikeTargetNotFound
@@ -240,7 +206,7 @@ func (u *likeUsecase) ensurePost(ctx context.Context, postID models.UUID) error 
 
 // ensureCommentTargetは、Commentだけでなく所属Postも有効であることを確認する。
 // 親Postが削除済みなら、外部キーが残っていてもLike対象として公開しない。
-func (u *likeUsecase) ensureCommentTarget(ctx context.Context, commentID models.UUID) error {
+func (u *LikeUsecase) ensureCommentTarget(ctx context.Context, commentID models.UUID) error {
 	comment, err := u.commentRepo.GetByID(ctx, commentID)
 	if errors.Is(err, repositories.ErrCommentNotFound) {
 		return ErrLikeTargetNotFound
@@ -254,7 +220,7 @@ func (u *likeUsecase) ensureCommentTarget(ctx context.Context, commentID models.
 	return nil
 }
 
-func (u *likeUsecase) postSummary(
+func (u *LikeUsecase) postSummary(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
@@ -266,7 +232,7 @@ func (u *likeUsecase) postSummary(
 	return summaries[postID], nil
 }
 
-func (u *likeUsecase) commentSummary(
+func (u *LikeUsecase) commentSummary(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
