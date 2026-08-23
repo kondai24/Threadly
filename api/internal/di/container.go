@@ -27,12 +27,14 @@ func NewContainer() (*dig.Container, error) {
 		provideUnitOfWork,
 		providePostLikeRepository,
 		provideCommentLikeRepository,
+		providePostLikeSummaryReader,
+		provideCommentLikeSummaryReader,
 		providePasswordHasher,
 		provideTokenIssuer,
 		services.NewAuthService,
 		services.NewLikeService,
-		services.NewPostServiceWithLikes,
-		services.NewCommentServiceWithLikes,
+		services.NewPostServiceWithLikeReader,
+		services.NewCommentServiceWithLikeReader,
 		controllers.NewAuthController,
 		controllers.NewPostController,
 		controllers.NewCommentController,
@@ -72,6 +74,14 @@ func providePostLikeRepository(db *gorm.DB) repositories.PostLikeRepository {
 
 func provideCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepository {
 	return dbrepository.NewCommentLikeRepository(db)
+}
+
+func providePostLikeSummaryReader(likeService *services.LikeService) services.PostLikeSummaryReader {
+	return likeService
+}
+
+func provideCommentLikeSummaryReader(likeService *services.LikeService) services.CommentLikeSummaryReader {
+	return likeService
 }
 
 func providePasswordHasher() services.PasswordHasher {

@@ -220,10 +220,10 @@ func newLikeRouteRouter(store *commentRouteStore) *gin.Engine {
 	return SetupRouter(Handlers{
 		Auth: controllers.NewAuthController(authService),
 		Post: controllers.NewPostController(
-			services.NewPostServiceWithLikes(postRepo, uow, likeService),
+			services.NewPostServiceWithLikeReader(postRepo, uow, likeService),
 		),
 		Comment: controllers.NewCommentController(
-			services.NewCommentServiceWithLikes(commentRepo, postRepo, uow, likeService),
+			services.NewCommentServiceWithLikeReader(commentRepo, postRepo, uow, likeService),
 		),
 		Like:        controllers.NewLikeController(likeService),
 		TokenIssuer: tokenIssuer,

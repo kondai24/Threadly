@@ -10,11 +10,21 @@ import (
 	"Threadly/internal/domain/repositories"
 )
 
+// CommentLikeSummaryReaderは、Commentの閲覧結果に必要なLike集計だけを提供する。
+// CommentServiceがLike操作全体の実装へ依存しないよう、利用側で契約を定義する。
+type CommentLikeSummaryReader interface {
+	CommentSummaries(
+		ctx context.Context,
+		userID models.UUID,
+		commentIDs []models.UUID,
+	) (map[models.UUID]models.LikeSummary, error)
+}
+
 type CommentService struct {
 	commentRepo repositories.CommentRepository
 	postRepo    repositories.PostRepository
 	uow         repositories.UnitOfWork
-	likeService *LikeService
+	likeReader  CommentLikeSummaryReader
 }
 
 func NewCommentService(
@@ -29,17 +39,17 @@ func NewCommentService(
 	}
 }
 
-func NewCommentServiceWithLikes(
+func NewCommentServiceWithLikeReader(
 	commentRepo repositories.CommentRepository,
 	postRepo repositories.PostRepository,
 	uow repositories.UnitOfWork,
-	likeService *LikeService,
+	likeReader CommentLikeSummaryReader,
 ) *CommentService {
 	return &CommentService{
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
 		uow:         uow,
-		likeService: likeService,
+		likeReader:  likeReader,
 	}
 }
 
@@ -72,10 +82,10 @@ func (s *CommentService) ListCommentsForUser(
 		appendCommentIDs(&commentIDs, comment)
 	}
 	var summaries map[models.UUID]models.LikeSummary
-	if s.likeService == nil {
+	if s.likeReader == nil {
 		summaries = makeLikeSummaries(commentIDs)
 	} else {
-		summaries, err = s.likeService.CommentSummaries(ctx, userID, commentIDs)
+		summaries, err = s.likeReader.CommentSummaries(ctx, userID, commentIDs)
 		if err != nil {
 			return CommentListRead{}, err
 		}

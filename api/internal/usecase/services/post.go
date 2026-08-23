@@ -9,10 +9,20 @@ import (
 	"Threadly/internal/domain/repositories"
 )
 
+// PostLikeSummaryReaderは、Postの閲覧結果に必要なLike集計だけを提供する。
+// PostServiceがLike操作全体の実装へ依存しないよう、利用側で契約を定義する。
+type PostLikeSummaryReader interface {
+	PostSummaries(
+		ctx context.Context,
+		userID models.UUID,
+		postIDs []models.UUID,
+	) (map[models.UUID]models.LikeSummary, error)
+}
+
 type PostService struct {
-	repo        repositories.PostRepository
-	uow         repositories.UnitOfWork
-	likeService *LikeService
+	repo       repositories.PostRepository
+	uow        repositories.UnitOfWork
+	likeReader PostLikeSummaryReader
 }
 
 func NewPostService(
@@ -22,12 +32,12 @@ func NewPostService(
 	return &PostService{repo: repo, uow: uow}
 }
 
-func NewPostServiceWithLikes(
+func NewPostServiceWithLikeReader(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
-	likeService *LikeService,
+	likeReader PostLikeSummaryReader,
 ) *PostService {
-	return &PostService{repo: repo, uow: uow, likeService: likeService}
+	return &PostService{repo: repo, uow: uow, likeReader: likeReader}
 }
 
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
@@ -102,10 +112,10 @@ func (s *PostService) postSummary(
 	userID models.UUID,
 	postID models.UUID,
 ) (models.LikeSummary, error) {
-	if s.likeService == nil {
+	if s.likeReader == nil {
 		return models.LikeSummary{}, nil
 	}
-	summaries, err := s.likeService.PostSummaries(ctx, userID, []models.UUID{postID})
+	summaries, err := s.likeReader.PostSummaries(ctx, userID, []models.UUID{postID})
 	if err != nil {
 		return models.LikeSummary{}, err
 	}
@@ -117,10 +127,10 @@ func (s *PostService) postSummaries(
 	userID models.UUID,
 	postIDs []models.UUID,
 ) (map[models.UUID]models.LikeSummary, error) {
-	if s.likeService == nil {
+	if s.likeReader == nil {
 		return makeLikeSummaries(postIDs), nil
 	}
-	return s.likeService.PostSummaries(ctx, userID, postIDs)
+	return s.likeReader.PostSummaries(ctx, userID, postIDs)
 }
 
 // author_idはリクエストではなく、検証済みtokenのUser IDから設定する。
