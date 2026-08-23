@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/usecase/services"
 )
 
 type CreateCommentRequest struct {
@@ -21,6 +22,8 @@ type CommentResponse struct {
 	Author    PublicUserResponse `json:"author"`
 	CreatedAt time.Time          `json:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt"`
+	LikeCount int64              `json:"likeCount"`
+	LikedByMe bool               `json:"likedByMe"`
 	Replies   []CommentResponse  `json:"replies"`
 }
 
@@ -39,13 +42,38 @@ func CommentResponseFromModel(comment *models.Comment) CommentResponse {
 }
 
 func CommentResponsesFromModels(comments []*models.Comment) []CommentResponse {
+	return commentResponsesFromModels(comments, nil)
+}
+
+func CommentResponsesFromRead(read services.CommentListRead) []CommentResponse {
+	return commentResponsesFromModels(read.Comments, read.Summaries)
+}
+
+func commentResponsesFromModels(
+	comments []*models.Comment,
+	summaries map[models.UUID]models.LikeSummary,
+) []CommentResponse {
 	// repliesをnilではなく空配列で返し、Frontが親Commentと返信を同じ契約で描画できるようにする。
 	responses := make([]CommentResponse, 0, len(comments))
 	for _, comment := range comments {
 		if comment == nil {
 			continue
 		}
-		responses = append(responses, CommentResponseFromModel(comment))
+		responses = append(responses, commentResponseFromModel(comment, summaries))
 	}
 	return responses
+}
+
+func commentResponseFromModel(
+	comment *models.Comment,
+	summaries map[models.UUID]models.LikeSummary,
+) CommentResponse {
+	if comment == nil {
+		return CommentResponse{}
+	}
+	response := CommentResponseFromModel(comment)
+	response.LikeCount = summaries[comment.ID].Count
+	response.LikedByMe = summaries[comment.ID].LikedByMe
+	response.Replies = commentResponsesFromModels(comment.Replies, summaries)
+	return response
 }

@@ -118,14 +118,13 @@ func TestCommentRepository_UpdateRequiresAuthor(t *testing.T) {
 	require.Equal(t, "updated", stored.Content)
 }
 
-func TestCommentRepository_DeleteByIDSoftDeletesRootAndReplies(t *testing.T) {
+func TestCommentRepository_DeleteMethodsOnlyChangeComments(t *testing.T) {
 	repo, db := newTestCommentRepository(t)
 	user, post, root, reply := seedCommentRepositoryData(t, db)
 	require.NoError(t, db.Create(&models.CommentLike{UserID: user.ID, CommentID: root.ID}).Error)
 	require.NoError(t, db.Create(&models.CommentLike{UserID: user.ID, CommentID: reply.ID}).Error)
 
-	rows, err := repo.DeleteByID(context.Background(), user.ID, root.ID)
-
+	rows, err := repo.DeleteByIDWithReplies(context.Background(), user.ID, root.ID)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), rows)
 	comments, err := repo.ListByPostID(context.Background(), post.ID)
@@ -141,5 +140,5 @@ func TestCommentRepository_DeleteByIDSoftDeletesRootAndReplies(t *testing.T) {
 	}
 	var likes []models.CommentLike
 	require.NoError(t, db.Where("comment_id IN ?", []models.UUID{root.ID, reply.ID}).Find(&likes).Error)
-	require.Empty(t, likes)
+	require.Len(t, likes, 2)
 }

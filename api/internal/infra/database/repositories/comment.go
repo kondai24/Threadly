@@ -64,6 +64,23 @@ func (r *CommentRepository) GetByID(
 	return &comment, nil
 }
 
+func (r *CommentRepository) GetByIDForUpdate(
+	ctx context.Context,
+	commentID models.UUID,
+) (*models.Comment, error) {
+	var comment models.Comment
+	result := r.DB.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		First(&comment, "id = ?", commentID)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, repositories.ErrCommentNotFound
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("find comment for update: %w", result.Error)
+	}
+	return &comment, nil
+}
+
 func (r *CommentRepository) Update(
 	ctx context.Context,
 	userID models.UUID,
@@ -83,57 +100,41 @@ func (r *CommentRepository) Update(
 	return result.RowsAffected, nil
 }
 
-func (r *CommentRepository) DeleteByID(
+func (r *CommentRepository) DeleteByPostID(
+	ctx context.Context,
+	postID models.UUID,
+) (int64, error) {
+	result := r.DB.WithContext(ctx).
+		Where("post_id = ?", postID).
+		Delete(&models.Comment{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("delete comments by post: %w", result.Error)
+	}
+	return result.RowsAffected, nil
+}
+
+// DeleteByIDWithRepliesは、所有者が削除できるCommentと、その直接の返信を同じ論理削除処理で扱う。
+// 先に対象Commentの所有者条件を確認するため、権限のない場合に返信だけが削除されることはない。
+func (r *CommentRepository) DeleteByIDWithReplies(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
 ) (int64, error) {
-	var rowsAffected int64
-	// Comment本体と返信の削除範囲を同じTransactionで確定し、親子の一方だけが残る状態を防ぐ。
-	err := r.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var comment models.Comment
-		// 削除対象の親子関係を確定するまで対象行をロックし、同時処理との競合を抑える。
-		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id = ? AND author_id = ?", commentID, userID).
-			First(&comment)
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		if result.Error != nil {
-			return fmt.Errorf("find comment for delete: %w", result.Error)
-		}
-
-		commentIDQuery := tx.Model(&models.Comment{}).
-			Select("id").
-			Where("id = ?", comment.ID)
-		if comment.ParentID == nil {
-			// ParentID == nil は最上位のCommentを表すため、親自身に加えて直接の返信のLikeもcleanupする。
-			commentIDQuery = commentIDQuery.Or("parent_id = ?", comment.ID)
-		}
-		result = tx.
-			Where("comment_id IN (?)", commentIDQuery).
-			Delete(&models.CommentLike{})
-		if result.Error != nil {
-			return fmt.Errorf("delete comment likes: %w", result.Error)
-		}
-
-		var deleteQuery *gorm.DB
-		if comment.ParentID == nil {
-			// 親Commentは、会話の階層を部分的に残さないよう直接の返信も削除範囲に含める。
-			deleteQuery = tx.Where("id = ? OR parent_id = ?", comment.ID, comment.ID)
-		} else {
-			// 返信は親Commentと兄弟の返信を残し、自身だけを削除範囲にする。
-			deleteQuery = tx.Where("id = ?", comment.ID)
-		}
-		result = deleteQuery.Delete(&models.Comment{})
-		if result.Error != nil {
-			return fmt.Errorf("delete comment: %w", result.Error)
-		}
-		rowsAffected = result.RowsAffected
-		return nil
-	})
-	if err != nil {
-		return 0, err
+	result := r.DB.WithContext(ctx).
+		Where("id = ? AND author_id = ?", commentID, userID).
+		Delete(&models.Comment{})
+	if result.Error != nil {
+		return 0, fmt.Errorf("delete comment with replies: %w", result.Error)
 	}
-	return rowsAffected, nil
+	if result.RowsAffected == 0 {
+		return 0, nil
+	}
+
+	replyResult := r.DB.WithContext(ctx).
+		Where("parent_id = ?", commentID).
+		Delete(&models.Comment{})
+	if replyResult.Error != nil {
+		return 0, fmt.Errorf("delete comment replies: %w", replyResult.Error)
+	}
+	return result.RowsAffected + replyResult.RowsAffected, nil
 }

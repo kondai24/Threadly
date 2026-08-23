@@ -24,14 +24,21 @@ func NewContainer() (*dig.Container, error) {
 		provideUserRepository,
 		providePostRepository,
 		provideCommentRepository,
+		provideUnitOfWork,
+		providePostLikeRepository,
+		provideCommentLikeRepository,
+		providePostLikeSummaryReader,
+		provideCommentLikeSummaryReader,
 		providePasswordHasher,
 		provideTokenIssuer,
 		services.NewAuthService,
-		services.NewPostService,
-		services.NewCommentService,
+		services.NewLikeService,
+		services.NewPostServiceWithLikeReader,
+		services.NewCommentServiceWithLikeReader,
 		controllers.NewAuthController,
 		controllers.NewPostController,
 		controllers.NewCommentController,
+		controllers.NewLikeController,
 		provideHandlers,
 		routes.SetupRouter,
 	}
@@ -57,6 +64,26 @@ func provideCommentRepository(db *gorm.DB) repositories.CommentRepository {
 	return dbrepository.NewCommentRepository(db)
 }
 
+func provideUnitOfWork(db *gorm.DB) repositories.UnitOfWork {
+	return dbrepository.NewUnitOfWork(db)
+}
+
+func providePostLikeRepository(db *gorm.DB) repositories.PostLikeRepository {
+	return dbrepository.NewPostLikeRepository(db)
+}
+
+func provideCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepository {
+	return dbrepository.NewCommentLikeRepository(db)
+}
+
+func providePostLikeSummaryReader(likeService *services.LikeService) services.PostLikeSummaryReader {
+	return likeService
+}
+
+func provideCommentLikeSummaryReader(likeService *services.LikeService) services.CommentLikeSummaryReader {
+	return likeService
+}
+
 func providePasswordHasher() services.PasswordHasher {
 	return authinfra.NewArgon2idHasher()
 }
@@ -70,12 +97,14 @@ func provideHandlers(
 	authController *controllers.AuthController,
 	postController *controllers.PostController,
 	commentController *controllers.CommentController,
+	likeController *controllers.LikeController,
 	tokenIssuer services.TokenIssuer,
 ) routes.Handlers {
 	return routes.Handlers{
 		Auth:        authController,
 		Post:        postController,
 		Comment:     commentController,
+		Like:        likeController,
 		TokenIssuer: tokenIssuer,
 	}
 }

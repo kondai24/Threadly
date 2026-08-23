@@ -55,19 +55,34 @@ func (mr *MockCommentRepositoryMockRecorder) Create(ctx, comment any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockCommentRepository)(nil).Create), ctx, comment)
 }
 
-// DeleteByID mocks base method.
-func (m *MockCommentRepository) DeleteByID(ctx context.Context, userID, commentID models.UUID) (int64, error) {
+// DeleteByIDWithReplies mocks base method.
+func (m *MockCommentRepository) DeleteByIDWithReplies(ctx context.Context, userID, commentID models.UUID) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteByID", ctx, userID, commentID)
+	ret := m.ctrl.Call(m, "DeleteByIDWithReplies", ctx, userID, commentID)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// DeleteByID indicates an expected call of DeleteByID.
-func (mr *MockCommentRepositoryMockRecorder) DeleteByID(ctx, userID, commentID any) *gomock.Call {
+// DeleteByIDWithReplies indicates an expected call of DeleteByIDWithReplies.
+func (mr *MockCommentRepositoryMockRecorder) DeleteByIDWithReplies(ctx, userID, commentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByID", reflect.TypeOf((*MockCommentRepository)(nil).DeleteByID), ctx, userID, commentID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByIDWithReplies", reflect.TypeOf((*MockCommentRepository)(nil).DeleteByIDWithReplies), ctx, userID, commentID)
+}
+
+// DeleteByPostID mocks base method.
+func (m *MockCommentRepository) DeleteByPostID(ctx context.Context, postID models.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteByPostID", ctx, postID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteByPostID indicates an expected call of DeleteByPostID.
+func (mr *MockCommentRepositoryMockRecorder) DeleteByPostID(ctx, postID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByPostID", reflect.TypeOf((*MockCommentRepository)(nil).DeleteByPostID), ctx, postID)
 }
 
 // GetByID mocks base method.
@@ -83,6 +98,21 @@ func (m *MockCommentRepository) GetByID(ctx context.Context, commentID models.UU
 func (mr *MockCommentRepositoryMockRecorder) GetByID(ctx, commentID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockCommentRepository)(nil).GetByID), ctx, commentID)
+}
+
+// GetByIDForUpdate mocks base method.
+func (m *MockCommentRepository) GetByIDForUpdate(ctx context.Context, commentID models.UUID) (*models.Comment, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByIDForUpdate", ctx, commentID)
+	ret0, _ := ret[0].(*models.Comment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByIDForUpdate indicates an expected call of GetByIDForUpdate.
+func (mr *MockCommentRepositoryMockRecorder) GetByIDForUpdate(ctx, commentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIDForUpdate", reflect.TypeOf((*MockCommentRepository)(nil).GetByIDForUpdate), ctx, commentID)
 }
 
 // ListByPostID mocks base method.

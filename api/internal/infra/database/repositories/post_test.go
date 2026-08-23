@@ -68,7 +68,7 @@ func TestPostRepository_ReturnsPostNotFound(t *testing.T) {
 	})
 }
 
-func TestPostRepository_DeleteByIDSoftDeletesComments(t *testing.T) {
+func TestPostRepository_DeleteByIDSoftDeletesPostOnly(t *testing.T) {
 	db := openTestDB(t)
 	tx := db.Begin()
 	require.NoError(t, tx.Error)
@@ -102,21 +102,15 @@ func TestPostRepository_DeleteByIDSoftDeletesComments(t *testing.T) {
 	require.Error(t, tx.First(&activePost, post.ID).Error)
 	var activeComments []models.Comment
 	require.NoError(t, tx.Where("post_id = ?", post.ID).Find(&activeComments).Error)
-	require.Empty(t, activeComments)
+	require.Len(t, activeComments, 2)
 
 	var deletedPost models.Post
 	require.NoError(t, tx.Unscoped().First(&deletedPost, post.ID).Error)
 	require.True(t, deletedPost.DeletedAt.Valid)
-	var deletedComments []models.Comment
-	require.NoError(t, tx.Unscoped().Where("post_id = ?", post.ID).Find(&deletedComments).Error)
-	require.Len(t, deletedComments, 2)
-	for _, comment := range deletedComments {
-		require.True(t, comment.DeletedAt.Valid)
-	}
 	var postLikes []models.PostLike
 	require.NoError(t, tx.Where("post_id = ?", post.ID).Find(&postLikes).Error)
-	require.Empty(t, postLikes)
+	require.Len(t, postLikes, 1)
 	var commentLikes []models.CommentLike
 	require.NoError(t, tx.Where("comment_id IN ?", []models.UUID{root.ID, reply.ID}).Find(&commentLikes).Error)
-	require.Empty(t, commentLikes)
+	require.Len(t, commentLikes, 2)
 }

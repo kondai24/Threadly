@@ -16,6 +16,7 @@ type Handlers struct {
 	Auth        *controllers.AuthController
 	Post        *controllers.PostController
 	Comment     *controllers.CommentController
+	Like        *controllers.LikeController
 	TokenIssuer services.TokenIssuer
 }
 
@@ -36,6 +37,9 @@ func SetupRouter(h Handlers) *gin.Engine {
 	protected.GET("/me", h.Auth.MeHandler)
 	registerPostRoutes(protected, h)
 	registerCommentRoutes(protected, h)
+	if h.Like != nil {
+		registerLikeRoutes(protected, h)
+	}
 
 	return router
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/usecase/services"
 )
 
 type CreatePostRequest struct {
@@ -21,6 +22,8 @@ type PostListResponse struct {
 	Title     string             `json:"title"`
 	Author    PublicUserResponse `json:"author"`
 	CreatedAt time.Time          `json:"createdAt"`
+	LikeCount int64              `json:"likeCount"`
+	LikedByMe bool               `json:"likedByMe"`
 }
 
 type PostDetailResponse struct {
@@ -30,6 +33,8 @@ type PostDetailResponse struct {
 	Author    PublicUserResponse `json:"author"`
 	CreatedAt time.Time          `json:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt"`
+	LikeCount int64              `json:"likeCount"`
+	LikedByMe bool               `json:"likedByMe"`
 }
 
 func PostListResponseFromModel(post *models.Post) PostListResponse {
@@ -55,6 +60,24 @@ func PostListResponsesFromModels(posts []*models.Post) []PostListResponse {
 	return responses
 }
 
+func PostListResponseFromRead(read services.PostRead) PostListResponse {
+	response := PostListResponseFromModel(read.Post)
+	response.LikeCount = read.Summary.Count
+	response.LikedByMe = read.Summary.LikedByMe
+	return response
+}
+
+func PostListResponsesFromReads(reads []services.PostRead) []PostListResponse {
+	responses := make([]PostListResponse, 0, len(reads))
+	for _, read := range reads {
+		if read.Post == nil {
+			continue
+		}
+		responses = append(responses, PostListResponseFromRead(read))
+	}
+	return responses
+}
+
 func PostDetailResponseFromModel(post *models.Post) PostDetailResponse {
 	if post == nil {
 		return PostDetailResponse{}
@@ -67,4 +90,11 @@ func PostDetailResponseFromModel(post *models.Post) PostDetailResponse {
 		CreatedAt: post.CreatedAt,
 		UpdatedAt: post.UpdatedAt,
 	}
+}
+
+func PostDetailResponseFromRead(read services.PostRead) PostDetailResponse {
+	response := PostDetailResponseFromModel(read.Post)
+	response.LikeCount = read.Summary.Count
+	response.LikedByMe = read.Summary.LikedByMe
+	return response
 }

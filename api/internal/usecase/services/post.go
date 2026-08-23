@@ -3,18 +3,41 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
 )
 
-type PostService struct {
-	repo repositories.PostRepository
+// PostLikeSummaryReaderは、Postの閲覧結果に必要なLike集計だけを提供する。
+// PostServiceがLike操作全体の実装へ依存しないよう、利用側で契約を定義する。
+type PostLikeSummaryReader interface {
+	PostSummaries(
+		ctx context.Context,
+		userID models.UUID,
+		postIDs []models.UUID,
+	) (map[models.UUID]models.LikeSummary, error)
 }
 
-func NewPostService(repo repositories.PostRepository) *PostService {
-	return &PostService{repo: repo}
+type PostService struct {
+	repo       repositories.PostRepository
+	uow        repositories.UnitOfWork
+	likeReader PostLikeSummaryReader
+}
 
+func NewPostService(
+	repo repositories.PostRepository,
+	uow repositories.UnitOfWork,
+) *PostService {
+	return &PostService{repo: repo, uow: uow}
+}
+
+func NewPostServiceWithLikeReader(
+	repo repositories.PostRepository,
+	uow repositories.UnitOfWork,
+	likeReader PostLikeSummaryReader,
+) *PostService {
+	return &PostService{repo: repo, uow: uow, likeReader: likeReader}
 }
 
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
@@ -24,6 +47,22 @@ func (s *PostService) GetPostByID(ctx context.Context, postID models.UUID) (*mod
 		return nil, translatePostRepositoryError(err)
 	}
 	return post, nil
+}
+
+func (s *PostService) GetPostByIDForUser(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (*PostRead, error) {
+	post, err := s.GetPostByID(ctx, postID)
+	if err != nil {
+		return nil, err
+	}
+	summary, err := s.postSummary(ctx, userID, postID)
+	if err != nil {
+		return nil, err
+	}
+	return &PostRead{Post: post, Summary: summary}, nil
 }
 
 // 更新前の所有者確認など、所有者だけが扱うPostを取得する。
@@ -38,6 +77,60 @@ func (s *PostService) GetPostByIDForOwner(ctx context.Context, userID models.UUI
 // 認証済みUserが閲覧できる全Postを取得する。
 func (s *PostService) ListAllPosts(ctx context.Context) ([]*models.Post, error) {
 	return s.repo.ListAll(ctx)
+}
+
+func (s *PostService) ListAllPostsForUser(
+	ctx context.Context,
+	userID models.UUID,
+) ([]PostRead, error) {
+	posts, err := s.ListAllPosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	postIDs := make([]models.UUID, 0, len(posts))
+	for _, post := range posts {
+		if post != nil {
+			postIDs = append(postIDs, post.ID)
+		}
+	}
+	summaries, err := s.postSummaries(ctx, userID, postIDs)
+	if err != nil {
+		return nil, err
+	}
+	reads := make([]PostRead, 0, len(posts))
+	for _, post := range posts {
+		if post == nil {
+			continue
+		}
+		reads = append(reads, PostRead{Post: post, Summary: summaries[post.ID]})
+	}
+	return reads, nil
+}
+
+func (s *PostService) postSummary(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (models.LikeSummary, error) {
+	if s.likeReader == nil {
+		return models.LikeSummary{}, nil
+	}
+	summaries, err := s.likeReader.PostSummaries(ctx, userID, []models.UUID{postID})
+	if err != nil {
+		return models.LikeSummary{}, err
+	}
+	return summaries[postID], nil
+}
+
+func (s *PostService) postSummaries(
+	ctx context.Context,
+	userID models.UUID,
+	postIDs []models.UUID,
+) (map[models.UUID]models.LikeSummary, error) {
+	if s.likeReader == nil {
+		return makeLikeSummaries(postIDs), nil
+	}
+	return s.likeReader.PostSummaries(ctx, userID, postIDs)
 }
 
 // author_idはリクエストではなく、検証済みtokenのUser IDから設定する。
@@ -67,11 +160,37 @@ func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *
 	return nil
 }
 
-// 削除もRepositoryでuserIDを条件に含め、所有者境界を維持する。
+// CommentLike、PostLike、Comment、Postを同じTransactionで削除し、部分削除を防ぐ。
 func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
-	rows, err := s.repo.DeleteByID(ctx, userID, postID)
+	var rows int64
+	err := s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+		post, err := tx.Post.GetByIDForUpdate(ctx, postID)
+		if err != nil {
+			return err
+		}
+		if post.AuthorID != userID {
+			return repositories.ErrPostNotFound
+		}
+
+		// CommentLikeは別Tableのため、Post配下CommentのLikeを先に同じTransactionで物理削除する。
+		if err := tx.CommentLike.DeleteByCommentsOfPostID(ctx, post.ID); err != nil {
+			return fmt.Errorf("delete post comment likes: %w", err)
+		}
+		if err := tx.PostLike.DeleteByPostID(ctx, post.ID); err != nil {
+			return fmt.Errorf("delete post likes: %w", err)
+		}
+		if _, err := tx.Comment.DeleteByPostID(ctx, post.ID); err != nil {
+			return fmt.Errorf("delete post comments: %w", err)
+		}
+
+		rows, err = tx.Post.DeleteByID(ctx, userID, post.ID)
+		if err != nil {
+			return fmt.Errorf("delete post: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return err
+		return translatePostRepositoryError(err)
 	}
 	if rows == 0 {
 		return ErrPostNotFound

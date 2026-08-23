@@ -44,6 +44,13 @@ func (r *routePostRepository) GetByID(_ context.Context, postID models.UUID) (*m
 	return clonePost(post), nil
 }
 
+func (r *routePostRepository) GetByIDForUpdate(
+	ctx context.Context,
+	postID models.UUID,
+) (*models.Post, error) {
+	return r.GetByID(ctx, postID)
+}
+
 func (r *routePostRepository) GetByIDForOwner(_ context.Context, userID models.UUID, id models.UUID) (*models.Post, error) {
 	post, ok := r.posts[id]
 	if !ok || post.AuthorID != userID {
@@ -152,6 +159,99 @@ func routeHashPassword(password string) string {
 
 type routeTokenIssuer struct{}
 
+type routePostLikeRepository struct{}
+
+func (routePostLikeRepository) Ensure(context.Context, models.UUID, models.UUID) error {
+	return nil
+}
+
+func (routePostLikeRepository) Delete(context.Context, models.UUID, models.UUID) error {
+	return nil
+}
+
+func (routePostLikeRepository) DeleteByPostID(context.Context, models.UUID) error {
+	return nil
+}
+
+func (routePostLikeRepository) CountByPostIDs(
+	context.Context,
+	[]models.UUID,
+) (map[models.UUID]int64, error) {
+	return map[models.UUID]int64{}, nil
+}
+
+func (routePostLikeRepository) FindLikedPostIDs(
+	context.Context,
+	models.UUID,
+	[]models.UUID,
+) (map[models.UUID]struct{}, error) {
+	return map[models.UUID]struct{}{}, nil
+}
+
+type routeCommentLikeRepository struct{}
+
+func (routeCommentLikeRepository) Ensure(context.Context, models.UUID, models.UUID) error {
+	return nil
+}
+
+func (routeCommentLikeRepository) Delete(context.Context, models.UUID, models.UUID) error {
+	return nil
+}
+
+func (routeCommentLikeRepository) DeleteByCommentIDs(context.Context, []models.UUID) error {
+	return nil
+}
+
+func (routeCommentLikeRepository) DeleteByCommentIDWithReplies(context.Context, models.UUID) error {
+	return nil
+}
+
+func (routeCommentLikeRepository) DeleteByCommentsOfPostID(context.Context, models.UUID) error {
+	return nil
+}
+
+func (routeCommentLikeRepository) CountByCommentIDs(
+	context.Context,
+	[]models.UUID,
+) (map[models.UUID]int64, error) {
+	return map[models.UUID]int64{}, nil
+}
+
+func (routeCommentLikeRepository) FindLikedCommentIDs(
+	context.Context,
+	models.UUID,
+	[]models.UUID,
+) (map[models.UUID]struct{}, error) {
+	return map[models.UUID]struct{}{}, nil
+}
+
+type routeUnitOfWork struct {
+	post        repositories.PostRepository
+	comment     repositories.CommentRepository
+	postLike    repositories.PostLikeRepository
+	commentLike repositories.CommentLikeRepository
+}
+
+func (u routeUnitOfWork) WithinTransaction(
+	ctx context.Context,
+	fn func(repositories.TransactionRepositories) error,
+) error {
+	postLike := u.postLike
+	if postLike == nil {
+		postLike = routePostLikeRepository{}
+	}
+	commentLike := u.commentLike
+	if commentLike == nil {
+		commentLike = routeCommentLikeRepository{}
+	}
+	return fn(repositories.TransactionRepositories{
+		Post:        u.post,
+		Comment:     u.comment,
+		PostLike:    postLike,
+		CommentLike: commentLike,
+	})
+}
+
 func (routeTokenIssuer) Issue(userID models.UUID) (string, error) {
 	return "user-" + string(userID), nil
 }
@@ -184,7 +284,7 @@ func newTestRouter(postRepo *routePostRepository) *gin.Engine {
 		routePasswordHasher{},
 		tokenIssuer,
 	)
-	postService := services.NewPostService(postRepo)
+	postService := services.NewPostService(postRepo, routeUnitOfWork{post: postRepo})
 	return SetupRouter(Handlers{
 		Auth:        controllers.NewAuthController(authService),
 		Post:        controllers.NewPostController(postService),
