@@ -24,58 +24,18 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  DeleteApiCommentsId400,
-  DeleteApiCommentsId401,
-  DeleteApiCommentsId404,
-  DeleteApiCommentsId500,
-  DeleteApiPostsId400,
-  DeleteApiPostsId401,
-  DeleteApiPostsId404,
-  DeleteApiPostsId500,
-  GetApiMe401,
-  GetApiMe404,
-  GetApiMe500,
-  GetApiPosts401,
-  GetApiPosts500,
-  GetApiPostsId400,
-  GetApiPostsId401,
-  GetApiPostsId404,
-  GetApiPostsId500,
-  GetApiPostsIdComments400,
-  GetApiPostsIdComments401,
-  GetApiPostsIdComments404,
-  GetApiPostsIdComments500,
-  InternalInterfaceControllersAuthResponse,
-  InternalInterfaceControllersCommentResponse,
-  InternalInterfaceControllersCreateCommentRequest,
-  InternalInterfaceControllersCreatePostRequest,
-  InternalInterfaceControllersCredentialsRequest,
-  InternalInterfaceControllersPostDetailResponse,
-  InternalInterfaceControllersPostListResponse,
-  InternalInterfaceControllersUpdateCommentRequest,
-  InternalInterfaceControllersUpdatePostRequest,
-  InternalInterfaceControllersUserResponse,
-  PostApiAuthLogin400,
-  PostApiAuthLogin401,
-  PostApiAuthLogin500,
-  PostApiAuthRegister400,
-  PostApiAuthRegister409,
-  PostApiAuthRegister500,
-  PostApiPosts400,
-  PostApiPosts401,
-  PostApiPosts500,
-  PostApiPostsIdComments400,
-  PostApiPostsIdComments401,
-  PostApiPostsIdComments404,
-  PostApiPostsIdComments500,
-  PutApiCommentsId400,
-  PutApiCommentsId401,
-  PutApiCommentsId404,
-  PutApiCommentsId500,
-  PutApiPostsId400,
-  PutApiPostsId401,
-  PutApiPostsId404,
-  PutApiPostsId500,
+  ThreadlyInternalInterfaceDtoAuthResponse,
+  ThreadlyInternalInterfaceDtoCommentResponse,
+  ThreadlyInternalInterfaceDtoCreateCommentRequest,
+  ThreadlyInternalInterfaceDtoCreatePostRequest,
+  ThreadlyInternalInterfaceDtoCredentialsRequest,
+  ThreadlyInternalInterfaceDtoErrorResponse,
+  ThreadlyInternalInterfaceDtoLikeActionResponse,
+  ThreadlyInternalInterfaceDtoPostDetailResponse,
+  ThreadlyInternalInterfaceDtoPostListResponse,
+  ThreadlyInternalInterfaceDtoUpdateCommentRequest,
+  ThreadlyInternalInterfaceDtoUpdatePostRequest,
+  ThreadlyInternalInterfaceDtoUserResponse,
 } from "./threadyAPI.schemas";
 
 import { customInstance } from "../lib/apiClient";
@@ -109,35 +69,35 @@ export const getPostApiAuthLoginUrl = () => {
  * @summary Login
  */
 export const postApiAuthLogin = async (
-  internalInterfaceControllersCredentialsRequest: InternalInterfaceControllersCredentialsRequest,
+  threadlyInternalInterfaceDtoCredentialsRequest: ThreadlyInternalInterfaceDtoCredentialsRequest,
   options?: Parameters<typeof customInstance>[1],
-): Promise<InternalInterfaceControllersAuthResponse> => {
-  return customInstance<InternalInterfaceControllersAuthResponse>(
+): Promise<ThreadlyInternalInterfaceDtoAuthResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoAuthResponse>(
     getPostApiAuthLoginUrl(),
     {
       ...options,
       method: "POST",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(internalInterfaceControllersCredentialsRequest),
+      body: JSON.stringify(threadlyInternalInterfaceDtoCredentialsRequest),
     },
   );
 };
 
 export const getPostApiAuthLoginMutationOptions = <
-  TError = PostApiAuthLogin400 | PostApiAuthLogin401 | PostApiAuthLogin500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiAuthLogin>>,
     TError,
-    { data: InternalInterfaceControllersCredentialsRequest },
+    { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiAuthLogin>>,
   TError,
-  { data: InternalInterfaceControllersCredentialsRequest },
+  { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
   TContext
 > => {
   const mutationKey = ["postApiAuthLogin"];
@@ -151,7 +111,7 @@ export const getPostApiAuthLoginMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiAuthLogin>>,
-    { data: InternalInterfaceControllersCredentialsRequest }
+    { data: ThreadlyInternalInterfaceDtoCredentialsRequest }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -165,22 +125,22 @@ export type PostApiAuthLoginMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthLogin>>
 >;
 export type PostApiAuthLoginMutationBody =
-  InternalInterfaceControllersCredentialsRequest;
+  ThreadlyInternalInterfaceDtoCredentialsRequest;
 export type PostApiAuthLoginMutationError =
-  PostApiAuthLogin400 | PostApiAuthLogin401 | PostApiAuthLogin500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Login
  */
 export const usePostApiAuthLogin = <
-  TError = PostApiAuthLogin400 | PostApiAuthLogin401 | PostApiAuthLogin500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthLogin>>,
       TError,
-      { data: InternalInterfaceControllersCredentialsRequest },
+      { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -189,7 +149,7 @@ export const usePostApiAuthLogin = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiAuthLogin>>,
   TError,
-  { data: InternalInterfaceControllersCredentialsRequest },
+  { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
   TContext
 > => {
   return useMutation(getPostApiAuthLoginMutationOptions(options), queryClient);
@@ -286,36 +246,35 @@ export const getPostApiAuthRegisterUrl = () => {
  * @summary Register a user
  */
 export const postApiAuthRegister = async (
-  internalInterfaceControllersCredentialsRequest: InternalInterfaceControllersCredentialsRequest,
+  threadlyInternalInterfaceDtoCredentialsRequest: ThreadlyInternalInterfaceDtoCredentialsRequest,
   options?: Parameters<typeof customInstance>[1],
-): Promise<InternalInterfaceControllersAuthResponse> => {
-  return customInstance<InternalInterfaceControllersAuthResponse>(
+): Promise<ThreadlyInternalInterfaceDtoAuthResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoAuthResponse>(
     getPostApiAuthRegisterUrl(),
     {
       ...options,
       method: "POST",
       headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(internalInterfaceControllersCredentialsRequest),
+      body: JSON.stringify(threadlyInternalInterfaceDtoCredentialsRequest),
     },
   );
 };
 
 export const getPostApiAuthRegisterMutationOptions = <
-  TError =
-    PostApiAuthRegister400 | PostApiAuthRegister409 | PostApiAuthRegister500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiAuthRegister>>,
     TError,
-    { data: InternalInterfaceControllersCredentialsRequest },
+    { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiAuthRegister>>,
   TError,
-  { data: InternalInterfaceControllersCredentialsRequest },
+  { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
   TContext
 > => {
   const mutationKey = ["postApiAuthRegister"];
@@ -329,7 +288,7 @@ export const getPostApiAuthRegisterMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiAuthRegister>>,
-    { data: InternalInterfaceControllersCredentialsRequest }
+    { data: ThreadlyInternalInterfaceDtoCredentialsRequest }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -343,23 +302,22 @@ export type PostApiAuthRegisterMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiAuthRegister>>
 >;
 export type PostApiAuthRegisterMutationBody =
-  InternalInterfaceControllersCredentialsRequest;
+  ThreadlyInternalInterfaceDtoCredentialsRequest;
 export type PostApiAuthRegisterMutationError =
-  PostApiAuthRegister400 | PostApiAuthRegister409 | PostApiAuthRegister500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Register a user
  */
 export const usePostApiAuthRegister = <
-  TError =
-    PostApiAuthRegister400 | PostApiAuthRegister409 | PostApiAuthRegister500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiAuthRegister>>,
       TError,
-      { data: InternalInterfaceControllersCredentialsRequest },
+      { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -368,7 +326,7 @@ export const usePostApiAuthRegister = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiAuthRegister>>,
   TError,
-  { data: InternalInterfaceControllersCredentialsRequest },
+  { data: ThreadlyInternalInterfaceDtoCredentialsRequest },
   TContext
 > => {
   return useMutation(
@@ -396,11 +354,7 @@ export const deleteApiCommentsId = async (
 };
 
 export const getDeleteApiCommentsIdMutationOptions = <
-  TError =
-    | DeleteApiCommentsId400
-    | DeleteApiCommentsId401
-    | DeleteApiCommentsId404
-    | DeleteApiCommentsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -442,20 +396,13 @@ export type DeleteApiCommentsIdMutationResult = NonNullable<
 >;
 
 export type DeleteApiCommentsIdMutationError =
-  | DeleteApiCommentsId400
-  | DeleteApiCommentsId401
-  | DeleteApiCommentsId404
-  | DeleteApiCommentsId500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Delete a comment
  */
 export const useDeleteApiCommentsId = <
-  TError =
-    | DeleteApiCommentsId400
-    | DeleteApiCommentsId401
-    | DeleteApiCommentsId404
-    | DeleteApiCommentsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
@@ -490,36 +437,32 @@ export const getPutApiCommentsIdUrl = (id: string) => {
  */
 export const putApiCommentsId = async (
   id: string,
-  internalInterfaceControllersUpdateCommentRequest: InternalInterfaceControllersUpdateCommentRequest,
+  threadlyInternalInterfaceDtoUpdateCommentRequest: ThreadlyInternalInterfaceDtoUpdateCommentRequest,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<void> => {
   return customInstance<void>(getPutApiCommentsIdUrl(id), {
     ...options,
     method: "PUT",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(internalInterfaceControllersUpdateCommentRequest),
+    body: JSON.stringify(threadlyInternalInterfaceDtoUpdateCommentRequest),
   });
 };
 
 export const getPutApiCommentsIdMutationOptions = <
-  TError =
-    | PutApiCommentsId400
-    | PutApiCommentsId401
-    | PutApiCommentsId404
-    | PutApiCommentsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof putApiCommentsId>>,
     TError,
-    { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+    { id: string; data: ThreadlyInternalInterfaceDtoUpdateCommentRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof putApiCommentsId>>,
   TError,
-  { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+  { id: string; data: ThreadlyInternalInterfaceDtoUpdateCommentRequest },
   TContext
 > => {
   const mutationKey = ["putApiCommentsId"];
@@ -533,7 +476,7 @@ export const getPutApiCommentsIdMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof putApiCommentsId>>,
-    { id: string; data: InternalInterfaceControllersUpdateCommentRequest }
+    { id: string; data: ThreadlyInternalInterfaceDtoUpdateCommentRequest }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -547,29 +490,22 @@ export type PutApiCommentsIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiCommentsId>>
 >;
 export type PutApiCommentsIdMutationBody =
-  InternalInterfaceControllersUpdateCommentRequest;
+  ThreadlyInternalInterfaceDtoUpdateCommentRequest;
 export type PutApiCommentsIdMutationError =
-  | PutApiCommentsId400
-  | PutApiCommentsId401
-  | PutApiCommentsId404
-  | PutApiCommentsId500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Update a comment
  */
 export const usePutApiCommentsId = <
-  TError =
-    | PutApiCommentsId400
-    | PutApiCommentsId401
-    | PutApiCommentsId404
-    | PutApiCommentsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiCommentsId>>,
       TError,
-      { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+      { id: string; data: ThreadlyInternalInterfaceDtoUpdateCommentRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -578,10 +514,200 @@ export const usePutApiCommentsId = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof putApiCommentsId>>,
   TError,
-  { id: string; data: InternalInterfaceControllersUpdateCommentRequest },
+  { id: string; data: ThreadlyInternalInterfaceDtoUpdateCommentRequest },
   TContext
 > => {
   return useMutation(getPutApiCommentsIdMutationOptions(options), queryClient);
+};
+
+export const getDeleteApiCommentsIdLikeUrl = (id: string) => {
+  return `/api/comments/${id}/like`;
+};
+
+/**
+ * Remove the authenticated user's Like from a comment.
+ * @summary Unlike a comment
+ */
+export const deleteApiCommentsIdLike = async (
+  id: string,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<ThreadlyInternalInterfaceDtoLikeActionResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoLikeActionResponse>(
+    getDeleteApiCommentsIdLikeUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteApiCommentsIdLikeMutationOptions = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteApiCommentsIdLike>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteApiCommentsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteApiCommentsIdLike"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteApiCommentsIdLike>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteApiCommentsIdLike(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteApiCommentsIdLikeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiCommentsIdLike>>
+>;
+
+export type DeleteApiCommentsIdLikeMutationError =
+  ThreadlyInternalInterfaceDtoErrorResponse;
+
+/**
+ * @summary Unlike a comment
+ */
+export const useDeleteApiCommentsIdLike = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteApiCommentsIdLike>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteApiCommentsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getDeleteApiCommentsIdLikeMutationOptions(options),
+    queryClient,
+  );
+};
+
+export const getPutApiCommentsIdLikeUrl = (id: string) => {
+  return `/api/comments/${id}/like`;
+};
+
+/**
+ * Create or keep the authenticated user's Like for a comment.
+ * @summary Like a comment
+ */
+export const putApiCommentsIdLike = async (
+  id: string,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<ThreadlyInternalInterfaceDtoLikeActionResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoLikeActionResponse>(
+    getPutApiCommentsIdLikeUrl(id),
+    {
+      ...options,
+      method: "PUT",
+    },
+  );
+};
+
+export const getPutApiCommentsIdLikeMutationOptions = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putApiCommentsIdLike>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putApiCommentsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["putApiCommentsIdLike"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putApiCommentsIdLike>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return putApiCommentsIdLike(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutApiCommentsIdLikeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putApiCommentsIdLike>>
+>;
+
+export type PutApiCommentsIdLikeMutationError =
+  ThreadlyInternalInterfaceDtoErrorResponse;
+
+/**
+ * @summary Like a comment
+ */
+export const usePutApiCommentsIdLike = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putApiCommentsIdLike>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putApiCommentsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getPutApiCommentsIdLikeMutationOptions(options),
+    queryClient,
+  );
 };
 
 export const getGetApiMeUrl = () => {
@@ -594,8 +720,8 @@ export const getGetApiMeUrl = () => {
  */
 export const getApiMe = async (
   options?: Parameters<typeof customInstance>[1],
-): Promise<InternalInterfaceControllersUserResponse> => {
-  return customInstance<InternalInterfaceControllersUserResponse>(
+): Promise<ThreadlyInternalInterfaceDtoUserResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoUserResponse>(
     getGetApiMeUrl(),
     {
       ...options,
@@ -610,7 +736,7 @@ export const getGetApiMeQueryKey = () => {
 
 export const getGetApiMeQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiMe>>, TError, TData>
@@ -635,11 +761,11 @@ export const getGetApiMeQueryOptions = <
 export type GetApiMeQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMe>>
 >;
-export type GetApiMeQueryError = GetApiMe401 | GetApiMe404 | GetApiMe500;
+export type GetApiMeQueryError = ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiMe<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options: {
     query: Partial<
@@ -661,7 +787,7 @@ export function useGetApiMe<
 };
 export function useGetApiMe<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -683,7 +809,7 @@ export function useGetApiMe<
 };
 export function useGetApiMe<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -701,7 +827,7 @@ export function useGetApiMe<
 
 export function useGetApiMe<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -725,7 +851,7 @@ export function useGetApiMe<
 
 export const getGetApiMeSuspenseQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(options?: {
   query?: Partial<
     UseSuspenseQueryOptions<Awaited<ReturnType<typeof getApiMe>>, TError, TData>
@@ -751,11 +877,11 @@ export type GetApiMeSuspenseQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiMe>>
 >;
 export type GetApiMeSuspenseQueryError =
-  GetApiMe401 | GetApiMe404 | GetApiMe500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiMeSuspense<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options: {
     query: Partial<
@@ -773,7 +899,7 @@ export function useGetApiMeSuspense<
 };
 export function useGetApiMeSuspense<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -791,7 +917,7 @@ export function useGetApiMeSuspense<
 };
 export function useGetApiMeSuspense<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -813,7 +939,7 @@ export function useGetApiMeSuspense<
 
 export function useGetApiMeSuspense<
   TData = Awaited<ReturnType<typeof getApiMe>>,
-  TError = GetApiMe401 | GetApiMe404 | GetApiMe500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -851,8 +977,8 @@ export const getGetApiPostsUrl = () => {
  */
 export const getApiPosts = async (
   options?: Parameters<typeof customInstance>[1],
-): Promise<InternalInterfaceControllersPostListResponse[]> => {
-  return customInstance<InternalInterfaceControllersPostListResponse[]>(
+): Promise<ThreadlyInternalInterfaceDtoPostListResponse[]> => {
+  return customInstance<ThreadlyInternalInterfaceDtoPostListResponse[]>(
     getGetApiPostsUrl(),
     {
       ...options,
@@ -867,7 +993,7 @@ export const getGetApiPostsQueryKey = () => {
 
 export const getGetApiPostsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(options?: {
   query?: Partial<
     UseQueryOptions<Awaited<ReturnType<typeof getApiPosts>>, TError, TData>
@@ -892,11 +1018,11 @@ export const getGetApiPostsQueryOptions = <
 export type GetApiPostsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPosts>>
 >;
-export type GetApiPostsQueryError = GetApiPosts401 | GetApiPosts500;
+export type GetApiPostsQueryError = ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiPosts<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options: {
     query: Partial<
@@ -918,7 +1044,7 @@ export function useGetApiPosts<
 };
 export function useGetApiPosts<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -940,7 +1066,7 @@ export function useGetApiPosts<
 };
 export function useGetApiPosts<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -958,7 +1084,7 @@ export function useGetApiPosts<
 
 export function useGetApiPosts<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -982,7 +1108,7 @@ export function useGetApiPosts<
 
 export const getGetApiPostsSuspenseQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(options?: {
   query?: Partial<
     UseSuspenseQueryOptions<
@@ -1011,11 +1137,12 @@ export const getGetApiPostsSuspenseQueryOptions = <
 export type GetApiPostsSuspenseQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPosts>>
 >;
-export type GetApiPostsSuspenseQueryError = GetApiPosts401 | GetApiPosts500;
+export type GetApiPostsSuspenseQueryError =
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiPostsSuspense<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options: {
     query: Partial<
@@ -1033,7 +1160,7 @@ export function useGetApiPostsSuspense<
 };
 export function useGetApiPostsSuspense<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -1051,7 +1178,7 @@ export function useGetApiPostsSuspense<
 };
 export function useGetApiPostsSuspense<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -1073,7 +1200,7 @@ export function useGetApiPostsSuspense<
 
 export function useGetApiPostsSuspense<
   TData = Awaited<ReturnType<typeof getApiPosts>>,
-  TError = GetApiPosts401 | GetApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   options?: {
     query?: Partial<
@@ -1110,32 +1237,32 @@ export const getPostApiPostsUrl = () => {
  * @summary Create post
  */
 export const postApiPosts = async (
-  internalInterfaceControllersCreatePostRequest: InternalInterfaceControllersCreatePostRequest,
+  threadlyInternalInterfaceDtoCreatePostRequest: ThreadlyInternalInterfaceDtoCreatePostRequest,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<void> => {
   return customInstance<void>(getPostApiPostsUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(internalInterfaceControllersCreatePostRequest),
+    body: JSON.stringify(threadlyInternalInterfaceDtoCreatePostRequest),
   });
 };
 
 export const getPostApiPostsMutationOptions = <
-  TError = PostApiPosts400 | PostApiPosts401 | PostApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiPosts>>,
     TError,
-    { data: InternalInterfaceControllersCreatePostRequest },
+    { data: ThreadlyInternalInterfaceDtoCreatePostRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiPosts>>,
   TError,
-  { data: InternalInterfaceControllersCreatePostRequest },
+  { data: ThreadlyInternalInterfaceDtoCreatePostRequest },
   TContext
 > => {
   const mutationKey = ["postApiPosts"];
@@ -1149,7 +1276,7 @@ export const getPostApiPostsMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiPosts>>,
-    { data: InternalInterfaceControllersCreatePostRequest }
+    { data: ThreadlyInternalInterfaceDtoCreatePostRequest }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -1163,22 +1290,22 @@ export type PostApiPostsMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiPosts>>
 >;
 export type PostApiPostsMutationBody =
-  InternalInterfaceControllersCreatePostRequest;
+  ThreadlyInternalInterfaceDtoCreatePostRequest;
 export type PostApiPostsMutationError =
-  PostApiPosts400 | PostApiPosts401 | PostApiPosts500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Create post
  */
 export const usePostApiPosts = <
-  TError = PostApiPosts400 | PostApiPosts401 | PostApiPosts500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiPosts>>,
       TError,
-      { data: InternalInterfaceControllersCreatePostRequest },
+      { data: ThreadlyInternalInterfaceDtoCreatePostRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -1187,7 +1314,7 @@ export const usePostApiPosts = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiPosts>>,
   TError,
-  { data: InternalInterfaceControllersCreatePostRequest },
+  { data: ThreadlyInternalInterfaceDtoCreatePostRequest },
   TContext
 > => {
   return useMutation(getPostApiPostsMutationOptions(options), queryClient);
@@ -1212,11 +1339,7 @@ export const deleteApiPostsId = async (
 };
 
 export const getDeleteApiPostsIdMutationOptions = <
-  TError =
-    | DeleteApiPostsId400
-    | DeleteApiPostsId401
-    | DeleteApiPostsId404
-    | DeleteApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -1258,20 +1381,13 @@ export type DeleteApiPostsIdMutationResult = NonNullable<
 >;
 
 export type DeleteApiPostsIdMutationError =
-  | DeleteApiPostsId400
-  | DeleteApiPostsId401
-  | DeleteApiPostsId404
-  | DeleteApiPostsId500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Delete current user's post
  */
 export const useDeleteApiPostsId = <
-  TError =
-    | DeleteApiPostsId400
-    | DeleteApiPostsId401
-    | DeleteApiPostsId404
-    | DeleteApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
@@ -1304,8 +1420,8 @@ export const getGetApiPostsIdUrl = (id: string) => {
 export const getApiPostsId = async (
   id: string,
   options?: Parameters<typeof customInstance>[1],
-): Promise<InternalInterfaceControllersPostDetailResponse> => {
-  return customInstance<InternalInterfaceControllersPostDetailResponse>(
+): Promise<ThreadlyInternalInterfaceDtoPostDetailResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoPostDetailResponse>(
     getGetApiPostsIdUrl(id),
     {
       ...options,
@@ -1320,8 +1436,7 @@ export const getGetApiPostsIdQueryKey = (id: string) => {
 
 export const getGetApiPostsIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1354,13 +1469,11 @@ export const getGetApiPostsIdQueryOptions = <
 export type GetApiPostsIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPostsId>>
 >;
-export type GetApiPostsIdQueryError =
-  GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500;
+export type GetApiPostsIdQueryError = ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiPostsId<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options: {
@@ -1383,8 +1496,7 @@ export function useGetApiPostsId<
 };
 export function useGetApiPostsId<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1407,8 +1519,7 @@ export function useGetApiPostsId<
 };
 export function useGetApiPostsId<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1427,8 +1538,7 @@ export function useGetApiPostsId<
 
 export function useGetApiPostsId<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1453,8 +1563,7 @@ export function useGetApiPostsId<
 
 export const getGetApiPostsIdSuspenseQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1487,12 +1596,11 @@ export type GetApiPostsIdSuspenseQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPostsId>>
 >;
 export type GetApiPostsIdSuspenseQueryError =
-  GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiPostsIdSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options: {
@@ -1511,8 +1619,7 @@ export function useGetApiPostsIdSuspense<
 };
 export function useGetApiPostsIdSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1531,8 +1638,7 @@ export function useGetApiPostsIdSuspense<
 };
 export function useGetApiPostsIdSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1555,8 +1661,7 @@ export function useGetApiPostsIdSuspense<
 
 export function useGetApiPostsIdSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsId>>,
-  TError =
-    GetApiPostsId400 | GetApiPostsId401 | GetApiPostsId404 | GetApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1595,33 +1700,32 @@ export const getPutApiPostsIdUrl = (id: string) => {
  */
 export const putApiPostsId = async (
   id: string,
-  internalInterfaceControllersUpdatePostRequest: InternalInterfaceControllersUpdatePostRequest,
+  threadlyInternalInterfaceDtoUpdatePostRequest: ThreadlyInternalInterfaceDtoUpdatePostRequest,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<void> => {
   return customInstance<void>(getPutApiPostsIdUrl(id), {
     ...options,
     method: "PUT",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(internalInterfaceControllersUpdatePostRequest),
+    body: JSON.stringify(threadlyInternalInterfaceDtoUpdatePostRequest),
   });
 };
 
 export const getPutApiPostsIdMutationOptions = <
-  TError =
-    PutApiPostsId400 | PutApiPostsId401 | PutApiPostsId404 | PutApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof putApiPostsId>>,
     TError,
-    { id: string; data: InternalInterfaceControllersUpdatePostRequest },
+    { id: string; data: ThreadlyInternalInterfaceDtoUpdatePostRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof putApiPostsId>>,
   TError,
-  { id: string; data: InternalInterfaceControllersUpdatePostRequest },
+  { id: string; data: ThreadlyInternalInterfaceDtoUpdatePostRequest },
   TContext
 > => {
   const mutationKey = ["putApiPostsId"];
@@ -1635,7 +1739,7 @@ export const getPutApiPostsIdMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof putApiPostsId>>,
-    { id: string; data: InternalInterfaceControllersUpdatePostRequest }
+    { id: string; data: ThreadlyInternalInterfaceDtoUpdatePostRequest }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -1649,23 +1753,22 @@ export type PutApiPostsIdMutationResult = NonNullable<
   Awaited<ReturnType<typeof putApiPostsId>>
 >;
 export type PutApiPostsIdMutationBody =
-  InternalInterfaceControllersUpdatePostRequest;
+  ThreadlyInternalInterfaceDtoUpdatePostRequest;
 export type PutApiPostsIdMutationError =
-  PutApiPostsId400 | PutApiPostsId401 | PutApiPostsId404 | PutApiPostsId500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Update current user's post
  */
 export const usePutApiPostsId = <
-  TError =
-    PutApiPostsId400 | PutApiPostsId401 | PutApiPostsId404 | PutApiPostsId500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof putApiPostsId>>,
       TError,
-      { id: string; data: InternalInterfaceControllersUpdatePostRequest },
+      { id: string; data: ThreadlyInternalInterfaceDtoUpdatePostRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -1674,7 +1777,7 @@ export const usePutApiPostsId = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof putApiPostsId>>,
   TError,
-  { id: string; data: InternalInterfaceControllersUpdatePostRequest },
+  { id: string; data: ThreadlyInternalInterfaceDtoUpdatePostRequest },
   TContext
 > => {
   return useMutation(getPutApiPostsIdMutationOptions(options), queryClient);
@@ -1691,8 +1794,8 @@ export const getGetApiPostsIdCommentsUrl = (id: string) => {
 export const getApiPostsIdComments = async (
   id: string,
   options?: Parameters<typeof customInstance>[1],
-): Promise<InternalInterfaceControllersCommentResponse[]> => {
-  return customInstance<InternalInterfaceControllersCommentResponse[]>(
+): Promise<ThreadlyInternalInterfaceDtoCommentResponse[]> => {
+  return customInstance<ThreadlyInternalInterfaceDtoCommentResponse[]>(
     getGetApiPostsIdCommentsUrl(id),
     {
       ...options,
@@ -1707,11 +1810,7 @@ export const getGetApiPostsIdCommentsQueryKey = (id: string) => {
 
 export const getGetApiPostsIdCommentsQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1750,18 +1849,11 @@ export type GetApiPostsIdCommentsQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPostsIdComments>>
 >;
 export type GetApiPostsIdCommentsQueryError =
-  | GetApiPostsIdComments400
-  | GetApiPostsIdComments401
-  | GetApiPostsIdComments404
-  | GetApiPostsIdComments500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiPostsIdComments<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options: {
@@ -1788,11 +1880,7 @@ export function useGetApiPostsIdComments<
 };
 export function useGetApiPostsIdComments<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1819,11 +1907,7 @@ export function useGetApiPostsIdComments<
 };
 export function useGetApiPostsIdComments<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1846,11 +1930,7 @@ export function useGetApiPostsIdComments<
 
 export function useGetApiPostsIdComments<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1879,11 +1959,7 @@ export function useGetApiPostsIdComments<
 
 export const getGetApiPostsIdCommentsSuspenseQueryOptions = <
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1917,18 +1993,11 @@ export type GetApiPostsIdCommentsSuspenseQueryResult = NonNullable<
   Awaited<ReturnType<typeof getApiPostsIdComments>>
 >;
 export type GetApiPostsIdCommentsSuspenseQueryError =
-  | GetApiPostsIdComments400
-  | GetApiPostsIdComments401
-  | GetApiPostsIdComments404
-  | GetApiPostsIdComments500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 export function useGetApiPostsIdCommentsSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options: {
@@ -1947,11 +2016,7 @@ export function useGetApiPostsIdCommentsSuspense<
 };
 export function useGetApiPostsIdCommentsSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1970,11 +2035,7 @@ export function useGetApiPostsIdCommentsSuspense<
 };
 export function useGetApiPostsIdCommentsSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -1997,11 +2058,7 @@ export function useGetApiPostsIdCommentsSuspense<
 
 export function useGetApiPostsIdCommentsSuspense<
   TData = Awaited<ReturnType<typeof getApiPostsIdComments>>,
-  TError =
-    | GetApiPostsIdComments400
-    | GetApiPostsIdComments401
-    | GetApiPostsIdComments404
-    | GetApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
 >(
   id: string,
   options?: {
@@ -2043,36 +2100,32 @@ export const getPostApiPostsIdCommentsUrl = (id: string) => {
  */
 export const postApiPostsIdComments = async (
   id: string,
-  internalInterfaceControllersCreateCommentRequest: InternalInterfaceControllersCreateCommentRequest,
+  threadlyInternalInterfaceDtoCreateCommentRequest: ThreadlyInternalInterfaceDtoCreateCommentRequest,
   options?: Parameters<typeof customInstance>[1],
 ): Promise<void> => {
   return customInstance<void>(getPostApiPostsIdCommentsUrl(id), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(internalInterfaceControllersCreateCommentRequest),
+    body: JSON.stringify(threadlyInternalInterfaceDtoCreateCommentRequest),
   });
 };
 
 export const getPostApiPostsIdCommentsMutationOptions = <
-  TError =
-    | PostApiPostsIdComments400
-    | PostApiPostsIdComments401
-    | PostApiPostsIdComments404
-    | PostApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof postApiPostsIdComments>>,
     TError,
-    { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+    { id: string; data: ThreadlyInternalInterfaceDtoCreateCommentRequest },
     TContext
   >;
   request?: SecondParameter<typeof customInstance>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof postApiPostsIdComments>>,
   TError,
-  { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+  { id: string; data: ThreadlyInternalInterfaceDtoCreateCommentRequest },
   TContext
 > => {
   const mutationKey = ["postApiPostsIdComments"];
@@ -2086,7 +2139,7 @@ export const getPostApiPostsIdCommentsMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof postApiPostsIdComments>>,
-    { id: string; data: InternalInterfaceControllersCreateCommentRequest }
+    { id: string; data: ThreadlyInternalInterfaceDtoCreateCommentRequest }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -2100,29 +2153,22 @@ export type PostApiPostsIdCommentsMutationResult = NonNullable<
   Awaited<ReturnType<typeof postApiPostsIdComments>>
 >;
 export type PostApiPostsIdCommentsMutationBody =
-  InternalInterfaceControllersCreateCommentRequest;
+  ThreadlyInternalInterfaceDtoCreateCommentRequest;
 export type PostApiPostsIdCommentsMutationError =
-  | PostApiPostsIdComments400
-  | PostApiPostsIdComments401
-  | PostApiPostsIdComments404
-  | PostApiPostsIdComments500;
+  ThreadlyInternalInterfaceDtoErrorResponse;
 
 /**
  * @summary Create a comment
  */
 export const usePostApiPostsIdComments = <
-  TError =
-    | PostApiPostsIdComments400
-    | PostApiPostsIdComments401
-    | PostApiPostsIdComments404
-    | PostApiPostsIdComments500,
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof postApiPostsIdComments>>,
       TError,
-      { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+      { id: string; data: ThreadlyInternalInterfaceDtoCreateCommentRequest },
       TContext
     >;
     request?: SecondParameter<typeof customInstance>;
@@ -2131,11 +2177,198 @@ export const usePostApiPostsIdComments = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof postApiPostsIdComments>>,
   TError,
-  { id: string; data: InternalInterfaceControllersCreateCommentRequest },
+  { id: string; data: ThreadlyInternalInterfaceDtoCreateCommentRequest },
   TContext
 > => {
   return useMutation(
     getPostApiPostsIdCommentsMutationOptions(options),
     queryClient,
   );
+};
+
+export const getDeleteApiPostsIdLikeUrl = (id: string) => {
+  return `/api/posts/${id}/like`;
+};
+
+/**
+ * Remove the authenticated user's Like from a post.
+ * @summary Unlike a post
+ */
+export const deleteApiPostsIdLike = async (
+  id: string,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<ThreadlyInternalInterfaceDtoLikeActionResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoLikeActionResponse>(
+    getDeleteApiPostsIdLikeUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteApiPostsIdLikeMutationOptions = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteApiPostsIdLike>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteApiPostsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteApiPostsIdLike"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteApiPostsIdLike>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteApiPostsIdLike(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteApiPostsIdLikeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteApiPostsIdLike>>
+>;
+
+export type DeleteApiPostsIdLikeMutationError =
+  ThreadlyInternalInterfaceDtoErrorResponse;
+
+/**
+ * @summary Unlike a post
+ */
+export const useDeleteApiPostsIdLike = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteApiPostsIdLike>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteApiPostsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getDeleteApiPostsIdLikeMutationOptions(options),
+    queryClient,
+  );
+};
+
+export const getPutApiPostsIdLikeUrl = (id: string) => {
+  return `/api/posts/${id}/like`;
+};
+
+/**
+ * Create or keep the authenticated user's Like for a post.
+ * @summary Like a post
+ */
+export const putApiPostsIdLike = async (
+  id: string,
+  options?: Parameters<typeof customInstance>[1],
+): Promise<ThreadlyInternalInterfaceDtoLikeActionResponse> => {
+  return customInstance<ThreadlyInternalInterfaceDtoLikeActionResponse>(
+    getPutApiPostsIdLikeUrl(id),
+    {
+      ...options,
+      method: "PUT",
+    },
+  );
+};
+
+export const getPutApiPostsIdLikeMutationOptions = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putApiPostsIdLike>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putApiPostsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["putApiPostsIdLike"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putApiPostsIdLike>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return putApiPostsIdLike(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutApiPostsIdLikeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putApiPostsIdLike>>
+>;
+
+export type PutApiPostsIdLikeMutationError =
+  ThreadlyInternalInterfaceDtoErrorResponse;
+
+/**
+ * @summary Like a post
+ */
+export const usePutApiPostsIdLike = <
+  TError = ThreadlyInternalInterfaceDtoErrorResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putApiPostsIdLike>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putApiPostsIdLike>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getPutApiPostsIdLikeMutationOptions(options), queryClient);
 };
