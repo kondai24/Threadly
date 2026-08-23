@@ -17,6 +17,7 @@ var (
 // usernameはAPI仕様どおり、ASCII英数字とアンダースコアだけを許可する。
 var usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_]{3,32}$`)
 
+// Userは認証対象の利用者を表す。PasswordHashは公開DTOへ変換してはならない。
 type User struct {
 	UUIDBaseModel
 	Username     string `gorm:"size:32;not null;uniqueIndex"`

@@ -35,6 +35,10 @@ func NewContainer() (*dig.Container, error) {
 		services.NewLikeService,
 		services.NewPostServiceWithLikeReader,
 		services.NewCommentServiceWithLikeReader,
+		provideAuthUsecase,
+		providePostUsecase,
+		provideCommentUsecase,
+		provideLikeUsecase,
 		controllers.NewAuthController,
 		controllers.NewPostController,
 		controllers.NewCommentController,
@@ -76,6 +80,24 @@ func provideCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepositor
 	return dbrepository.NewCommentLikeRepository(db)
 }
 
+// Usecaseの具象実装をController側の契約へ変換するのはComposition Rootの責務とする。
+// ControllerはServiceの具象型やRepositoryを知らず、必要な操作だけを受け取る。
+func provideAuthUsecase(service *services.AuthService) controllers.AuthUsecase {
+	return service
+}
+
+func providePostUsecase(service *services.PostService) controllers.PostUsecase {
+	return service
+}
+
+func provideCommentUsecase(service *services.CommentService) controllers.CommentUsecase {
+	return service
+}
+
+func provideLikeUsecase(service *services.LikeService) controllers.LikeUsecase {
+	return service
+}
+
 func providePostLikeSummaryReader(likeService *services.LikeService) services.PostLikeSummaryReader {
 	return likeService
 }
@@ -89,7 +111,8 @@ func providePasswordHasher() services.PasswordHasher {
 }
 
 func provideTokenIssuer() (services.TokenIssuer, error) {
-	// JWT_SECRETが未設定・短すぎる場合は、デフォルト値にフォールバックせず起動を失敗させる。
+	// JWT_SECRETが未設定・短すぎる場合は、デフォルト値にフォールバックせず
+	// 起動を失敗させる。
 	return authinfra.NewJWTIssuer(os.Getenv("JWT_SECRET"))
 }
 

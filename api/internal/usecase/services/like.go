@@ -29,6 +29,9 @@ type CommentListRead struct {
 	Summaries map[models.UUID]models.LikeSummary
 }
 
+// LikeServiceは、Like対象の存在確認、冪等なLike操作、操作後の集計を組み立てる
+// Usecaseである。
+// Likeの内部行は公開せず、対象IDとLikeSummaryだけを上位層へ返す。
 type LikeService struct {
 	postRepo        repositories.PostRepository
 	commentRepo     repositories.CommentRepository
@@ -36,6 +39,7 @@ type LikeService struct {
 	commentLikeRepo repositories.CommentLikeRepository
 }
 
+// NewLikeServiceは、Post/CommentとLikeテーブルの永続化契約を注入してUsecaseを構築する。
 func NewLikeService(
 	postRepo repositories.PostRepository,
 	commentRepo repositories.CommentRepository,
@@ -50,6 +54,7 @@ func NewLikeService(
 	}
 }
 
+// LikePostは、有効なPostへLikeを作成または維持し、最新の集計を返す。
 func (s *LikeService) LikePost(
 	ctx context.Context,
 	userID models.UUID,
@@ -68,6 +73,7 @@ func (s *LikeService) LikePost(
 	return LikeActionResult{TargetID: postID, Summary: summary}, nil
 }
 
+// UnlikePostは、有効なPostから認証済みUserのLikeを削除し、最新の集計を返す。
 func (s *LikeService) UnlikePost(
 	ctx context.Context,
 	userID models.UUID,
@@ -86,6 +92,7 @@ func (s *LikeService) UnlikePost(
 	return LikeActionResult{TargetID: postID, Summary: summary}, nil
 }
 
+// LikeCommentは、有効なCommentへLikeを作成または維持し、最新の集計を返す。
 func (s *LikeService) LikeComment(
 	ctx context.Context,
 	userID models.UUID,
@@ -104,6 +111,7 @@ func (s *LikeService) LikeComment(
 	return LikeActionResult{TargetID: commentID, Summary: summary}, nil
 }
 
+// UnlikeCommentは、有効なCommentから認証済みUserのLikeを削除し、最新の集計を返す。
 func (s *LikeService) UnlikeComment(
 	ctx context.Context,
 	userID models.UUID,
@@ -122,6 +130,7 @@ func (s *LikeService) UnlikeComment(
 	return LikeActionResult{TargetID: commentID, Summary: summary}, nil
 }
 
+// PostSummariesは、対象Post集合の件数とcurrent-userのLike状態を一括取得する。
 func (s *LikeService) PostSummaries(
 	ctx context.Context,
 	userID models.UUID,
@@ -153,6 +162,7 @@ func (s *LikeService) PostSummaries(
 	return summaries, nil
 }
 
+// CommentSummariesは、対象Comment集合の件数とcurrent-userのLike状態を一括取得する。
 func (s *LikeService) CommentSummaries(
 	ctx context.Context,
 	userID models.UUID,
@@ -195,6 +205,8 @@ func (s *LikeService) ensurePost(ctx context.Context, postID models.UUID) error 
 	return nil
 }
 
+// ensureCommentTargetは、Commentだけでなく所属Postも有効であることを確認する。
+// 親Postが削除済みなら、外部キーが残っていてもLike対象として公開しない。
 func (s *LikeService) ensureCommentTarget(ctx context.Context, commentID models.UUID) error {
 	comment, err := s.commentRepo.GetByID(ctx, commentID)
 	if errors.Is(err, repositories.ErrCommentNotFound) {

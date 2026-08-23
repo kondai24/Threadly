@@ -5,21 +5,21 @@ import (
 	"net/http"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/domain/repositories"
 	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
 	"Threadly/internal/usecase/services"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
+// CommentControllerは、CommentUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type CommentController struct {
-	service *services.CommentService
+	usecase CommentUsecase
 }
 
-func NewCommentController(service *services.CommentService) *CommentController {
-	return &CommentController{service: service}
+// NewCommentControllerは、CommentUsecaseをHTTP adapterへ注入する。
+func NewCommentController(usecase CommentUsecase) *CommentController {
+	return &CommentController{usecase: usecase}
 }
 
 // ListCommentsHandler godoc
@@ -47,7 +47,7 @@ func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
 		return
 	}
 
-	comments, err := cc.service.ListCommentsForUser(c.Request.Context(), userID, postID)
+	comments, err := cc.usecase.ListCommentsForUser(c.Request.Context(), userID, postID)
 	if err != nil {
 		writeCommentError(c, err)
 		return
@@ -95,7 +95,7 @@ func (cc *CommentController) CreateCommentHandler(c *gin.Context) {
 		return
 	}
 
-	if err := cc.service.CreateComment(
+	if err := cc.usecase.CreateComment(
 		c.Request.Context(),
 		userID,
 		postID,
@@ -141,7 +141,7 @@ func (cc *CommentController) UpdateCommentHandler(c *gin.Context) {
 		return
 	}
 
-	if err := cc.service.UpdateComment(
+	if err := cc.usecase.UpdateComment(
 		c.Request.Context(),
 		userID,
 		commentID,
@@ -178,7 +178,7 @@ func (cc *CommentController) DeleteCommentHandler(c *gin.Context) {
 		return
 	}
 
-	if err := cc.service.DeleteComment(c.Request.Context(), userID, commentID); err != nil {
+	if err := cc.usecase.DeleteComment(c.Request.Context(), userID, commentID); err != nil {
 		writeCommentError(c, err)
 		return
 	}
@@ -213,9 +213,7 @@ func writeCommentError(c *gin.Context, err error) {
 	case errors.Is(err, services.ErrCommentReplyNotAllowed):
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "comment reply is not allowed"})
 	case errors.Is(err, services.ErrPostNotFound),
-		errors.Is(err, services.ErrCommentNotFound),
-		errors.Is(err, repositories.ErrCommentNotFound),
-		errors.Is(err, gorm.ErrRecordNotFound):
+		errors.Is(err, services.ErrCommentNotFound):
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "comment or post not found"})
 	default:
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})

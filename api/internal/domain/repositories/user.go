@@ -12,6 +12,7 @@ var (
 	ErrUsernameAlreadyExists = errors.New("username already exists")
 )
 
+// UserRepositoryは、認証に必要なUserの検索と登録だけを永続化する。
 type UserRepository interface {
 	FindByUsername(ctx context.Context, username string) (*models.User, error)
 	FindByID(ctx context.Context, id models.UUID) (*models.User, error)

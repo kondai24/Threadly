@@ -20,6 +20,8 @@ type CommentLikeSummaryReader interface {
 	) (map[models.UUID]models.LikeSummary, error)
 }
 
+// CommentServiceは、Commentの取得・作成・所有者操作を組み立てるUsecaseである。
+// 返信作成と削除は、親子関係の確認と書き込みを同じUnit of Workへ束ねる。
 type CommentService struct {
 	commentRepo repositories.CommentRepository
 	postRepo    repositories.PostRepository
@@ -27,6 +29,7 @@ type CommentService struct {
 	likeReader  CommentLikeSummaryReader
 }
 
+// NewCommentServiceは、Like集計を必要としないComment操作用のUsecaseを構築する。
 func NewCommentService(
 	commentRepo repositories.CommentRepository,
 	postRepo repositories.PostRepository,
@@ -39,6 +42,7 @@ func NewCommentService(
 	}
 }
 
+// NewCommentServiceWithLikeReaderは、Comment取得結果へLike集計を付加するUsecaseを構築する。
 func NewCommentServiceWithLikeReader(
 	commentRepo repositories.CommentRepository,
 	postRepo repositories.PostRepository,
@@ -57,6 +61,8 @@ func (s *CommentService) ListComments(
 	ctx context.Context,
 	postID models.UUID,
 ) ([]*models.Comment, error) {
+	// CommentRepositoryの検索結果だけではPost自体のNotFoundと空Comment一覧を
+	// 区別できないため、先にPostを確認する。
 	if err := s.ensurePostExists(ctx, s.postRepo, postID); err != nil {
 		return nil, err
 	}
@@ -120,6 +126,8 @@ func (s *CommentService) CreateComment(
 		return err
 	}
 
+	// Postまたは親Commentが削除される競合を防ぐため、存在確認とComment作成を
+	// 同じTransactionへ入れる。
 	return s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
 		if err := s.ensurePostExistsForUpdate(ctx, tx.Post, postID); err != nil {
 			return err
@@ -161,7 +169,9 @@ func (s *CommentService) UpdateComment(
 	return nil
 }
 
-// CommentLikeの物理削除と、Comment・直接返信の論理削除を同じTransactionで実行する。
+// DeleteCommentは、CommentLikeの物理削除とComment・直接返信の論理削除を
+// 同じTransactionで実行する。
+// CommentRepositoryはCommentの削除範囲を、CommentLikeRepositoryはLikeの削除範囲を担当する。
 func (s *CommentService) DeleteComment(
 	ctx context.Context,
 	userID models.UUID,
@@ -177,7 +187,8 @@ func (s *CommentService) DeleteComment(
 			return repositories.ErrCommentNotFound
 		}
 
-		// CommentLikeは別Table、Commentと直接返信はCommentRepositoryが扱うため、削除順序だけをUsecaseで組み合わせる。
+		// CommentLikeは別Table、Commentと直接返信はCommentRepositoryが扱うため、
+		// 削除順序だけをUsecaseで組み合わせる。
 		if err := tx.CommentLike.DeleteByCommentIDWithReplies(ctx, comment.ID); err != nil {
 			return fmt.Errorf("delete comment likes: %w", err)
 		}

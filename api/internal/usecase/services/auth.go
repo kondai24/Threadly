@@ -19,21 +19,27 @@ var (
 
 type PasswordHasher interface {
 	Hash(password string) (string, error)
-	// Compareはpassword不一致時だけErrPasswordMismatchを返し、不正なhashや内部障害は別エラーで返す。
+	// Compareはpassword不一致時だけErrPasswordMismatchを返し、不正なhashや
+	// 内部障害は別エラーで返す。
 	Compare(encodedHash string, password string) error
 }
 
+// TokenIssuerは、Usecaseと認証adapterの間でToken発行・検証の契約を定義する。
 type TokenIssuer interface {
 	Issue(userID models.UUID) (string, error)
 	Parse(rawToken string) (models.UUID, error)
 }
 
+// AuthServiceは、認証情報の検証・Userの永続化・セッション発行を組み立てる
+// Usecaseである。
+// HTTPのstatusやCookie操作はControllerへ、DB操作はUserRepositoryへ委譲する。
 type AuthService struct {
 	repo   repositories.UserRepository
 	hasher PasswordHasher
 	tokens TokenIssuer
 }
 
+// NewAuthServiceは、認証Usecaseを依存性注入で構築する。
 func NewAuthService(
 	repo repositories.UserRepository,
 	hasher PasswordHasher,
@@ -119,7 +125,8 @@ func (s *AuthService) Login(
 func (s *AuthService) GetMe(ctx context.Context, userID models.UUID) (*models.User, error) {
 	user, err := s.repo.FindByID(ctx, userID)
 	if errors.Is(err, repositories.ErrUserNotFound) {
-		return nil, repositories.ErrUserNotFound
+		// RepositoryのNotFoundをUsecaseの契約へ変換し、Controllerへ永続化層を漏らさない。
+		return nil, ErrUserNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("find current user: %w", err)

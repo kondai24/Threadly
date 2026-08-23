@@ -12,12 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// LikeControllerは、LikeUsecaseの結果をHTTP statusとLike操作DTOへ変換するadapterである。
 type LikeController struct {
-	service *services.LikeService
+	usecase LikeUsecase
 }
 
-func NewLikeController(service *services.LikeService) *LikeController {
-	return &LikeController{service: service}
+// NewLikeControllerは、LikeUsecaseをHTTP adapterへ注入する。
+func NewLikeController(usecase LikeUsecase) *LikeController {
+	return &LikeController{usecase: usecase}
 }
 
 // LikePostHandler godoc
@@ -99,9 +101,9 @@ func (lc *LikeController) handlePostLike(c *gin.Context, like bool) {
 		err    error
 	)
 	if like {
-		result, err = lc.service.LikePost(c.Request.Context(), userID, targetID)
+		result, err = lc.usecase.LikePost(c.Request.Context(), userID, targetID)
 	} else {
-		result, err = lc.service.UnlikePost(c.Request.Context(), userID, targetID)
+		result, err = lc.usecase.UnlikePost(c.Request.Context(), userID, targetID)
 	}
 	writeLikeResult(c, result, err)
 }
@@ -117,9 +119,9 @@ func (lc *LikeController) handleCommentLike(c *gin.Context, like bool) {
 		err    error
 	)
 	if like {
-		result, err = lc.service.LikeComment(c.Request.Context(), userID, targetID)
+		result, err = lc.usecase.LikeComment(c.Request.Context(), userID, targetID)
 	} else {
-		result, err = lc.service.UnlikeComment(c.Request.Context(), userID, targetID)
+		result, err = lc.usecase.UnlikeComment(c.Request.Context(), userID, targetID)
 	}
 	writeLikeResult(c, result, err)
 }

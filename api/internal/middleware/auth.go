@@ -16,6 +16,7 @@ type contextKey uint8
 
 const userIDContextKey contextKey = iota
 
+// RequireAuthは、CookieのTokenを検証し、後続Controllerへ認証済みUser IDだけを渡す。
 func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rawToken, ok := sessionToken(c)
@@ -45,6 +46,7 @@ func sessionToken(c *gin.Context) (string, bool) {
 	return "", false
 }
 
+// UserIDFromContextは、RequireAuthが検証済みUser IDを保存した場合だけ値を返す。
 func UserIDFromContext(ctx context.Context) (models.UUID, bool) {
 	userID, ok := ctx.Value(userIDContextKey).(models.UUID)
 	return userID, ok && userID != ""

@@ -234,7 +234,7 @@ func TestAuthService_GetMe(t *testing.T) {
 		if user != nil {
 			t.Fatalf("user = %+v, want nil", user)
 		}
-		if !errors.Is(err, repositories.ErrUserNotFound) {
+		if !errors.Is(err, ErrUserNotFound) {
 			t.Fatalf("error = %v, want ErrUserNotFound", err)
 		}
 	})

@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/domain/repositories"
 	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
 	"Threadly/internal/usecase/services"
@@ -13,12 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// AuthControllerは、認証Usecaseの結果をHTTP status・Cookie・DTOへ変換するadapterである。
 type AuthController struct {
-	service *services.AuthService
+	usecase AuthUsecase
 }
 
-func NewAuthController(service *services.AuthService) *AuthController {
-	return &AuthController{service: service}
+// NewAuthControllerは、認証UsecaseをHTTP adapterへ注入する。
+func NewAuthController(usecase AuthUsecase) *AuthController {
+	return &AuthController{usecase: usecase}
 }
 
 // RegisterHandler godoc
@@ -40,7 +41,7 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 		return
 	}
 
-	user, token, err := ac.service.Register(c.Request.Context(), req.Username, req.Password)
+	user, token, err := ac.usecase.Register(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		writeAuthError(c, err)
 		return
@@ -68,7 +69,7 @@ func (ac *AuthController) LoginHandler(c *gin.Context) {
 		return
 	}
 
-	user, token, err := ac.service.Login(c.Request.Context(), req.Username, req.Password)
+	user, token, err := ac.usecase.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		writeAuthError(c, err)
 		return
@@ -106,9 +107,9 @@ func (ac *AuthController) MeHandler(c *gin.Context) {
 		return
 	}
 
-	user, err := ac.service.GetMe(c.Request.Context(), userID)
+	user, err := ac.usecase.GetMe(c.Request.Context(), userID)
 	if err != nil {
-		if errors.Is(err, repositories.ErrUserNotFound) {
+		if errors.Is(err, services.ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "user not found"})
 			return
 		}

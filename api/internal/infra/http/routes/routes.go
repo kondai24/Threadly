@@ -12,6 +12,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// Handlersは、Routerが必要とするHTTP adapterと認証検証器をまとめる。
 type Handlers struct {
 	Auth        *controllers.AuthController
 	Post        *controllers.PostController
@@ -20,6 +21,7 @@ type Handlers struct {
 	TokenIssuer services.TokenIssuer
 }
 
+// SetupRouterは、公開Routeと認証必須RouteをMiddleware順序込みで構成する。
 func SetupRouter(h Handlers) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())

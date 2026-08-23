@@ -19,12 +19,15 @@ type PostLikeSummaryReader interface {
 	) (map[models.UUID]models.LikeSummary, error)
 }
 
+// PostServiceは、Postの公開取得・所有者操作・削除を組み立てるUsecaseである。
+// Post削除のように複数Repositoryへまたがる処理はUnit of Workへ委譲する。
 type PostService struct {
 	repo       repositories.PostRepository
 	uow        repositories.UnitOfWork
 	likeReader PostLikeSummaryReader
 }
 
+// NewPostServiceは、Like集計を必要としないPost操作用のUsecaseを構築する。
 func NewPostService(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
@@ -32,6 +35,7 @@ func NewPostService(
 	return &PostService{repo: repo, uow: uow}
 }
 
+// NewPostServiceWithLikeReaderは、Post取得結果へLike集計を付加するUsecaseを構築する。
 func NewPostServiceWithLikeReader(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
@@ -66,7 +70,11 @@ func (s *PostService) GetPostByIDForUser(
 }
 
 // 更新前の所有者確認など、所有者だけが扱うPostを取得する。
-func (s *PostService) GetPostByIDForOwner(ctx context.Context, userID models.UUID, postID models.UUID) (*models.Post, error) {
+func (s *PostService) GetPostByIDForOwner(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (*models.Post, error) {
 	post, err := s.repo.GetByIDForOwner(ctx, userID, postID)
 	if err != nil {
 		return nil, translatePostRepositoryError(err)
@@ -160,7 +168,9 @@ func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *
 	return nil
 }
 
-// CommentLike、PostLike、Comment、Postを同じTransactionで削除し、部分削除を防ぐ。
+// DeletePostは、認可・関連Likeのcleanup・Comment/Postの論理削除を同じTransactionで実行する。
+// callback内ではroot DBのRepositoryを使わず、UoWから受け取った
+// Transaction-bound Repositoryだけを使う。
 func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
 	var rows int64
 	err := s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
