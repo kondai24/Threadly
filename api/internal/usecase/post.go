@@ -1,4 +1,4 @@
-package services
+package usecase
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 // PostLikeSummaryReaderは、Postの閲覧結果に必要なLike集計だけを提供する。
-// PostServiceがLike操作全体の実装へ依存しないよう、利用側で契約を定義する。
+// PostUsecaseがLike操作全体の実装へ依存しないよう、利用側で契約を定義する。
 type PostLikeSummaryReader interface {
 	PostSummaries(
 		ctx context.Context,
@@ -19,50 +19,70 @@ type PostLikeSummaryReader interface {
 	) (map[models.UUID]models.LikeSummary, error)
 }
 
-// PostServiceは、Postの公開取得・所有者操作・削除を組み立てるUsecaseである。
+// PostUsecaseは、PostControllerが必要とする業務操作の契約を定義する。
+type PostUsecase interface {
+	GetPostByID(ctx context.Context, postID models.UUID) (*models.Post, error)
+	GetPostByIDForUser(
+		ctx context.Context,
+		userID models.UUID,
+		postID models.UUID,
+	) (*PostRead, error)
+	GetPostByIDForOwner(
+		ctx context.Context,
+		userID models.UUID,
+		postID models.UUID,
+	) (*models.Post, error)
+	ListAllPosts(ctx context.Context) ([]*models.Post, error)
+	ListAllPostsForUser(ctx context.Context, userID models.UUID) ([]PostRead, error)
+	CreatePost(ctx context.Context, userID models.UUID, title string, content string) error
+	UpdatePost(ctx context.Context, userID models.UUID, post *models.Post) error
+	DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error
+}
+
+// postUsecaseは、Postの公開取得・所有者操作・削除を組み立てるUsecaseである。
 // Post削除のように複数Repositoryへまたがる処理はUnit of Workへ委譲する。
-type PostService struct {
+type postUsecase struct {
 	repo       repositories.PostRepository
 	uow        repositories.UnitOfWork
 	likeReader PostLikeSummaryReader
 }
 
-// NewPostServiceは、Like集計を必要としないPost操作用のUsecaseを構築する。
-func NewPostService(
+// NewPostUsecaseは、Like集計を必要としないPost操作用のUsecaseを構築する。
+func NewPostUsecase(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
-) *PostService {
-	return &PostService{repo: repo, uow: uow}
+) PostUsecase {
+	return &postUsecase{repo: repo, uow: uow}
 }
 
-// NewPostServiceWithLikeReaderは、Post取得結果へLike集計を付加するUsecaseを構築する。
-func NewPostServiceWithLikeReader(
+// NewPostUsecaseWithLikeReaderは、Post取得結果へLike集計を付加するUsecaseを構築する。
+func NewPostUsecaseWithLikeReader(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
 	likeReader PostLikeSummaryReader,
-) *PostService {
-	return &PostService{repo: repo, uow: uow, likeReader: likeReader}
+) PostUsecase {
+	return &postUsecase{repo: repo, uow: uow, likeReader: likeReader}
 }
 
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
-func (s *PostService) GetPostByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
-	post, err := s.repo.GetByID(ctx, postID)
+func (u *postUsecase) GetPostByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
+	post, err := u.repo.GetByID(ctx, postID)
 	if err != nil {
 		return nil, translatePostRepositoryError(err)
 	}
 	return post, nil
 }
 
-func (s *PostService) GetPostByIDForUser(
+func (u *postUsecase) GetPostByIDForUser(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
 ) (*PostRead, error) {
-	post, err := s.GetPostByID(ctx, postID)
+	post, err := u.GetPostByID(ctx, postID)
 	if err != nil {
 		return nil, err
 	}
-	summary, err := s.postSummary(ctx, userID, postID)
+	summary, err := u.postSummary(ctx, userID, postID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +90,12 @@ func (s *PostService) GetPostByIDForUser(
 }
 
 // 更新前の所有者確認など、所有者だけが扱うPostを取得する。
-func (s *PostService) GetPostByIDForOwner(
+func (u *postUsecase) GetPostByIDForOwner(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
 ) (*models.Post, error) {
-	post, err := s.repo.GetByIDForOwner(ctx, userID, postID)
+	post, err := u.repo.GetByIDForOwner(ctx, userID, postID)
 	if err != nil {
 		return nil, translatePostRepositoryError(err)
 	}
@@ -83,15 +103,15 @@ func (s *PostService) GetPostByIDForOwner(
 }
 
 // 認証済みUserが閲覧できる全Postを取得する。
-func (s *PostService) ListAllPosts(ctx context.Context) ([]*models.Post, error) {
-	return s.repo.ListAll(ctx)
+func (u *postUsecase) ListAllPosts(ctx context.Context) ([]*models.Post, error) {
+	return u.repo.ListAll(ctx)
 }
 
-func (s *PostService) ListAllPostsForUser(
+func (u *postUsecase) ListAllPostsForUser(
 	ctx context.Context,
 	userID models.UUID,
 ) ([]PostRead, error) {
-	posts, err := s.ListAllPosts(ctx)
+	posts, err := u.ListAllPosts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +121,7 @@ func (s *PostService) ListAllPostsForUser(
 			postIDs = append(postIDs, post.ID)
 		}
 	}
-	summaries, err := s.postSummaries(ctx, userID, postIDs)
+	summaries, err := u.postSummaries(ctx, userID, postIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -115,34 +135,34 @@ func (s *PostService) ListAllPostsForUser(
 	return reads, nil
 }
 
-func (s *PostService) postSummary(
+func (u *postUsecase) postSummary(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
 ) (models.LikeSummary, error) {
-	if s.likeReader == nil {
+	if u.likeReader == nil {
 		return models.LikeSummary{}, nil
 	}
-	summaries, err := s.likeReader.PostSummaries(ctx, userID, []models.UUID{postID})
+	summaries, err := u.likeReader.PostSummaries(ctx, userID, []models.UUID{postID})
 	if err != nil {
 		return models.LikeSummary{}, err
 	}
 	return summaries[postID], nil
 }
 
-func (s *PostService) postSummaries(
+func (u *postUsecase) postSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	postIDs []models.UUID,
 ) (map[models.UUID]models.LikeSummary, error) {
-	if s.likeReader == nil {
+	if u.likeReader == nil {
 		return makeLikeSummaries(postIDs), nil
 	}
-	return s.likeReader.PostSummaries(ctx, userID, postIDs)
+	return u.likeReader.PostSummaries(ctx, userID, postIDs)
 }
 
 // author_idはリクエストではなく、検証済みtokenのUser IDから設定する。
-func (s *PostService) CreatePost(ctx context.Context, userID models.UUID, title string, content string) error {
+func (u *postUsecase) CreatePost(ctx context.Context, userID models.UUID, title string, content string) error {
 	post := &models.Post{
 		AuthorID: userID,
 		Title:    title,
@@ -151,18 +171,18 @@ func (s *PostService) CreatePost(ctx context.Context, userID models.UUID, title 
 	if err := post.Validate(); err != nil {
 		return err
 	}
-	return s.repo.Create(ctx, post)
+	return u.repo.Create(ctx, post)
 }
 
 // 所有者でない場合はNotFoundとして扱い、他UserのPostの存在を隠す。
-func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *models.Post) error {
+func (u *postUsecase) UpdatePost(ctx context.Context, userID models.UUID, post *models.Post) error {
 	if post.AuthorID != userID {
 		return ErrPostNotFound
 	}
 	if err := post.Validate(); err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, userID, post); err != nil {
+	if err := u.repo.Update(ctx, userID, post); err != nil {
 		return translatePostRepositoryError(err)
 	}
 	return nil
@@ -171,9 +191,9 @@ func (s *PostService) UpdatePost(ctx context.Context, userID models.UUID, post *
 // DeletePostは、認可・関連Likeのcleanup・Comment/Postの論理削除を同じTransactionで実行する。
 // callback内ではroot DBのRepositoryを使わず、UoWから受け取った
 // Transaction-bound Repositoryだけを使う。
-func (s *PostService) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
+func (u *postUsecase) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
 	var rows int64
-	err := s.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+	err := u.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
 		post, err := tx.Post.GetByIDForUpdate(ctx, postID)
 		if err != nil {
 			return err

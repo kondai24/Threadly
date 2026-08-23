@@ -7,19 +7,19 @@ import (
 	"Threadly/internal/domain/models"
 	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
 // CommentControllerは、CommentUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type CommentController struct {
-	usecase CommentUsecase
+	usecase usecase.CommentUsecase
 }
 
 // NewCommentControllerは、CommentUsecaseをHTTP adapterへ注入する。
-func NewCommentController(usecase CommentUsecase) *CommentController {
-	return &CommentController{usecase: usecase}
+func NewCommentController(commentUsecase usecase.CommentUsecase) *CommentController {
+	return &CommentController{usecase: commentUsecase}
 }
 
 // ListCommentsHandler godoc
@@ -210,10 +210,10 @@ func writeCommentError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, models.ErrInvalidCommentContent):
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid comment"})
-	case errors.Is(err, services.ErrCommentReplyNotAllowed):
+	case errors.Is(err, usecase.ErrCommentReplyNotAllowed):
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "comment reply is not allowed"})
-	case errors.Is(err, services.ErrPostNotFound),
-		errors.Is(err, services.ErrCommentNotFound):
+	case errors.Is(err, usecase.ErrPostNotFound),
+		errors.Is(err, usecase.ErrCommentNotFound):
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "comment or post not found"})
 	default:
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})

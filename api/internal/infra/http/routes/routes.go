@@ -4,7 +4,7 @@ import (
 	docs "Threadly/docs"
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/middleware"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,7 +18,7 @@ type Handlers struct {
 	Post        *controllers.PostController
 	Comment     *controllers.CommentController
 	Like        *controllers.LikeController
-	TokenIssuer services.TokenIssuer
+	TokenIssuer usecase.TokenIssuer
 }
 
 // SetupRouterは、公開Routeと認証必須RouteをMiddleware順序込みで構成する。

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -77,7 +77,7 @@ func (h *Argon2idHasher) Compare(encodedHash string, password string) error {
 		params.keyLength,
 	)
 	if subtle.ConstantTimeCompare(actualKey, expectedKey) != 1 {
-		return services.ErrPasswordMismatch
+		return usecase.ErrPasswordMismatch
 	}
 	return nil
 }

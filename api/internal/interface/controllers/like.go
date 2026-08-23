@@ -7,19 +7,19 @@ import (
 	"Threadly/internal/domain/models"
 	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
 // LikeControllerは、LikeUsecaseの結果をHTTP statusとLike操作DTOへ変換するadapterである。
 type LikeController struct {
-	usecase LikeUsecase
+	usecase usecase.LikeUsecase
 }
 
 // NewLikeControllerは、LikeUsecaseをHTTP adapterへ注入する。
-func NewLikeController(usecase LikeUsecase) *LikeController {
-	return &LikeController{usecase: usecase}
+func NewLikeController(likeUsecase usecase.LikeUsecase) *LikeController {
+	return &LikeController{usecase: likeUsecase}
 }
 
 // LikePostHandler godoc
@@ -97,7 +97,7 @@ func (lc *LikeController) handlePostLike(c *gin.Context, like bool) {
 	}
 
 	var (
-		result services.LikeActionResult
+		result usecase.LikeActionResult
 		err    error
 	)
 	if like {
@@ -115,7 +115,7 @@ func (lc *LikeController) handleCommentLike(c *gin.Context, like bool) {
 	}
 
 	var (
-		result services.LikeActionResult
+		result usecase.LikeActionResult
 		err    error
 	)
 	if like {
@@ -140,9 +140,9 @@ func parseLikeRequest(c *gin.Context) (models.UUID, models.UUID, bool) {
 	return userID, targetID, true
 }
 
-func writeLikeResult(c *gin.Context, result services.LikeActionResult, err error) {
+func writeLikeResult(c *gin.Context, result usecase.LikeActionResult, err error) {
 	switch {
-	case errors.Is(err, services.ErrLikeTargetNotFound):
+	case errors.Is(err, usecase.ErrLikeTargetNotFound):
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "like target not found"})
 	case err != nil:
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})

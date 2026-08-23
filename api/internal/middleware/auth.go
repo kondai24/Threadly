@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ type contextKey uint8
 const userIDContextKey contextKey = iota
 
 // RequireAuthは、CookieのTokenを検証し、後続Controllerへ認証済みUser IDだけを渡す。
-func RequireAuth(tokenIssuer services.TokenIssuer) gin.HandlerFunc {
+func RequireAuth(tokenIssuer usecase.TokenIssuer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		rawToken, ok := sessionToken(c)
 		if !ok {

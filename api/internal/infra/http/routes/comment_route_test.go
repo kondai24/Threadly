@@ -12,7 +12,7 @@ import (
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
 	"Threadly/internal/interface/controllers"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -254,7 +254,7 @@ func (r *commentRouteCommentRepository) DeleteByIDWithReplies(
 
 func newCommentRouteRouter(store *commentRouteStore) *gin.Engine {
 	tokenIssuer := routeTokenIssuer{}
-	authService := services.NewAuthService(
+	authUsecase := usecase.NewAuthUsecase(
 		newRouteUserRepository(),
 		routePasswordHasher{},
 		tokenIssuer,
@@ -263,10 +263,10 @@ func newCommentRouteRouter(store *commentRouteStore) *gin.Engine {
 	commentRepo := &commentRouteCommentRepository{store: store}
 	uow := routeUnitOfWork{post: postRepo, comment: commentRepo}
 	return SetupRouter(Handlers{
-		Auth: controllers.NewAuthController(authService),
-		Post: controllers.NewPostController(services.NewPostService(postRepo, uow)),
+		Auth: controllers.NewAuthController(authUsecase),
+		Post: controllers.NewPostController(usecase.NewPostUsecase(postRepo, uow)),
 		Comment: controllers.NewCommentController(
-			services.NewCommentService(commentRepo, postRepo, uow),
+			usecase.NewCommentUsecase(commentRepo, postRepo, uow),
 		),
 		TokenIssuer: tokenIssuer,
 	})

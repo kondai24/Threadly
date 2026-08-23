@@ -11,7 +11,7 @@ import (
 	"Threadly/internal/domain/repositories"
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/interface/dto"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -196,7 +196,7 @@ func (r *likeRouteCommentLikeRepository) FindLikedCommentIDs(
 
 func newLikeRouteRouter(store *commentRouteStore) *gin.Engine {
 	tokenIssuer := routeTokenIssuer{}
-	authService := services.NewAuthService(
+	authUsecase := usecase.NewAuthUsecase(
 		newRouteUserRepository(),
 		routePasswordHasher{},
 		tokenIssuer,
@@ -216,16 +216,16 @@ func newLikeRouteRouter(store *commentRouteStore) *gin.Engine {
 		postLike:    postLikeRepo,
 		commentLike: commentLikeRepo,
 	}
-	likeService := services.NewLikeService(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
+	likeUsecase := usecase.NewLikeUsecase(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
 	return SetupRouter(Handlers{
-		Auth: controllers.NewAuthController(authService),
+		Auth: controllers.NewAuthController(authUsecase),
 		Post: controllers.NewPostController(
-			services.NewPostServiceWithLikeReader(postRepo, uow, likeService),
+			usecase.NewPostUsecaseWithLikeReader(postRepo, uow, likeUsecase),
 		),
 		Comment: controllers.NewCommentController(
-			services.NewCommentServiceWithLikeReader(commentRepo, postRepo, uow, likeService),
+			usecase.NewCommentUsecaseWithLikeReader(commentRepo, postRepo, uow, likeUsecase),
 		),
-		Like:        controllers.NewLikeController(likeService),
+		Like:        controllers.NewLikeController(likeUsecase),
 		TokenIssuer: tokenIssuer,
 	})
 }
