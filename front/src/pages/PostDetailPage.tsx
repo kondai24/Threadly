@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import CommentsSection from "../components/CommentsSection";
+import PostLikeButton from "../components/PostLikeButton";
 import { useAuth } from "../lib/auth-context";
 import { formatLongDate } from "../lib/format";
 import {
@@ -138,6 +139,13 @@ function PostDetailContent({ postId }: { postId: string }) {
               <div className="mt-10 flex flex-wrap gap-4 border-t border-white/[0.08] pt-4 text-xs text-[#5a5a6e]">
                 <span>Created {formatLongDate(post.createdAt)}</span>
                 {post.updatedAt && post.updatedAt !== post.createdAt && <span>Updated {formatLongDate(post.updatedAt)}</span>}
+              </div>
+              <div className="mt-5 flex justify-end">
+                <PostLikeButton
+                  postId={postId}
+                  likeCount={post.likeCount}
+                  likedByMe={post.likedByMe}
+                />
               </div>
             </>
           )}
