@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import CommentLikeButton from "./CommentLikeButton";
 import { formatDate } from "../lib/format";
 import type { ThreadlyInternalInterfaceDtoCommentResponse } from "../orval/threadyAPI.schemas";
 import {
@@ -167,15 +168,25 @@ function CommentCard({ postId, comment, isReply = false }: CommentCardProps) {
           <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-[1.8] text-[#c7c7d0]">
             {comment.content}
           </p>
-          {canReply && (
-            <button
-              className="mt-3 text-xs font-semibold text-[#8b7bff] transition-colors hover:text-[#b0a8ff]"
-              type="button"
-              onClick={() => setIsReplying((current) => !current)}
-            >
-              {isReplying ? "返信を閉じる" : "返信する"}
-            </button>
-          )}
+          <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+            {comment.id && (
+              <CommentLikeButton
+                postId={postId}
+                commentId={comment.id}
+                likeCount={comment.likeCount}
+                likedByMe={comment.likedByMe}
+              />
+            )}
+            {canReply && (
+              <button
+                className="text-xs font-semibold text-[#8b7bff] transition-colors hover:text-[#b0a8ff]"
+                type="button"
+                onClick={() => setIsReplying((current) => !current)}
+              >
+                {isReplying ? "返信を閉じる" : "返信する"}
+              </button>
+            )}
+          </div>
           {isReplying && comment.id && (
             <CommentComposer
               postId={postId}

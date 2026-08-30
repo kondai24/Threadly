@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../lib/auth-context";
 import { formatDate } from "../lib/format";
+import PostLikeButton from "../components/PostLikeButton";
 import {
   getGetApiPostsQueryKey,
   useGetApiPostsSuspense,
@@ -127,24 +128,39 @@ export default function BoardPage() {
           ) : (
             <div className="space-y-3">
               {posts.map((post, index) => (
-                <Link
-                  to={`/board/${post.id}`}
-                  className="group flex items-start gap-4 rounded-xl border border-white/[0.08] bg-white/[0.04] p-4 no-underline outline-none transition-all hover:translate-x-1 hover:border-white/[0.15] hover:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-[#6c63ff]/50"
+                <article
+                  className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-4 transition-all hover:border-white/[0.15] hover:bg-white/[0.07]"
                   key={post.id}
                 >
-                  <span className="pt-1 text-xs font-bold text-[#6c63ff]">{String(index + 1).padStart(2, "0")}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#5a5a6e]">
-                      <span>{post.author?.username ?? "unknown"}</span>
-                      <span>{formatDate(post.createdAt)}</span>
+                  <Link
+                    to={`/board/${post.id}`}
+                    className="group flex items-start gap-4 no-underline outline-none focus-visible:ring-2 focus-visible:ring-[#6c63ff]/50"
+                  >
+                    <span className="pt-1 text-xs font-bold text-[#6c63ff]">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#5a5a6e]">
+                        <span>{post.author?.username ?? "unknown"}</span>
+                        <span>{formatDate(post.createdAt)}</span>
+                      </span>
+                      <strong className="mt-2 block truncate text-base text-[#f0f0f5]">{post.title}</strong>
                     </span>
-                    <strong className="mt-2 block truncate text-base text-[#f0f0f5]">{post.title}</strong>
-                    <span className="mt-3 flex items-center justify-between text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#5a5a6e]">
-                      <span>OPEN THREAD</span>
-                      <span className="text-sm transition-transform group-hover:translate-x-1">↗</span>
-                    </span>
-                  </span>
-                </Link>
+                  </Link>
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/[0.08] pl-8 pt-3">
+                    <Link
+                      to={`/board/${post.id}`}
+                      className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#5a5a6e] no-underline transition-colors hover:text-[#8b7bff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6c63ff]/50"
+                    >
+                      OPEN THREAD <span className="text-sm">↗</span>
+                    </Link>
+                    {post.id && (
+                      <PostLikeButton
+                        postId={post.id}
+                        likeCount={post.likeCount}
+                        likedByMe={post.likedByMe}
+                      />
+                    )}
+                  </div>
+                </article>
               ))}
             </div>
           )}
