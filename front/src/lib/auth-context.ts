@@ -1,14 +1,14 @@
 import { createContext, useContext } from "react";
 import type {
-  InternalInterfaceControllersAuthResponse,
-  InternalInterfaceControllersUserResponse,
+  ThreadlyInternalInterfaceDtoAuthResponse,
+  ThreadlyInternalInterfaceDtoUserResponse,
 } from "../orval/threadyAPI.schemas";
 
 export type AuthContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
-  user: InternalInterfaceControllersUserResponse | null;
-  setSession: (response: InternalInterfaceControllersAuthResponse) => void;
+  user: ThreadlyInternalInterfaceDtoUserResponse | null;
+  setSession: (response: ThreadlyInternalInterfaceDtoAuthResponse) => void;
   signOut: () => void;
 };
 

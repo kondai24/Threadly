@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { getApiMe, postApiAuthLogout } from "../orval/threadyAPI";
-import type { InternalInterfaceControllersAuthResponse } from "../orval/threadyAPI.schemas";
+import type { ThreadlyInternalInterfaceDtoAuthResponse } from "../orval/threadyAPI.schemas";
 import { AuthContext, type AuthContextValue } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   const setSession = useCallback(
-    (response: InternalInterfaceControllersAuthResponse) => {
+    (response: ThreadlyInternalInterfaceDtoAuthResponse) => {
       setUser(response.user ?? null);
       setIsLoading(false);
     },

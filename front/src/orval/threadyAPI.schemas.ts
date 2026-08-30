@@ -5,42 +5,34 @@
  * Threadly learning API with username/password authentication and authenticated post browsing.
  * OpenAPI spec version: 1.0
  */
-export interface InternalInterfaceControllersCreatePostRequest {
-  content: string;
-  title: string;
-}
-
-export interface InternalInterfaceControllersUpdatePostRequest {
-  content?: string;
-  title?: string;
-}
-
-export interface InternalInterfaceControllersUserResponse {
+export interface ThreadlyInternalInterfaceDtoUserResponse {
   createdAt?: string;
   id?: string;
   updatedAt?: string;
   username?: string;
 }
 
-export interface InternalInterfaceControllersAuthResponse {
-  user?: InternalInterfaceControllersUserResponse;
+export interface ThreadlyInternalInterfaceDtoAuthResponse {
+  user?: ThreadlyInternalInterfaceDtoUserResponse;
 }
 
-export interface InternalInterfaceControllersCommentAuthorResponse {
+export interface ThreadlyInternalInterfaceDtoPublicUserResponse {
   id?: string;
   username?: string;
 }
 
-export interface InternalInterfaceControllersCommentResponse {
-  author?: InternalInterfaceControllersCommentAuthorResponse;
+export interface ThreadlyInternalInterfaceDtoCommentResponse {
+  author?: ThreadlyInternalInterfaceDtoPublicUserResponse;
   content?: string;
   createdAt?: string;
   id?: string;
-  replies?: InternalInterfaceControllersCommentResponse[];
+  likeCount?: number;
+  likedByMe?: boolean;
+  replies?: ThreadlyInternalInterfaceDtoCommentResponse[];
   updatedAt?: string;
 }
 
-export interface InternalInterfaceControllersCreateCommentRequest {
+export interface ThreadlyInternalInterfaceDtoCreateCommentRequest {
   /**
    * @minLength 1
    * @maxLength 1000
@@ -49,33 +41,47 @@ export interface InternalInterfaceControllersCreateCommentRequest {
   parentId?: string;
 }
 
-export interface InternalInterfaceControllersCredentialsRequest {
+export interface ThreadlyInternalInterfaceDtoCreatePostRequest {
+  content: string;
+  title: string;
+}
+
+export interface ThreadlyInternalInterfaceDtoCredentialsRequest {
   password: string;
   username: string;
 }
 
-export interface InternalInterfaceControllersPostAuthorResponse {
-  id?: string;
-  username?: string;
+export interface ThreadlyInternalInterfaceDtoErrorResponse {
+  error?: string;
 }
 
-export interface InternalInterfaceControllersPostDetailResponse {
-  author?: InternalInterfaceControllersPostAuthorResponse;
+export interface ThreadlyInternalInterfaceDtoLikeActionResponse {
+  likeCount?: number;
+  likedByMe?: boolean;
+  targetId?: string;
+}
+
+export interface ThreadlyInternalInterfaceDtoPostDetailResponse {
+  author?: ThreadlyInternalInterfaceDtoPublicUserResponse;
   content?: string;
   createdAt?: string;
   id?: string;
+  likeCount?: number;
+  likedByMe?: boolean;
   title?: string;
   updatedAt?: string;
 }
 
-export interface InternalInterfaceControllersPostListResponse {
-  author?: InternalInterfaceControllersPostAuthorResponse;
+export interface ThreadlyInternalInterfaceDtoPostListResponse {
+  author?: ThreadlyInternalInterfaceDtoPublicUserResponse;
   createdAt?: string;
   id?: string;
+  likeCount?: number;
+  likedByMe?: boolean;
   title?: string;
 }
 
-export interface InternalInterfaceControllersUpdateCommentRequest {
+export interface ThreadlyInternalInterfaceDtoUpdateCommentRequest {
   /**
    * @minLength 1
    * @maxLength 1000
@@ -83,86 +89,7 @@ export interface InternalInterfaceControllersUpdateCommentRequest {
   content: string;
 }
 
-export type PostApiAuthLogin400 = { [key: string]: unknown };
-
-export type PostApiAuthLogin401 = { [key: string]: unknown };
-
-export type PostApiAuthLogin500 = { [key: string]: unknown };
-
-export type PostApiAuthRegister400 = { [key: string]: unknown };
-
-export type PostApiAuthRegister409 = { [key: string]: unknown };
-
-export type PostApiAuthRegister500 = { [key: string]: unknown };
-
-export type DeleteApiCommentsId400 = { [key: string]: unknown };
-
-export type DeleteApiCommentsId401 = { [key: string]: unknown };
-
-export type DeleteApiCommentsId404 = { [key: string]: unknown };
-
-export type DeleteApiCommentsId500 = { [key: string]: unknown };
-
-export type PutApiCommentsId400 = { [key: string]: unknown };
-
-export type PutApiCommentsId401 = { [key: string]: unknown };
-
-export type PutApiCommentsId404 = { [key: string]: unknown };
-
-export type PutApiCommentsId500 = { [key: string]: unknown };
-
-export type GetApiMe401 = { [key: string]: unknown };
-
-export type GetApiMe404 = { [key: string]: unknown };
-
-export type GetApiMe500 = { [key: string]: unknown };
-
-export type GetApiPosts401 = { [key: string]: unknown };
-
-export type GetApiPosts500 = { [key: string]: unknown };
-
-export type PostApiPosts400 = { [key: string]: unknown };
-
-export type PostApiPosts401 = { [key: string]: unknown };
-
-export type PostApiPosts500 = { [key: string]: unknown };
-
-export type DeleteApiPostsId400 = { [key: string]: unknown };
-
-export type DeleteApiPostsId401 = { [key: string]: unknown };
-
-export type DeleteApiPostsId404 = { [key: string]: unknown };
-
-export type DeleteApiPostsId500 = { [key: string]: unknown };
-
-export type GetApiPostsId400 = { [key: string]: unknown };
-
-export type GetApiPostsId401 = { [key: string]: unknown };
-
-export type GetApiPostsId404 = { [key: string]: unknown };
-
-export type GetApiPostsId500 = { [key: string]: unknown };
-
-export type PutApiPostsId400 = { [key: string]: unknown };
-
-export type PutApiPostsId401 = { [key: string]: unknown };
-
-export type PutApiPostsId404 = { [key: string]: unknown };
-
-export type PutApiPostsId500 = { [key: string]: unknown };
-
-export type GetApiPostsIdComments400 = { [key: string]: unknown };
-
-export type GetApiPostsIdComments401 = { [key: string]: unknown };
-
-export type GetApiPostsIdComments404 = { [key: string]: unknown };
-
-export type GetApiPostsIdComments500 = { [key: string]: unknown };
-
-export type PostApiPostsIdComments400 = { [key: string]: unknown };
-
-export type PostApiPostsIdComments401 = { [key: string]: unknown };
-
-export type PostApiPostsIdComments404 = { [key: string]: unknown };
-
-export type PostApiPostsIdComments500 = { [key: string]: unknown };
+export interface ThreadlyInternalInterfaceDtoUpdatePostRequest {
+  content?: string;
+  title?: string;
+}

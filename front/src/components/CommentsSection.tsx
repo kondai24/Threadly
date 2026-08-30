@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDate } from "../lib/format";
-import type { InternalInterfaceControllersCommentResponse } from "../orval/threadyAPI.schemas";
+import type { ThreadlyInternalInterfaceDtoCommentResponse } from "../orval/threadyAPI.schemas";
 import {
   getGetApiPostsIdCommentsQueryKey,
   useGetApiPostsIdComments,
@@ -132,7 +132,7 @@ function CommentComposer({
 
 type CommentCardProps = {
   postId: string;
-  comment: InternalInterfaceControllersCommentResponse;
+  comment: ThreadlyInternalInterfaceDtoCommentResponse;
   isReply?: boolean;
 };
 
