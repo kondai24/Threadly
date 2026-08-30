@@ -146,9 +146,12 @@ export default function BoardPage() {
                     </span>
                   </Link>
                   <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/[0.08] pl-8 pt-3">
-                    <span className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#5a5a6e]">
+                    <Link
+                      to={`/board/${post.id}`}
+                      className="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#5a5a6e] no-underline transition-colors hover:text-[#8b7bff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6c63ff]/50"
+                    >
                       OPEN THREAD <span className="text-sm">↗</span>
-                    </span>
+                    </Link>
                     {post.id && (
                       <PostLikeButton
                         postId={post.id}
