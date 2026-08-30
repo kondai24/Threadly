@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -54,7 +54,7 @@ func (i *JWTIssuer) Issue(userID models.UUID) (string, error) {
 
 func (i *JWTIssuer) Parse(rawToken string) (models.UUID, error) {
 	if strings.TrimSpace(rawToken) == "" {
-		return "", services.ErrInvalidToken
+		return "", usecase.ErrInvalidToken
 	}
 
 	// 署名方式をHS256に限定し、tokenヘッダーのalgを無条件に信用しない。
@@ -63,7 +63,7 @@ func (i *JWTIssuer) Parse(rawToken string) (models.UUID, error) {
 		&jwt.RegisteredClaims{},
 		func(token *jwt.Token) (any, error) {
 			if token.Method != jwt.SigningMethodHS256 {
-				return nil, services.ErrInvalidToken
+				return nil, usecase.ErrInvalidToken
 			}
 			return i.secret, nil
 		},
@@ -73,16 +73,16 @@ func (i *JWTIssuer) Parse(rawToken string) (models.UUID, error) {
 		jwt.WithTimeFunc(i.now),
 	)
 	if err != nil || !token.Valid {
-		return "", services.ErrInvalidToken
+		return "", usecase.ErrInvalidToken
 	}
 
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok || claims.Subject == "" {
-		return "", services.ErrInvalidToken
+		return "", usecase.ErrInvalidToken
 	}
 	userID, err := models.ParseUUID(claims.Subject)
 	if err != nil || userID == "" {
-		return "", services.ErrInvalidToken
+		return "", usecase.ErrInvalidToken
 	}
 	return userID, nil
 }

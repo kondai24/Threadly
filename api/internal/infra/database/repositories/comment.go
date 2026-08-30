@@ -12,10 +12,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// CommentRepositoryは、CommentRepository契約をGORMへ適配する。
+// DBにはroot DBまたはUnitOfWorkが生成したtransaction-bound DBが入る。
 type CommentRepository struct {
 	DB *gorm.DB
 }
 
+// NewCommentRepositoryは、指定されたDB handleへ結び付いたCommentRepositoryを生成する。
 func NewCommentRepository(db *gorm.DB) repositories.CommentRepository {
 	return &CommentRepository{DB: db}
 }
@@ -31,6 +34,7 @@ func (r *CommentRepository) ListByPostID(
 	ctx context.Context,
 	postID models.UUID,
 ) ([]*models.Comment, error) {
+	// 親Commentだけを取得し、RepliesはGORMのPreloadで1段階に限定して復元する。
 	comments := make([]*models.Comment, 0)
 	result := r.DB.WithContext(ctx).
 		Preload("Author").
@@ -68,6 +72,7 @@ func (r *CommentRepository) GetByIDForUpdate(
 	ctx context.Context,
 	commentID models.UUID,
 ) (*models.Comment, error) {
+	// 返信作成・削除の前提となるCommentをロックし、存在確認直後の競合更新を防ぐ。
 	var comment models.Comment
 	result := r.DB.WithContext(ctx).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -87,6 +92,7 @@ func (r *CommentRepository) Update(
 	commentID models.UUID,
 	content string,
 ) (int64, error) {
+	// 所有者条件をSQLへ含め、非所有者へ更新対象の存在を返さない。
 	result := r.DB.WithContext(ctx).
 		Model(&models.Comment{}).
 		Where("id = ? AND author_id = ?", commentID, userID).
@@ -104,6 +110,7 @@ func (r *CommentRepository) DeleteByPostID(
 	ctx context.Context,
 	postID models.UUID,
 ) (int64, error) {
+	// Post配下の全Commentを論理削除する。CommentLikeの物理削除は別Repositoryが担当する。
 	result := r.DB.WithContext(ctx).
 		Where("post_id = ?", postID).
 		Delete(&models.Comment{})
@@ -113,8 +120,10 @@ func (r *CommentRepository) DeleteByPostID(
 	return result.RowsAffected, nil
 }
 
-// DeleteByIDWithRepliesは、所有者が削除できるCommentと、その直接の返信を同じ論理削除処理で扱う。
-// 先に対象Commentの所有者条件を確認するため、権限のない場合に返信だけが削除されることはない。
+// DeleteByIDWithRepliesは、所有者が削除できるCommentと、その直接の返信を論理削除する。
+// 先に対象Commentの所有者条件を確認し、親が削除できない場合は返信へ
+// 変更を加えない。
+// 親と返信を同じ業務Transactionにする責務は、呼び出し元のUsecase/UoWにある。
 func (r *CommentRepository) DeleteByIDWithReplies(
 	ctx context.Context,
 	userID models.UUID,

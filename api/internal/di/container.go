@@ -7,7 +7,7 @@ import (
 	dbrepository "Threadly/internal/infra/database/repositories"
 	"Threadly/internal/infra/http/routes"
 	"Threadly/internal/interface/controllers"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 	"fmt"
 	"os"
 
@@ -31,10 +31,10 @@ func NewContainer() (*dig.Container, error) {
 		provideCommentLikeSummaryReader,
 		providePasswordHasher,
 		provideTokenIssuer,
-		services.NewAuthService,
-		services.NewLikeService,
-		services.NewPostServiceWithLikeReader,
-		services.NewCommentServiceWithLikeReader,
+		usecase.NewAuthUsecase,
+		usecase.NewLikeUsecase,
+		usecase.NewPostUsecaseWithLikeReader,
+		usecase.NewCommentUsecaseWithLikeReader,
 		controllers.NewAuthController,
 		controllers.NewPostController,
 		controllers.NewCommentController,
@@ -76,20 +76,21 @@ func provideCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepositor
 	return dbrepository.NewCommentLikeRepository(db)
 }
 
-func providePostLikeSummaryReader(likeService *services.LikeService) services.PostLikeSummaryReader {
-	return likeService
+func providePostLikeSummaryReader(likeUsecase *usecase.LikeUsecase) usecase.PostLikeSummaryReader {
+	return likeUsecase
 }
 
-func provideCommentLikeSummaryReader(likeService *services.LikeService) services.CommentLikeSummaryReader {
-	return likeService
+func provideCommentLikeSummaryReader(likeUsecase *usecase.LikeUsecase) usecase.CommentLikeSummaryReader {
+	return likeUsecase
 }
 
-func providePasswordHasher() services.PasswordHasher {
+func providePasswordHasher() usecase.PasswordHasher {
 	return authinfra.NewArgon2idHasher()
 }
 
-func provideTokenIssuer() (services.TokenIssuer, error) {
-	// JWT_SECRETが未設定・短すぎる場合は、デフォルト値にフォールバックせず起動を失敗させる。
+func provideTokenIssuer() (usecase.TokenIssuer, error) {
+	// JWT_SECRETが未設定・短すぎる場合は、デフォルト値にフォールバックせず
+	// 起動を失敗させる。
 	return authinfra.NewJWTIssuer(os.Getenv("JWT_SECRET"))
 }
 
@@ -98,7 +99,7 @@ func provideHandlers(
 	postController *controllers.PostController,
 	commentController *controllers.CommentController,
 	likeController *controllers.LikeController,
-	tokenIssuer services.TokenIssuer,
+	tokenIssuer usecase.TokenIssuer,
 ) routes.Handlers {
 	return routes.Handlers{
 		Auth:        authController,

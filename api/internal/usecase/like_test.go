@@ -1,4 +1,4 @@
-package services
+package usecase
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"Threadly/internal/usecase/services/mocks"
+	"Threadly/internal/usecase/mocks"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
-func newLikeServiceTest(t *testing.T) (
-	*LikeService,
+func newLikeUsecaseTest(t *testing.T) (
+	*LikeUsecase,
 	*mocks.MockPostRepository,
 	*mocks.MockCommentRepository,
 	*mocks.MockPostLikeRepository,
@@ -28,12 +28,12 @@ func newLikeServiceTest(t *testing.T) (
 	commentRepo := mocks.NewMockCommentRepository(ctrl)
 	postLikeRepo := mocks.NewMockPostLikeRepository(ctrl)
 	commentLikeRepo := mocks.NewMockCommentLikeRepository(ctrl)
-	service := NewLikeService(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
-	return service, postRepo, commentRepo, postLikeRepo, commentLikeRepo
+	usecase := NewLikeUsecase(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
+	return usecase, postRepo, commentRepo, postLikeRepo, commentLikeRepo
 }
 
-func TestLikeService_PostSummariesBatchesCountAndCurrentUserState(t *testing.T) {
-	service, _, _, postLikeRepo, _ := newLikeServiceTest(t)
+func TestLikeUsecase_PostSummariesBatchesCountAndCurrentUserState(t *testing.T) {
+	usecase, _, _, postLikeRepo, _ := newLikeUsecaseTest(t)
 	postIDs := []models.UUID{testPostID, testOtherPostID}
 	postLikeRepo.EXPECT().
 		CountByPostIDs(gomock.Any(), postIDs).
@@ -42,24 +42,24 @@ func TestLikeService_PostSummariesBatchesCountAndCurrentUserState(t *testing.T) 
 		FindLikedPostIDs(gomock.Any(), testUserID, postIDs).
 		Return(map[models.UUID]struct{}{testPostID: {}}, nil)
 
-	summaries, err := service.PostSummaries(context.Background(), testUserID, postIDs)
+	summaries, err := usecase.PostSummaries(context.Background(), testUserID, postIDs)
 
 	require.NoError(t, err)
 	require.Equal(t, models.LikeSummary{Count: 2, LikedByMe: true}, summaries[testPostID])
 	require.Equal(t, models.LikeSummary{}, summaries[testOtherPostID])
 }
 
-func TestLikeService_EmptySummariesDoNotCallRepository(t *testing.T) {
-	service, _, _, _, _ := newLikeServiceTest(t)
+func TestLikeUsecase_EmptySummariesDoNotCallRepository(t *testing.T) {
+	usecase, _, _, _, _ := newLikeUsecaseTest(t)
 
-	summaries, err := service.CommentSummaries(context.Background(), testUserID, nil)
+	summaries, err := usecase.CommentSummaries(context.Background(), testUserID, nil)
 
 	require.NoError(t, err)
 	require.Empty(t, summaries)
 }
 
-func TestLikeService_LikePostReturnsActionSummary(t *testing.T) {
-	service, postRepo, _, postLikeRepo, _ := newLikeServiceTest(t)
+func TestLikeUsecase_LikePostReturnsActionSummary(t *testing.T) {
+	usecase, postRepo, _, postLikeRepo, _ := newLikeUsecaseTest(t)
 	postRepo.EXPECT().
 		GetByID(gomock.Any(), testPostID).
 		Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
@@ -71,7 +71,7 @@ func TestLikeService_LikePostReturnsActionSummary(t *testing.T) {
 		FindLikedPostIDs(gomock.Any(), testUserID, []models.UUID{testPostID}).
 		Return(map[models.UUID]struct{}{testPostID: {}}, nil)
 
-	result, err := service.LikePost(context.Background(), testUserID, testPostID)
+	result, err := usecase.LikePost(context.Background(), testUserID, testPostID)
 
 	require.NoError(t, err)
 	require.Equal(t, LikeActionResult{
@@ -80,8 +80,8 @@ func TestLikeService_LikePostReturnsActionSummary(t *testing.T) {
 	}, result)
 }
 
-func TestLikeService_CommentLikeRequiresActivePost(t *testing.T) {
-	service, postRepo, commentRepo, _, _ := newLikeServiceTest(t)
+func TestLikeUsecase_CommentLikeRequiresActivePost(t *testing.T) {
+	usecase, postRepo, commentRepo, _, _ := newLikeUsecaseTest(t)
 	commentRepo.EXPECT().
 		GetByID(gomock.Any(), testCommentID).
 		Return(&models.Comment{
@@ -92,18 +92,18 @@ func TestLikeService_CommentLikeRequiresActivePost(t *testing.T) {
 		GetByID(gomock.Any(), testPostID).
 		Return(nil, repositories.ErrPostNotFound)
 
-	result, err := service.LikeComment(context.Background(), testUserID, testCommentID)
+	result, err := usecase.LikeComment(context.Background(), testUserID, testCommentID)
 
 	require.ErrorIs(t, err, ErrLikeTargetNotFound)
 	require.Empty(t, result)
 }
 
-func TestLikeService_RepositoryErrorsRemainInternalErrors(t *testing.T) {
-	service, postRepo, _, _, _ := newLikeServiceTest(t)
+func TestLikeUsecase_RepositoryErrorsRemainInternalErrors(t *testing.T) {
+	usecase, postRepo, _, _, _ := newLikeUsecaseTest(t)
 	databaseErr := errors.New("database unavailable")
 	postRepo.EXPECT().GetByID(gomock.Any(), testPostID).Return(nil, databaseErr)
 
-	_, err := service.LikePost(context.Background(), testUserID, testPostID)
+	_, err := usecase.LikePost(context.Background(), testUserID, testPostID)
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, databaseErr)

@@ -11,6 +11,8 @@ var (
 	ErrPostNotFound = errors.New("post not found")
 )
 
+// PostRepositoryは、Post単位の検索・更新と、Post本体の永続化を担当する。
+// CommentやLikeなど別テーブルのcleanupは、UsecaseがUnit of Work内で組み合わせる。
 type PostRepository interface {
 	GetByID(ctx context.Context, postID models.UUID) (*models.Post, error)
 	GetByIDForUpdate(ctx context.Context, postID models.UUID) (*models.Post, error)

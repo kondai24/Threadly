@@ -11,6 +11,7 @@ var (
 	ErrInvalidContent = errors.New("content is required")
 )
 
+// PostはUserが所有する公開投稿を表す。AuthorIDは認証済みUserから設定する。
 type Post struct {
 	UUIDBaseModel
 	AuthorID UUID `gorm:"type:char(36);not null;index"`

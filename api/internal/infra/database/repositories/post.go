@@ -12,10 +12,13 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// PostRepositoryは、PostRepository契約をGORMへ適配する。
+// DBにはroot DBまたはUnitOfWorkが生成したtransaction-bound DBが入る。
 type PostRepository struct {
 	DB *gorm.DB
 }
 
+// NewPostRepositoryは、指定されたDB handleへ結び付いたPostRepositoryを生成する。
 func NewPostRepository(db *gorm.DB) repositories.PostRepository {
 	return &PostRepository{DB: db}
 }
@@ -39,6 +42,8 @@ func (r *PostRepository) GetByIDForUpdate(
 	ctx context.Context,
 	postID models.UUID,
 ) (*models.Post, error) {
+	// 呼び出し元が同じTransaction内で後続更新するPostをロックし、削除との
+	// 競合を直列化する。
 	var post models.Post
 	result := r.DB.WithContext(ctx).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -53,7 +58,13 @@ func (r *PostRepository) GetByIDForUpdate(
 	return &post, nil
 }
 
-func (r *PostRepository) GetByIDForOwner(ctx context.Context, userID models.UUID, postID models.UUID) (*models.Post, error) {
+func (r *PostRepository) GetByIDForOwner(
+	ctx context.Context,
+	userID models.UUID,
+	postID models.UUID,
+) (*models.Post, error) {
+	// 所有者条件を検索へ含め、存在しない・削除済み・他User所有のPostを
+	// 同じNotFound契約にする。
 	var post models.Post
 	result := r.DB.WithContext(ctx).
 		Preload("Author").
@@ -91,6 +102,8 @@ func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *m
 }
 
 func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, postID models.UUID) (int64, error) {
+	// 関連Comment・LikeのcleanupはUsecaseが別Repositoryへ委譲するため、ここでは
+	// Post本体だけを論理削除する。
 	result := r.DB.WithContext(ctx).
 		Where("id = ? AND author_id = ?", postID, userID).
 		Delete(&models.Post{})

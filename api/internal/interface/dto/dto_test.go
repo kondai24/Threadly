@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 )
 
 func TestPostListResponsesFromModelsUsesPublicFields(t *testing.T) {
@@ -68,7 +68,7 @@ func TestResponsesIncludeLikeSummaryWithoutInternalFields(t *testing.T) {
 		},
 		Title: "title",
 	}
-	response := PostListResponseFromRead(services.PostRead{
+	response := PostListResponseFromRead(usecase.PostRead{
 		Post:    post,
 		Summary: models.LikeSummary{Count: 3, LikedByMe: true},
 	})
@@ -81,7 +81,7 @@ func TestResponsesIncludeLikeSummaryWithoutInternalFields(t *testing.T) {
 		Author:        post.Author,
 		Content:       "comment",
 	}
-	commentResponses := CommentResponsesFromRead(services.CommentListRead{
+	commentResponses := CommentResponsesFromRead(usecase.CommentListRead{
 		Comments: []*models.Comment{comment},
 		Summaries: map[models.UUID]models.LikeSummary{
 			comment.ID: {Count: 2, LikedByMe: true},

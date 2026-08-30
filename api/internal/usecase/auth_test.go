@@ -1,4 +1,4 @@
-package services
+package usecase
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"Threadly/internal/usecase/services/mocks"
+	"Threadly/internal/usecase/mocks"
 
 	"go.uber.org/mock/gomock"
 )
@@ -40,23 +40,23 @@ func (i fakeTokenIssuer) Parse(string) (models.UUID, error) {
 	return authTestUserID, nil
 }
 
-func newAuthServiceTest(
+func newAuthUsecaseTest(
 	t *testing.T,
 	hasher PasswordHasher,
 	tokens TokenIssuer,
-) (*AuthService, *mocks.MockUserRepository) {
+) (*AuthUsecase, *mocks.MockUserRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	repo := mocks.NewMockUserRepository(ctrl)
-	service := NewAuthService(repo, hasher, tokens)
-	return service, repo
+	usecase := NewAuthUsecase(repo, hasher, tokens)
+	return usecase, repo
 }
 
-func TestAuthService_Register(t *testing.T) {
-	service, repo := newAuthServiceTest(
+func TestAuthUsecase_Register(t *testing.T) {
+	usecase, repo := newAuthUsecaseTest(
 		t,
 		fakePasswordHasher{hash: "argon2id-hash"},
 		fakeTokenIssuer{token: "access-token"},
@@ -74,7 +74,7 @@ func TestAuthService_Register(t *testing.T) {
 			return nil
 		})
 
-	user, token, err := service.Register(
+	user, token, err := usecase.Register(
 		context.Background(),
 		"alice",
 		"correct horse",
@@ -94,8 +94,8 @@ func TestAuthService_Register(t *testing.T) {
 	}
 }
 
-func TestAuthService_RegisterRejectsDuplicateUsername(t *testing.T) {
-	service, repo := newAuthServiceTest(
+func TestAuthUsecase_RegisterRejectsDuplicateUsername(t *testing.T) {
+	usecase, repo := newAuthUsecaseTest(
 		t,
 		fakePasswordHasher{hash: "argon2id-hash"},
 		fakeTokenIssuer{token: "access-token"},
@@ -104,16 +104,16 @@ func TestAuthService_RegisterRejectsDuplicateUsername(t *testing.T) {
 		Create(gomock.Any(), gomock.Any()).
 		Return(repositories.ErrUsernameAlreadyExists)
 
-	_, _, err := service.Register(context.Background(), "alice", "correct horse")
+	_, _, err := usecase.Register(context.Background(), "alice", "correct horse")
 
 	if !errors.Is(err, ErrUsernameAlreadyExists) {
 		t.Fatalf("error = %v, want ErrUsernameAlreadyExists", err)
 	}
 }
 
-func TestAuthService_Login(t *testing.T) {
+func TestAuthUsecase_Login(t *testing.T) {
 	t.Run("正しい認証情報でtokenを返す", func(t *testing.T) {
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{},
 			fakeTokenIssuer{token: "access-token"},
@@ -125,7 +125,7 @@ func TestAuthService_Login(t *testing.T) {
 		}
 		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(user, nil)
 
-		user, token, err := service.Login(context.Background(), "alice", "correct horse")
+		user, token, err := usecase.Login(context.Background(), "alice", "correct horse")
 
 		if err != nil {
 			t.Fatalf("login: %v", err)
@@ -136,7 +136,7 @@ func TestAuthService_Login(t *testing.T) {
 	})
 
 	t.Run("誤ったpasswordを認証失敗として扱う", func(t *testing.T) {
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{compareErr: fmt.Errorf("verify: %w", ErrPasswordMismatch)},
 			fakeTokenIssuer{token: "access-token"},
@@ -147,7 +147,7 @@ func TestAuthService_Login(t *testing.T) {
 			PasswordHash:  "argon2id-hash",
 		}, nil)
 
-		_, _, err := service.Login(context.Background(), "alice", "wrong pass")
+		_, _, err := usecase.Login(context.Background(), "alice", "wrong pass")
 
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("error = %v, want ErrInvalidCredentials", err)
@@ -156,7 +156,7 @@ func TestAuthService_Login(t *testing.T) {
 
 	t.Run("PasswordHasherの内部エラーをラップして返す", func(t *testing.T) {
 		expectedErr := errors.New("invalid password hash")
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{compareErr: expectedErr},
 			fakeTokenIssuer{token: "access-token"},
@@ -167,7 +167,7 @@ func TestAuthService_Login(t *testing.T) {
 			PasswordHash:  "invalid-hash",
 		}, nil)
 
-		_, _, err := service.Login(context.Background(), "alice", "correct horse")
+		_, _, err := usecase.Login(context.Background(), "alice", "correct horse")
 
 		if !errors.Is(err, expectedErr) {
 			t.Fatalf("error = %v, want wrapped password hasher error", err)
@@ -178,7 +178,7 @@ func TestAuthService_Login(t *testing.T) {
 	})
 
 	t.Run("未知のusernameを認証失敗として扱う", func(t *testing.T) {
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{},
 			fakeTokenIssuer{token: "access-token"},
@@ -187,7 +187,7 @@ func TestAuthService_Login(t *testing.T) {
 			FindByUsername(gomock.Any(), "nobody").
 			Return(nil, repositories.ErrUserNotFound)
 
-		_, _, err := service.Login(context.Background(), "nobody", "wrong pass")
+		_, _, err := usecase.Login(context.Background(), "nobody", "wrong pass")
 
 		if !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("error = %v, want ErrInvalidCredentials", err)
@@ -195,9 +195,9 @@ func TestAuthService_Login(t *testing.T) {
 	})
 }
 
-func TestAuthService_GetMe(t *testing.T) {
+func TestAuthUsecase_GetMe(t *testing.T) {
 	t.Run("User IDに対応するUserを返す", func(t *testing.T) {
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{},
 			fakeTokenIssuer{},
@@ -208,7 +208,7 @@ func TestAuthService_GetMe(t *testing.T) {
 		}
 		repo.EXPECT().FindByID(gomock.Any(), authTestUserID).Return(expected, nil)
 
-		user, err := service.GetMe(context.Background(), authTestUserID)
+		user, err := usecase.GetMe(context.Background(), authTestUserID)
 
 		if err != nil {
 			t.Fatalf("get me: %v", err)
@@ -219,7 +219,7 @@ func TestAuthService_GetMe(t *testing.T) {
 	})
 
 	t.Run("Userが存在しない場合はNotFoundを返す", func(t *testing.T) {
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{},
 			fakeTokenIssuer{},
@@ -229,18 +229,18 @@ func TestAuthService_GetMe(t *testing.T) {
 			FindByID(gomock.Any(), missingUserID).
 			Return(nil, repositories.ErrUserNotFound)
 
-		user, err := service.GetMe(context.Background(), missingUserID)
+		user, err := usecase.GetMe(context.Background(), missingUserID)
 
 		if user != nil {
 			t.Fatalf("user = %+v, want nil", user)
 		}
-		if !errors.Is(err, repositories.ErrUserNotFound) {
+		if !errors.Is(err, ErrUserNotFound) {
 			t.Fatalf("error = %v, want ErrUserNotFound", err)
 		}
 	})
 
 	t.Run("Repositoryのエラーをラップして返す", func(t *testing.T) {
-		service, repo := newAuthServiceTest(
+		usecase, repo := newAuthUsecaseTest(
 			t,
 			fakePasswordHasher{},
 			fakeTokenIssuer{},
@@ -248,7 +248,7 @@ func TestAuthService_GetMe(t *testing.T) {
 		expectedErr := errors.New("db error")
 		repo.EXPECT().FindByID(gomock.Any(), authTestUserID).Return(nil, expectedErr)
 
-		user, err := service.GetMe(context.Background(), authTestUserID)
+		user, err := usecase.GetMe(context.Background(), authTestUserID)
 
 		if user != nil {
 			t.Fatalf("user = %+v, want nil", user)
@@ -259,7 +259,7 @@ func TestAuthService_GetMe(t *testing.T) {
 	})
 }
 
-func TestAuthService_ValidatesCredentials(t *testing.T) {
+func TestAuthUsecase_ValidatesCredentials(t *testing.T) {
 	tests := []struct {
 		name     string
 		username string
@@ -271,12 +271,12 @@ func TestAuthService_ValidatesCredentials(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, _ := newAuthServiceTest(
+			usecase, _ := newAuthUsecaseTest(
 				t,
 				fakePasswordHasher{hash: "hash"},
 				fakeTokenIssuer{token: "token"},
 			)
-			_, _, err := service.Register(context.Background(), tt.username, tt.password)
+			_, _, err := usecase.Register(context.Background(), tt.username, tt.password)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}

@@ -11,10 +11,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserRepositoryは、UserRepository契約をGORMへ適配する。
 type UserRepository struct {
 	DB *gorm.DB
 }
 
+// NewUserRepositoryは、指定されたDB handleへ結び付いたUserRepositoryを生成する。
 func NewUserRepository(db *gorm.DB) repositories.UserRepository {
 	return &UserRepository{DB: db}
 }

@@ -15,7 +15,7 @@ import (
 	"Threadly/internal/domain/repositories"
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/middleware"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
@@ -147,7 +147,7 @@ func (routePasswordHasher) Hash(password string) (string, error) {
 func (routePasswordHasher) Compare(encodedHash string, password string) error {
 	actualHash := routeHashPassword(password)
 	if subtle.ConstantTimeCompare([]byte(encodedHash), []byte(actualHash)) != 1 {
-		return services.ErrPasswordMismatch
+		return usecase.ErrPasswordMismatch
 	}
 	return nil
 }
@@ -258,11 +258,11 @@ func (routeTokenIssuer) Issue(userID models.UUID) (string, error) {
 
 func (routeTokenIssuer) Parse(rawToken string) (models.UUID, error) {
 	if !strings.HasPrefix(rawToken, "user-") {
-		return "", services.ErrInvalidToken
+		return "", usecase.ErrInvalidToken
 	}
 	userID, err := models.ParseUUID(strings.TrimPrefix(rawToken, "user-"))
 	if err != nil || userID == "" {
-		return "", services.ErrInvalidToken
+		return "", usecase.ErrInvalidToken
 	}
 	return userID, nil
 }
@@ -279,15 +279,15 @@ func cloneUser(user *models.User) *models.User {
 
 func newTestRouter(postRepo *routePostRepository) *gin.Engine {
 	tokenIssuer := routeTokenIssuer{}
-	authService := services.NewAuthService(
+	authUsecase := usecase.NewAuthUsecase(
 		newRouteUserRepository(),
 		routePasswordHasher{},
 		tokenIssuer,
 	)
-	postService := services.NewPostService(postRepo, routeUnitOfWork{post: postRepo})
+	postUsecase := usecase.NewPostUsecase(postRepo, routeUnitOfWork{post: postRepo})
 	return SetupRouter(Handlers{
-		Auth:        controllers.NewAuthController(authService),
-		Post:        controllers.NewPostController(postService),
+		Auth:        controllers.NewAuthController(authUsecase),
+		Post:        controllers.NewPostController(postUsecase),
 		TokenIssuer: tokenIssuer,
 	})
 }

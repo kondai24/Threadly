@@ -1,4 +1,4 @@
-package services
+package usecase
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"Threadly/internal/usecase/services/mocks"
+	"Threadly/internal/usecase/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,23 +21,23 @@ const (
 	testMissingID   models.UUID = "99999999-9999-4999-8999-999999999999"
 )
 
-func newPostServiceTest(t *testing.T) (*PostService, *mocks.MockPostRepository) {
+func newPostUsecaseTest(t *testing.T) (*PostUsecase, *mocks.MockPostRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	repo := mocks.NewMockPostRepository(ctrl)
-	service := NewPostService(repo, testUnitOfWork{
+	usecase := NewPostUsecase(repo, testUnitOfWork{
 		repos: repositories.TransactionRepositories{Post: repo},
 	})
-	return service, repo
+	return usecase, repo
 }
 
-func newPostDeleteServiceTest(
+func newPostDeleteUsecaseTest(
 	t *testing.T,
 ) (
-	*PostService,
+	*PostUsecase,
 	*mocks.MockPostRepository,
 	*mocks.MockCommentRepository,
 	*testPostLikeRepository,
@@ -52,7 +52,7 @@ func newPostDeleteServiceTest(
 	commentRepo := mocks.NewMockCommentRepository(ctrl)
 	postLikeRepo := &testPostLikeRepository{}
 	commentLikeRepo := &testCommentLikeRepository{}
-	service := NewPostService(postRepo, testUnitOfWork{
+	usecase := NewPostUsecase(postRepo, testUnitOfWork{
 		repos: repositories.TransactionRepositories{
 			Post:        postRepo,
 			Comment:     commentRepo,
@@ -60,12 +60,12 @@ func newPostDeleteServiceTest(
 			CommentLike: commentLikeRepo,
 		},
 	})
-	return service, postRepo, commentRepo, postLikeRepo, commentLikeRepo
+	return usecase, postRepo, commentRepo, postLikeRepo, commentLikeRepo
 }
 
-func TestPostService_GetPostByID(t *testing.T) {
+func TestPostUsecase_GetPostByID(t *testing.T) {
 	t.Run("所有者のPostを取得できる", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		expectedPost := &models.Post{
 			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
 			AuthorID:      testUserID,
@@ -76,7 +76,7 @@ func TestPostService_GetPostByID(t *testing.T) {
 			GetByID(gomock.Any(), testPostID).
 			Return(expectedPost, nil)
 
-		post, err := service.GetPostByID(context.Background(), testPostID)
+		post, err := usecase.GetPostByID(context.Background(), testPostID)
 
 		require.NoError(t, err)
 		require.NotNil(t, post)
@@ -84,13 +84,13 @@ func TestPostService_GetPostByID(t *testing.T) {
 	})
 
 	t.Run("Repositoryのエラーをそのまま返す", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		expectedErr := errors.New("db error")
 		repo.EXPECT().
 			GetByID(gomock.Any(), testMissingID).
 			Return(nil, expectedErr)
 
-		post, err := service.GetPostByID(context.Background(), testMissingID)
+		post, err := usecase.GetPostByID(context.Background(), testMissingID)
 
 		require.Error(t, err)
 		assert.Nil(t, post)
@@ -98,33 +98,33 @@ func TestPostService_GetPostByID(t *testing.T) {
 	})
 
 	t.Run("存在しないPostはサービスエラーへ変換する", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		repo.EXPECT().
 			GetByID(gomock.Any(), testMissingID).
 			Return(nil, repositories.ErrPostNotFound)
 
-		post, err := service.GetPostByID(context.Background(), testMissingID)
+		post, err := usecase.GetPostByID(context.Background(), testMissingID)
 
 		require.ErrorIs(t, err, ErrPostNotFound)
 		require.Nil(t, post)
 	})
 }
 
-func TestPostService_GetPostByIDForOwner(t *testing.T) {
-	service, repo := newPostServiceTest(t)
+func TestPostUsecase_GetPostByIDForOwner(t *testing.T) {
+	usecase, repo := newPostUsecaseTest(t)
 	repo.EXPECT().
 		GetByIDForOwner(gomock.Any(), testUserID, testMissingID).
 		Return(nil, repositories.ErrPostNotFound)
 
-	post, err := service.GetPostByIDForOwner(context.Background(), testUserID, testMissingID)
+	post, err := usecase.GetPostByIDForOwner(context.Background(), testUserID, testMissingID)
 
 	require.ErrorIs(t, err, ErrPostNotFound)
 	require.Nil(t, post)
 }
 
-func TestPostService_ListAllPosts(t *testing.T) {
+func TestPostUsecase_ListAllPosts(t *testing.T) {
 	t.Run("全Postを返す", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		expectedPosts := []*models.Post{
 			{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}, AuthorID: testUserID, Title: "hello", Content: "world"},
 			{UUIDBaseModel: models.UUIDBaseModel{ID: testMissingID}, AuthorID: testOtherUserID, Title: "foo", Content: "bar"},
@@ -133,20 +133,20 @@ func TestPostService_ListAllPosts(t *testing.T) {
 			ListAll(gomock.Any()).
 			Return(expectedPosts, nil)
 
-		posts, err := service.ListAllPosts(context.Background())
+		posts, err := usecase.ListAllPosts(context.Background())
 
 		require.NoError(t, err)
 		assert.Equal(t, expectedPosts, posts)
 	})
 
 	t.Run("Repositoryのエラーをそのまま返す", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		expectedErr := errors.New("db error")
 		repo.EXPECT().
 			ListAll(gomock.Any()).
 			Return(nil, expectedErr)
 
-		posts, err := service.ListAllPosts(context.Background())
+		posts, err := usecase.ListAllPosts(context.Background())
 
 		require.Error(t, err)
 		assert.Nil(t, posts)
@@ -154,9 +154,9 @@ func TestPostService_ListAllPosts(t *testing.T) {
 	})
 }
 
-func TestPostService_CreatePost(t *testing.T) {
+func TestPostUsecase_CreatePost(t *testing.T) {
 	t.Run("認証済みUserをauthorに設定する", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		repo.EXPECT().
 			Create(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, post *models.Post) error {
@@ -166,33 +166,33 @@ func TestPostService_CreatePost(t *testing.T) {
 				return nil
 			})
 
-		err := service.CreatePost(context.Background(), testUserID, "hello", "world")
+		err := usecase.CreatePost(context.Background(), testUserID, "hello", "world")
 
 		require.NoError(t, err)
 	})
 
 	t.Run("空のtitleを拒否する", func(t *testing.T) {
-		service, _ := newPostServiceTest(t)
+		usecase, _ := newPostUsecaseTest(t)
 
-		err := service.CreatePost(context.Background(), testUserID, "", "world")
+		err := usecase.CreatePost(context.Background(), testUserID, "", "world")
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrInvalidTitle)
 	})
 
 	t.Run("空のcontentを拒否する", func(t *testing.T) {
-		service, _ := newPostServiceTest(t)
+		usecase, _ := newPostUsecaseTest(t)
 
-		err := service.CreatePost(context.Background(), testUserID, "hello", "")
+		err := usecase.CreatePost(context.Background(), testUserID, "hello", "")
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrInvalidContent)
 	})
 }
 
-func TestPostService_UpdatePost(t *testing.T) {
+func TestPostUsecase_UpdatePost(t *testing.T) {
 	t.Run("所有者のPostを更新できる", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		post := &models.Post{
 			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
 			AuthorID:      testUserID,
@@ -201,13 +201,13 @@ func TestPostService_UpdatePost(t *testing.T) {
 		}
 		repo.EXPECT().Update(gomock.Any(), testUserID, post).Return(nil)
 
-		err := service.UpdatePost(context.Background(), testUserID, post)
+		err := usecase.UpdatePost(context.Background(), testUserID, post)
 
 		require.NoError(t, err)
 	})
 
 	t.Run("RepositoryのNotFoundをサービスエラーへ変換する", func(t *testing.T) {
-		service, repo := newPostServiceTest(t)
+		usecase, repo := newPostUsecaseTest(t)
 		post := &models.Post{
 			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
 			AuthorID:      testUserID,
@@ -218,13 +218,13 @@ func TestPostService_UpdatePost(t *testing.T) {
 			Update(gomock.Any(), testUserID, post).
 			Return(repositories.ErrPostNotFound)
 
-		err := service.UpdatePost(context.Background(), testUserID, post)
+		err := usecase.UpdatePost(context.Background(), testUserID, post)
 
 		require.ErrorIs(t, err, ErrPostNotFound)
 	})
 
 	t.Run("他Userが所有するPostを拒否する", func(t *testing.T) {
-		service, _ := newPostServiceTest(t)
+		usecase, _ := newPostUsecaseTest(t)
 		post := &models.Post{
 			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
 			AuthorID:      testOtherUserID,
@@ -232,36 +232,36 @@ func TestPostService_UpdatePost(t *testing.T) {
 			Content:       "this is a test",
 		}
 
-		err := service.UpdatePost(context.Background(), testUserID, post)
+		err := usecase.UpdatePost(context.Background(), testUserID, post)
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrPostNotFound)
 	})
 
 	t.Run("空のtitleを拒否する", func(t *testing.T) {
-		service, _ := newPostServiceTest(t)
+		usecase, _ := newPostUsecaseTest(t)
 		post := &models.Post{AuthorID: testUserID, Content: "content"}
 
-		err := service.UpdatePost(context.Background(), testUserID, post)
+		err := usecase.UpdatePost(context.Background(), testUserID, post)
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrInvalidTitle)
 	})
 
 	t.Run("空のcontentを拒否する", func(t *testing.T) {
-		service, _ := newPostServiceTest(t)
+		usecase, _ := newPostUsecaseTest(t)
 		post := &models.Post{AuthorID: testUserID, Title: "title"}
 
-		err := service.UpdatePost(context.Background(), testUserID, post)
+		err := usecase.UpdatePost(context.Background(), testUserID, post)
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrInvalidContent)
 	})
 }
 
-func TestPostService_DeletePost(t *testing.T) {
+func TestPostUsecase_DeletePost(t *testing.T) {
 	t.Run("所有者のPostを削除できる", func(t *testing.T) {
-		service, postRepo, commentRepo, postLikeRepo, commentLikeRepo := newPostDeleteServiceTest(t)
+		usecase, postRepo, commentRepo, postLikeRepo, commentLikeRepo := newPostDeleteUsecaseTest(t)
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{
@@ -275,7 +275,7 @@ func TestPostService_DeletePost(t *testing.T) {
 			DeleteByID(gomock.Any(), testUserID, testPostID).
 			Return(int64(1), nil)
 
-		err := service.DeletePost(context.Background(), testUserID, testPostID)
+		err := usecase.DeletePost(context.Background(), testUserID, testPostID)
 
 		require.NoError(t, err)
 		require.Equal(t, []models.UUID{testPostID}, postLikeRepo.deletedPostIDs)
@@ -283,19 +283,19 @@ func TestPostService_DeletePost(t *testing.T) {
 	})
 
 	t.Run("所有者のPostを削除できない場合はNotFoundを返す", func(t *testing.T) {
-		service, postRepo, _, _, _ := newPostDeleteServiceTest(t)
+		usecase, postRepo, _, _, _ := newPostDeleteUsecaseTest(t)
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testMissingID).
 			Return(nil, repositories.ErrPostNotFound)
 
-		err := service.DeletePost(context.Background(), testUserID, testMissingID)
+		err := usecase.DeletePost(context.Background(), testUserID, testMissingID)
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, ErrPostNotFound)
 	})
 
 	t.Run("所有者でないPostの削除をNotFoundにする", func(t *testing.T) {
-		service, postRepo, _, _, _ := newPostDeleteServiceTest(t)
+		usecase, postRepo, _, _, _ := newPostDeleteUsecaseTest(t)
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{
@@ -303,7 +303,7 @@ func TestPostService_DeletePost(t *testing.T) {
 				AuthorID:      testOtherUserID,
 			}, nil)
 
-		err := service.DeletePost(context.Background(), testUserID, testPostID)
+		err := usecase.DeletePost(context.Background(), testUserID, testPostID)
 
 		require.ErrorIs(t, err, ErrPostNotFound)
 	})

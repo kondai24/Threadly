@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 )
 
 type CreatePostRequest struct {
@@ -60,14 +60,14 @@ func PostListResponsesFromModels(posts []*models.Post) []PostListResponse {
 	return responses
 }
 
-func PostListResponseFromRead(read services.PostRead) PostListResponse {
+func PostListResponseFromRead(read usecase.PostRead) PostListResponse {
 	response := PostListResponseFromModel(read.Post)
 	response.LikeCount = read.Summary.Count
 	response.LikedByMe = read.Summary.LikedByMe
 	return response
 }
 
-func PostListResponsesFromReads(reads []services.PostRead) []PostListResponse {
+func PostListResponsesFromReads(reads []usecase.PostRead) []PostListResponse {
 	responses := make([]PostListResponse, 0, len(reads))
 	for _, read := range reads {
 		if read.Post == nil {
@@ -92,7 +92,7 @@ func PostDetailResponseFromModel(post *models.Post) PostDetailResponse {
 	}
 }
 
-func PostDetailResponseFromRead(read services.PostRead) PostDetailResponse {
+func PostDetailResponseFromRead(read usecase.PostRead) PostDetailResponse {
 	response := PostDetailResponseFromModel(read.Post)
 	response.LikeCount = read.Summary.Count
 	response.LikedByMe = read.Summary.LikedByMe

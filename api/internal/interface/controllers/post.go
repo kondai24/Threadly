@@ -7,17 +7,19 @@ import (
 	"Threadly/internal/domain/models"
 	"Threadly/internal/interface/dto"
 	"Threadly/internal/middleware"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
 
+// PostControllerは、PostUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type PostController struct {
-	service *services.PostService
+	usecase *usecase.PostUsecase
 }
 
-func NewPostController(service *services.PostService) *PostController {
-	return &PostController{service: service}
+// NewPostControllerは、PostUsecaseをHTTP adapterへ注入する。
+func NewPostController(postUsecase *usecase.PostUsecase) *PostController {
+	return &PostController{usecase: postUsecase}
 }
 
 // ListPostsHandler godoc
@@ -37,7 +39,7 @@ func (pc *PostController) ListPostsHandler(c *gin.Context) {
 		return
 	}
 
-	posts, err := pc.service.ListAllPostsForUser(c.Request.Context(), userID)
+	posts, err := pc.usecase.ListAllPostsForUser(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "internal server error"})
 		return
@@ -70,7 +72,7 @@ func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
 		return
 	}
 
-	post, err := pc.service.GetPostByIDForUser(c.Request.Context(), userID, postID)
+	post, err := pc.usecase.GetPostByIDForUser(c.Request.Context(), userID, postID)
 	if err != nil {
 		writePostError(c, err)
 		return
@@ -104,7 +106,7 @@ func (pc *PostController) CreatePostHandler(c *gin.Context) {
 		return
 	}
 
-	if err := pc.service.CreatePost(c.Request.Context(), userID, req.Title, req.Content); err != nil {
+	if err := pc.usecase.CreatePost(c.Request.Context(), userID, req.Title, req.Content); err != nil {
 		writePostError(c, err)
 		return
 	}
@@ -139,7 +141,7 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 	}
 
 	// 本文のバインドより先に所有者条件で取得し、非所有者へPostの存在を推測させない。
-	post, err := pc.service.GetPostByIDForOwner(c.Request.Context(), userID, postID)
+	post, err := pc.usecase.GetPostByIDForOwner(c.Request.Context(), userID, postID)
 	if err != nil {
 		writePostError(c, err)
 		return
@@ -161,7 +163,7 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 		post.Content = *req.Content
 	}
 
-	if err := pc.service.UpdatePost(c.Request.Context(), userID, post); err != nil {
+	if err := pc.usecase.UpdatePost(c.Request.Context(), userID, post); err != nil {
 		writePostError(c, err)
 		return
 	}
@@ -193,7 +195,7 @@ func (pc *PostController) DeletePostHandler(c *gin.Context) {
 		return
 	}
 
-	if err := pc.service.DeletePost(c.Request.Context(), userID, postID); err != nil {
+	if err := pc.usecase.DeletePost(c.Request.Context(), userID, postID); err != nil {
 		writePostError(c, err)
 		return
 	}
@@ -212,7 +214,7 @@ func parsePostIDParam(c *gin.Context) (models.UUID, bool) {
 
 func writePostError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, services.ErrPostNotFound):
+	case errors.Is(err, usecase.ErrPostNotFound):
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "post not found"})
 	case errors.Is(err, models.ErrInvalidTitle),
 		errors.Is(err, models.ErrInvalidContent):

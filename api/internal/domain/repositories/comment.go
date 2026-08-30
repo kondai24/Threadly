@@ -9,6 +9,8 @@ import (
 
 var ErrCommentNotFound = errors.New("comment not found")
 
+// CommentRepositoryは、Commentの検索・作成・更新・論理削除を担当する。
+// 複数テーブルにまたがる削除の順序とTransaction境界はUsecaseが決める。
 type CommentRepository interface {
 	Create(ctx context.Context, comment *models.Comment) error
 	ListByPostID(ctx context.Context, postID models.UUID) ([]*models.Comment, error)

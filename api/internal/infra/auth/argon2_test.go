@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 )
 
 func TestArgon2idHasher_HashAndCompare(t *testing.T) {
@@ -30,8 +30,8 @@ func TestArgon2idHasher_HashAndCompare(t *testing.T) {
 	if err := hasher.Compare(firstHash, password); err != nil {
 		t.Fatalf("compare correct password: %v", err)
 	}
-	if err := hasher.Compare(firstHash, "wrong password"); !errors.Is(err, services.ErrPasswordMismatch) {
-		t.Fatalf("compare wrong password error = %v, want services.ErrPasswordMismatch", err)
+	if err := hasher.Compare(firstHash, "wrong password"); !errors.Is(err, usecase.ErrPasswordMismatch) {
+		t.Fatalf("compare wrong password error = %v, want usecase.ErrPasswordMismatch", err)
 	}
 }
 

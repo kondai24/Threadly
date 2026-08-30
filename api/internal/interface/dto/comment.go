@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 )
 
 type CreateCommentRequest struct {
@@ -45,7 +45,7 @@ func CommentResponsesFromModels(comments []*models.Comment) []CommentResponse {
 	return commentResponsesFromModels(comments, nil)
 }
 
-func CommentResponsesFromRead(read services.CommentListRead) []CommentResponse {
+func CommentResponsesFromRead(read usecase.CommentListRead) []CommentResponse {
 	return commentResponsesFromModels(read.Comments, read.Summaries)
 }
 

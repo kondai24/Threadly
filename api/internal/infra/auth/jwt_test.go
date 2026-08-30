@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -118,7 +118,7 @@ func TestJWTIssuer_RejectsInvalidTokens(t *testing.T) {
 			}
 
 			_, parseErr := issuer.Parse(rawToken)
-			if !errors.Is(parseErr, services.ErrInvalidToken) {
+			if !errors.Is(parseErr, usecase.ErrInvalidToken) {
 				t.Fatalf("Parse() error = %v, want ErrInvalidToken", parseErr)
 			}
 		})

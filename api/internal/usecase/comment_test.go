@@ -1,4 +1,4 @@
-package services
+package usecase
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"Threadly/internal/usecase/services/mocks"
+	"Threadly/internal/usecase/mocks"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,9 +19,9 @@ const (
 	testReplyID     models.UUID = "66666666-6666-4666-8666-666666666666"
 )
 
-func newCommentServiceTest(
+func newCommentUsecaseTest(
 	t *testing.T,
-) (*CommentService, *mocks.MockCommentRepository, *mocks.MockPostRepository) {
+) (*CommentUsecase, *mocks.MockCommentRepository, *mocks.MockPostRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -29,7 +29,7 @@ func newCommentServiceTest(
 
 	commentRepo := mocks.NewMockCommentRepository(ctrl)
 	postRepo := mocks.NewMockPostRepository(ctrl)
-	service := NewCommentService(
+	usecase := NewCommentUsecase(
 		commentRepo,
 		postRepo,
 		testUnitOfWork{
@@ -39,13 +39,13 @@ func newCommentServiceTest(
 			},
 		},
 	)
-	return service, commentRepo, postRepo
+	return usecase, commentRepo, postRepo
 }
 
-func newCommentDeleteServiceTest(
+func newCommentDeleteUsecaseTest(
 	t *testing.T,
 ) (
-	*CommentService,
+	*CommentUsecase,
 	*mocks.MockCommentRepository,
 	*testCommentLikeRepository,
 ) {
@@ -57,18 +57,18 @@ func newCommentDeleteServiceTest(
 	commentRepo := mocks.NewMockCommentRepository(ctrl)
 	postRepo := mocks.NewMockPostRepository(ctrl)
 	commentLikeRepo := &testCommentLikeRepository{}
-	service := NewCommentService(commentRepo, postRepo, testUnitOfWork{
+	usecase := NewCommentUsecase(commentRepo, postRepo, testUnitOfWork{
 		repos: repositories.TransactionRepositories{
 			Post:        postRepo,
 			Comment:     commentRepo,
 			CommentLike: commentLikeRepo,
 		},
 	})
-	return service, commentRepo, commentLikeRepo
+	return usecase, commentRepo, commentLikeRepo
 }
 
-func TestCommentService_ListComments(t *testing.T) {
-	service, commentRepo, postRepo := newCommentServiceTest(t)
+func TestCommentUsecase_ListComments(t *testing.T) {
+	usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
 	expectedComments := []*models.Comment{
 		{UUIDBaseModel: models.UUIDBaseModel{ID: testCommentID}, PostID: testPostID},
 	}
@@ -79,15 +79,15 @@ func TestCommentService_ListComments(t *testing.T) {
 		ListByPostID(gomock.Any(), testPostID).
 		Return(expectedComments, nil)
 
-	comments, err := service.ListComments(context.Background(), testPostID)
+	comments, err := usecase.ListComments(context.Background(), testPostID)
 
 	require.NoError(t, err)
 	assert.Equal(t, expectedComments, comments)
 }
 
-func TestCommentService_CreateComment(t *testing.T) {
+func TestCommentUsecase_CreateComment(t *testing.T) {
 	t.Run("Post直下Commentを作成する", func(t *testing.T) {
-		service, commentRepo, postRepo := newCommentServiceTest(t)
+		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
@@ -101,7 +101,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 				return nil
 			})
 
-		err := service.CreateComment(
+		err := usecase.CreateComment(
 			context.Background(),
 			testUserID,
 			testPostID,
@@ -113,7 +113,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 	})
 
 	t.Run("同じPostの親Commentへ返信する", func(t *testing.T) {
-		service, commentRepo, postRepo := newCommentServiceTest(t)
+		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
 		parentID := testCommentID
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
@@ -133,7 +133,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 				return nil
 			})
 
-		err := service.CreateComment(
+		err := usecase.CreateComment(
 			context.Background(),
 			testOtherUserID,
 			testPostID,
@@ -145,7 +145,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 	})
 
 	t.Run("返信Commentへの返信を拒否する", func(t *testing.T) {
-		service, commentRepo, postRepo := newCommentServiceTest(t)
+		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
 		parentID := testReplyID
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
@@ -158,7 +158,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 				ParentID:      pointerToUUID(testCommentID),
 			}, nil)
 
-		err := service.CreateComment(
+		err := usecase.CreateComment(
 			context.Background(),
 			testUserID,
 			testPostID,
@@ -170,7 +170,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 	})
 
 	t.Run("別PostのCommentへの返信をNotFoundにする", func(t *testing.T) {
-		service, commentRepo, postRepo := newCommentServiceTest(t)
+		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
 		parentID := testCommentID
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
@@ -182,7 +182,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 				PostID:        testOtherPostID,
 			}, nil)
 
-		err := service.CreateComment(
+		err := usecase.CreateComment(
 			context.Background(),
 			testUserID,
 			testPostID,
@@ -194,7 +194,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 	})
 
 	t.Run("削除済みの親Commentへの返信をNotFoundにする", func(t *testing.T) {
-		service, commentRepo, postRepo := newCommentServiceTest(t)
+		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
 		parentID := testCommentID
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
@@ -203,7 +203,7 @@ func TestCommentService_CreateComment(t *testing.T) {
 			GetByIDForUpdate(gomock.Any(), parentID).
 			Return(nil, repositories.ErrCommentNotFound)
 
-		err := service.CreateComment(
+		err := usecase.CreateComment(
 			context.Background(),
 			testUserID,
 			testPostID,
@@ -215,12 +215,12 @@ func TestCommentService_CreateComment(t *testing.T) {
 	})
 
 	t.Run("削除済みPostへのCommentを拒否する", func(t *testing.T) {
-		service, _, postRepo := newCommentServiceTest(t)
+		usecase, _, postRepo := newCommentUsecaseTest(t)
 		postRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testPostID).
 			Return(nil, repositories.ErrPostNotFound)
 
-		err := service.CreateComment(
+		err := usecase.CreateComment(
 			context.Background(),
 			testUserID,
 			testPostID,
@@ -232,14 +232,14 @@ func TestCommentService_CreateComment(t *testing.T) {
 	})
 }
 
-func TestCommentService_UpdateComment(t *testing.T) {
+func TestCommentUsecase_UpdateComment(t *testing.T) {
 	t.Run("本人のCommentを更新する", func(t *testing.T) {
-		service, commentRepo, _ := newCommentServiceTest(t)
+		usecase, commentRepo, _ := newCommentUsecaseTest(t)
 		commentRepo.EXPECT().
 			Update(gomock.Any(), testUserID, testCommentID, "updated").
 			Return(int64(1), nil)
 
-		err := service.UpdateComment(
+		err := usecase.UpdateComment(
 			context.Background(),
 			testUserID,
 			testCommentID,
@@ -250,12 +250,12 @@ func TestCommentService_UpdateComment(t *testing.T) {
 	})
 
 	t.Run("他UserのCommentをNotFoundにする", func(t *testing.T) {
-		service, commentRepo, _ := newCommentServiceTest(t)
+		usecase, commentRepo, _ := newCommentUsecaseTest(t)
 		commentRepo.EXPECT().
 			Update(gomock.Any(), testOtherUserID, testCommentID, "updated").
 			Return(int64(0), nil)
 
-		err := service.UpdateComment(
+		err := usecase.UpdateComment(
 			context.Background(),
 			testOtherUserID,
 			testCommentID,
@@ -266,9 +266,9 @@ func TestCommentService_UpdateComment(t *testing.T) {
 	})
 }
 
-func TestCommentService_DeleteComment(t *testing.T) {
+func TestCommentUsecase_DeleteComment(t *testing.T) {
 	t.Run("本人のCommentを削除する", func(t *testing.T) {
-		service, commentRepo, commentLikeRepo := newCommentDeleteServiceTest(t)
+		usecase, commentRepo, commentLikeRepo := newCommentDeleteUsecaseTest(t)
 		commentRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testCommentID).
 			Return(&models.Comment{
@@ -279,14 +279,14 @@ func TestCommentService_DeleteComment(t *testing.T) {
 			DeleteByIDWithReplies(gomock.Any(), testUserID, testCommentID).
 			Return(int64(1), nil)
 
-		err := service.DeleteComment(context.Background(), testUserID, testCommentID)
+		err := usecase.DeleteComment(context.Background(), testUserID, testCommentID)
 
 		require.NoError(t, err)
 		require.Equal(t, [][]models.UUID{{testCommentID}}, commentLikeRepo.deletedCommentIDs)
 	})
 
 	t.Run("他Userまたは削除済みのCommentをNotFoundにする", func(t *testing.T) {
-		service, commentRepo, _ := newCommentDeleteServiceTest(t)
+		usecase, commentRepo, _ := newCommentDeleteUsecaseTest(t)
 		commentRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testCommentID).
 			Return(&models.Comment{
@@ -294,18 +294,18 @@ func TestCommentService_DeleteComment(t *testing.T) {
 				AuthorID:      testUserID,
 			}, nil)
 
-		err := service.DeleteComment(context.Background(), testOtherUserID, testCommentID)
+		err := usecase.DeleteComment(context.Background(), testOtherUserID, testCommentID)
 
 		require.ErrorIs(t, err, ErrCommentNotFound)
 	})
 
 	t.Run("存在しないCommentをNotFoundにする", func(t *testing.T) {
-		service, commentRepo, _ := newCommentDeleteServiceTest(t)
+		usecase, commentRepo, _ := newCommentDeleteUsecaseTest(t)
 		commentRepo.EXPECT().
 			GetByIDForUpdate(gomock.Any(), testCommentID).
 			Return(nil, repositories.ErrCommentNotFound)
 
-		err := service.DeleteComment(context.Background(), testUserID, testCommentID)
+		err := usecase.DeleteComment(context.Background(), testUserID, testCommentID)
 
 		require.ErrorIs(t, err, ErrCommentNotFound)
 	})

@@ -4,7 +4,7 @@ import (
 	docs "Threadly/docs"
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/middleware"
-	"Threadly/internal/usecase/services"
+	"Threadly/internal/usecase"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -12,14 +12,16 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// Handlersは、Routerが必要とするHTTP adapterと認証検証器をまとめる。
 type Handlers struct {
 	Auth        *controllers.AuthController
 	Post        *controllers.PostController
 	Comment     *controllers.CommentController
 	Like        *controllers.LikeController
-	TokenIssuer services.TokenIssuer
+	TokenIssuer usecase.TokenIssuer
 }
 
+// SetupRouterは、公開Routeと認証必須RouteをMiddleware順序込みで構成する。
 func SetupRouter(h Handlers) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())

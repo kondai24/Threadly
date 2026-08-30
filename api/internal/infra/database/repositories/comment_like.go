@@ -11,10 +11,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// CommentLikeRepositoryは、CommentLikeRepository契約をGORMへ適配する。
 type CommentLikeRepository struct {
 	DB *gorm.DB
 }
 
+// NewCommentLikeRepositoryは、指定されたDB handleへ結び付いたCommentLikeRepositoryを生成する。
 func NewCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepository {
 	return &CommentLikeRepository{DB: db}
 }
@@ -25,7 +27,8 @@ func (r *CommentLikeRepository) Ensure(
 	commentID models.UUID,
 ) error {
 	like := &models.CommentLike{UserID: userID, CommentID: commentID}
-	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返してもエラーにしない。
+	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返しても
+	// エラーにしない。
 	result := r.DB.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "user_id"}, {Name: "comment_id"}},
@@ -69,7 +72,9 @@ func (r *CommentLikeRepository) DeleteByCommentIDs(
 	return nil
 }
 
-// DeleteByCommentIDWithRepliesは、対象Commentと直接の返信に紐づくLikeをサブクエリで物理削除する。
+// DeleteByCommentIDWithRepliesは、対象Commentと直接の返信に紐づくLikeを
+// サブクエリで物理削除する。
+// Comment本体の論理削除はCommentRepositoryが担当し、ここではLike行だけを変更する。
 func (r *CommentLikeRepository) DeleteByCommentIDWithReplies(
 	ctx context.Context,
 	commentID models.UUID,
@@ -110,6 +115,7 @@ func (r *CommentLikeRepository) CountByCommentIDs(
 	ctx context.Context,
 	commentIDs []models.UUID,
 ) (map[models.UUID]int64, error) {
+	// 親Commentと返信をまとめたID集合を一括集計し、CommentごとのCOUNTを発行しない。
 	counts := make(map[models.UUID]int64, len(commentIDs))
 	if len(commentIDs) == 0 {
 		return counts, nil
@@ -139,6 +145,7 @@ func (r *CommentLikeRepository) FindLikedCommentIDs(
 	userID models.UUID,
 	commentIDs []models.UUID,
 ) (map[models.UUID]struct{}, error) {
+	// current-userのLike状態だけをID集合で取得し、responseのlikedByMeへ変換できる形にする。
 	likedIDs := make(map[models.UUID]struct{}, len(commentIDs))
 	if len(commentIDs) == 0 {
 		return likedIDs, nil

@@ -1,4 +1,4 @@
-package services
+package usecase
 
 import (
 	"context"
@@ -29,20 +29,23 @@ type CommentListRead struct {
 	Summaries map[models.UUID]models.LikeSummary
 }
 
-type LikeService struct {
+// LikeUsecaseは、Like対象の存在確認、冪等なLike操作、操作後の集計を組み立てるUsecaseである。
+// Likeの内部行は公開せず、対象IDとLikeSummaryだけを上位層へ返す。
+type LikeUsecase struct {
 	postRepo        repositories.PostRepository
 	commentRepo     repositories.CommentRepository
 	postLikeRepo    repositories.PostLikeRepository
 	commentLikeRepo repositories.CommentLikeRepository
 }
 
-func NewLikeService(
+// NewLikeUsecaseは、Post/CommentとLikeテーブルの永続化契約を注入してUsecaseを構築する。
+func NewLikeUsecase(
 	postRepo repositories.PostRepository,
 	commentRepo repositories.CommentRepository,
 	postLikeRepo repositories.PostLikeRepository,
 	commentLikeRepo repositories.CommentLikeRepository,
-) *LikeService {
-	return &LikeService{
+) *LikeUsecase {
+	return &LikeUsecase{
 		postRepo:        postRepo,
 		commentRepo:     commentRepo,
 		postLikeRepo:    postLikeRepo,
@@ -50,79 +53,84 @@ func NewLikeService(
 	}
 }
 
-func (s *LikeService) LikePost(
+// LikePostは、有効なPostへLikeを作成または維持し、最新の集計を返す。
+func (u *LikeUsecase) LikePost(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
 ) (LikeActionResult, error) {
-	if err := s.ensurePost(ctx, postID); err != nil {
+	if err := u.ensurePost(ctx, postID); err != nil {
 		return LikeActionResult{}, err
 	}
-	if err := s.postLikeRepo.Ensure(ctx, userID, postID); err != nil {
+	if err := u.postLikeRepo.Ensure(ctx, userID, postID); err != nil {
 		return LikeActionResult{}, fmt.Errorf("ensure post like: %w", err)
 	}
-	summary, err := s.postSummary(ctx, userID, postID)
+	summary, err := u.postSummary(ctx, userID, postID)
 	if err != nil {
 		return LikeActionResult{}, err
 	}
 	return LikeActionResult{TargetID: postID, Summary: summary}, nil
 }
 
-func (s *LikeService) UnlikePost(
+// UnlikePostは、有効なPostから認証済みUserのLikeを削除し、最新の集計を返す。
+func (u *LikeUsecase) UnlikePost(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
 ) (LikeActionResult, error) {
-	if err := s.ensurePost(ctx, postID); err != nil {
+	if err := u.ensurePost(ctx, postID); err != nil {
 		return LikeActionResult{}, err
 	}
-	if err := s.postLikeRepo.Delete(ctx, userID, postID); err != nil {
+	if err := u.postLikeRepo.Delete(ctx, userID, postID); err != nil {
 		return LikeActionResult{}, fmt.Errorf("delete post like: %w", err)
 	}
-	summary, err := s.postSummary(ctx, userID, postID)
+	summary, err := u.postSummary(ctx, userID, postID)
 	if err != nil {
 		return LikeActionResult{}, err
 	}
 	return LikeActionResult{TargetID: postID, Summary: summary}, nil
 }
 
-func (s *LikeService) LikeComment(
+// LikeCommentは、有効なCommentへLikeを作成または維持し、最新の集計を返す。
+func (u *LikeUsecase) LikeComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
 ) (LikeActionResult, error) {
-	if err := s.ensureCommentTarget(ctx, commentID); err != nil {
+	if err := u.ensureCommentTarget(ctx, commentID); err != nil {
 		return LikeActionResult{}, err
 	}
-	if err := s.commentLikeRepo.Ensure(ctx, userID, commentID); err != nil {
+	if err := u.commentLikeRepo.Ensure(ctx, userID, commentID); err != nil {
 		return LikeActionResult{}, fmt.Errorf("ensure comment like: %w", err)
 	}
-	summary, err := s.commentSummary(ctx, userID, commentID)
+	summary, err := u.commentSummary(ctx, userID, commentID)
 	if err != nil {
 		return LikeActionResult{}, err
 	}
 	return LikeActionResult{TargetID: commentID, Summary: summary}, nil
 }
 
-func (s *LikeService) UnlikeComment(
+// UnlikeCommentは、有効なCommentから認証済みUserのLikeを削除し、最新の集計を返す。
+func (u *LikeUsecase) UnlikeComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
 ) (LikeActionResult, error) {
-	if err := s.ensureCommentTarget(ctx, commentID); err != nil {
+	if err := u.ensureCommentTarget(ctx, commentID); err != nil {
 		return LikeActionResult{}, err
 	}
-	if err := s.commentLikeRepo.Delete(ctx, userID, commentID); err != nil {
+	if err := u.commentLikeRepo.Delete(ctx, userID, commentID); err != nil {
 		return LikeActionResult{}, fmt.Errorf("delete comment like: %w", err)
 	}
-	summary, err := s.commentSummary(ctx, userID, commentID)
+	summary, err := u.commentSummary(ctx, userID, commentID)
 	if err != nil {
 		return LikeActionResult{}, err
 	}
 	return LikeActionResult{TargetID: commentID, Summary: summary}, nil
 }
 
-func (s *LikeService) PostSummaries(
+// PostSummariesは、対象Post集合の件数とcurrent-userのLike状態を一括取得する。
+func (u *LikeUsecase) PostSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	postIDs []models.UUID,
@@ -132,11 +140,11 @@ func (s *LikeService) PostSummaries(
 		return summaries, nil
 	}
 
-	counts, err := s.postLikeRepo.CountByPostIDs(ctx, postIDs)
+	counts, err := u.postLikeRepo.CountByPostIDs(ctx, postIDs)
 	if err != nil {
 		return nil, fmt.Errorf("count post likes: %w", err)
 	}
-	likedIDs, err := s.postLikeRepo.FindLikedPostIDs(ctx, userID, postIDs)
+	likedIDs, err := u.postLikeRepo.FindLikedPostIDs(ctx, userID, postIDs)
 	if err != nil {
 		return nil, fmt.Errorf("find liked posts: %w", err)
 	}
@@ -153,7 +161,8 @@ func (s *LikeService) PostSummaries(
 	return summaries, nil
 }
 
-func (s *LikeService) CommentSummaries(
+// CommentSummariesは、対象Comment集合の件数とcurrent-userのLike状態を一括取得する。
+func (u *LikeUsecase) CommentSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	commentIDs []models.UUID,
@@ -163,11 +172,11 @@ func (s *LikeService) CommentSummaries(
 		return summaries, nil
 	}
 
-	counts, err := s.commentLikeRepo.CountByCommentIDs(ctx, commentIDs)
+	counts, err := u.commentLikeRepo.CountByCommentIDs(ctx, commentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("count comment likes: %w", err)
 	}
-	likedIDs, err := s.commentLikeRepo.FindLikedCommentIDs(ctx, userID, commentIDs)
+	likedIDs, err := u.commentLikeRepo.FindLikedCommentIDs(ctx, userID, commentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("find liked comments: %w", err)
 	}
@@ -184,8 +193,8 @@ func (s *LikeService) CommentSummaries(
 	return summaries, nil
 }
 
-func (s *LikeService) ensurePost(ctx context.Context, postID models.UUID) error {
-	_, err := s.postRepo.GetByID(ctx, postID)
+func (u *LikeUsecase) ensurePost(ctx context.Context, postID models.UUID) error {
+	_, err := u.postRepo.GetByID(ctx, postID)
 	if errors.Is(err, repositories.ErrPostNotFound) {
 		return ErrLikeTargetNotFound
 	}
@@ -195,38 +204,40 @@ func (s *LikeService) ensurePost(ctx context.Context, postID models.UUID) error 
 	return nil
 }
 
-func (s *LikeService) ensureCommentTarget(ctx context.Context, commentID models.UUID) error {
-	comment, err := s.commentRepo.GetByID(ctx, commentID)
+// ensureCommentTargetは、Commentだけでなく所属Postも有効であることを確認する。
+// 親Postが削除済みなら、外部キーが残っていてもLike対象として公開しない。
+func (u *LikeUsecase) ensureCommentTarget(ctx context.Context, commentID models.UUID) error {
+	comment, err := u.commentRepo.GetByID(ctx, commentID)
 	if errors.Is(err, repositories.ErrCommentNotFound) {
 		return ErrLikeTargetNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("find comment for like: %w", err)
 	}
-	if err := s.ensurePost(ctx, comment.PostID); err != nil {
+	if err := u.ensurePost(ctx, comment.PostID); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *LikeService) postSummary(
+func (u *LikeUsecase) postSummary(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
 ) (models.LikeSummary, error) {
-	summaries, err := s.PostSummaries(ctx, userID, []models.UUID{postID})
+	summaries, err := u.PostSummaries(ctx, userID, []models.UUID{postID})
 	if err != nil {
 		return models.LikeSummary{}, err
 	}
 	return summaries[postID], nil
 }
 
-func (s *LikeService) commentSummary(
+func (u *LikeUsecase) commentSummary(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
 ) (models.LikeSummary, error) {
-	summaries, err := s.CommentSummaries(ctx, userID, []models.UUID{commentID})
+	summaries, err := u.CommentSummaries(ctx, userID, []models.UUID{commentID})
 	if err != nil {
 		return models.LikeSummary{}, err
 	}

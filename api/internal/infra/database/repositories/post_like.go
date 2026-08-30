@@ -11,10 +11,12 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// PostLikeRepositoryは、PostLikeRepository契約をGORMへ適配する。
 type PostLikeRepository struct {
 	DB *gorm.DB
 }
 
+// NewPostLikeRepositoryは、指定されたDB handleへ結び付いたPostLikeRepositoryを生成する。
 func NewPostLikeRepository(db *gorm.DB) repositories.PostLikeRepository {
 	return &PostLikeRepository{DB: db}
 }
@@ -25,7 +27,8 @@ func (r *PostLikeRepository) Ensure(
 	postID models.UUID,
 ) error {
 	like := &models.PostLike{UserID: userID, PostID: postID}
-	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返してもエラーにしない。
+	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返しても
+	// エラーにしない。
 	result := r.DB.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "user_id"}, {Name: "post_id"}},
@@ -69,6 +72,7 @@ func (r *PostLikeRepository) CountByPostIDs(
 	ctx context.Context,
 	postIDs []models.UUID,
 ) (map[models.UUID]int64, error) {
+	// Post一覧の各行を個別COUNTせず、対象ID集合をGROUP BYしてN+1を避ける。
 	counts := make(map[models.UUID]int64, len(postIDs))
 	if len(postIDs) == 0 {
 		return counts, nil
@@ -98,6 +102,7 @@ func (r *PostLikeRepository) FindLikedPostIDs(
 	userID models.UUID,
 	postIDs []models.UUID,
 ) (map[models.UUID]struct{}, error) {
+	// 件数とは別にcurrent-userのLike状態を取得し、全UserのLike情報を公開しない。
 	likedIDs := make(map[models.UUID]struct{}, len(postIDs))
 	if len(postIDs) == 0 {
 		return likedIDs, nil
