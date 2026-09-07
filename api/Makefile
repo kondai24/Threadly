@@ -4,8 +4,8 @@ CMD_DIR := ./cmd/api
 SWAG_MAIN := $(CMD_DIR)/main.go
 SWAG_OUT := ./docs
 BIN_DIR := ./bin
-SWAG := go run github.com/swaggo/swag/cmd/swag@v1.16.6
-MOCKGEN := go run go.uber.org/mock/mockgen@v0.6.0
+SWAG := go tool swag
+MOCKGEN := go tool mockgen
 GO_TEST := go test
 ATLAS ?= atlas
 MIGRATION_DIR := file://migrations
@@ -20,10 +20,8 @@ OTEL_EXPORTER_OTLP_PROTOCOL ?= grpc
 OTEL_TRACES_EXPORTER ?= otlp
 OTEL_METRICS_EXPORTER ?= none
 OTEL_LOGS_EXPORTER ?= none
-GOVULNCHECK_VERSION := v1.6.0
-GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-AIR_VERSION := v1.67.1
-AIR := $(shell go env GOPATH)/bin/air
+GOVULNCHECK := go tool govulncheck
+AIR := go tool air
 
 export DB_USER DB_PASSWORD DB_HOST DB_PORT DB PORT JWT_SECRET COOKIE_SECURE
 export OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL
@@ -32,9 +30,6 @@ export OTEL_TRACES_EXPORTER OTEL_METRICS_EXPORTER OTEL_LOGS_EXPORTER
 .PHONY: tools dev dev-otelc build build-otelc swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
 tools:
-	go install go.uber.org/mock/mockgen@v0.6.0
-	go install github.com/swaggo/swag/cmd/swag@v1.16.6
-	go install github.com/air-verse/air@$(AIR_VERSION)
 	@if command -v "$(ATLAS)" >/dev/null 2>&1; then \
 		echo "Atlas is already installed: $$(command -v "$(ATLAS)")"; \
 	elif command -v brew >/dev/null 2>&1; then \
@@ -45,11 +40,9 @@ tools:
 	fi
 
 dev:
-	@test -x "$(AIR)" || (echo "Air is not installed. Run 'make tools' first." >&2; exit 1)
 	$(AIR) -c .air.toml
 
 dev-otelc:
-	@test -x "$(AIR)" || (echo "Air is not installed. Run 'make tools' first." >&2; exit 1)
 	$(AIR) -c .air-otelc.toml
 
 build:
