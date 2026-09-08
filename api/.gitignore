@@ -1,5 +1,5 @@
 /bin/
 /tmp
-.otelc-build
+/.otelc-build/
 /.otelc-build.lock
-otelc.runtime.go
+/cmd/api/otelc.runtime.go
