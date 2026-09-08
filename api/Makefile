@@ -14,12 +14,6 @@ ENV_FILE ?= .env
 
 DB_SCHEME ?= mysql
 DATABASE_URL ?= $(if $(and $(DB_USER),$(DB_PASSWORD),$(DB_HOST),$(DB_PORT),$(DB)),$(DB_SCHEME)://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB),)
-OTEL_SERVICE_NAME ?= threadly-api
-OTEL_EXPORTER_OTLP_ENDPOINT ?= http://localhost:4317
-OTEL_EXPORTER_OTLP_PROTOCOL ?= grpc
-OTEL_TRACES_EXPORTER ?= otlp
-OTEL_METRICS_EXPORTER ?= none
-OTEL_LOGS_EXPORTER ?= none
 GOVULNCHECK := go tool govulncheck
 AIR := go tool air
 
