@@ -9,6 +9,8 @@ processors:
     actions:
       - key: db.query.text
         action: delete
+      - key: db.statement
+        action: delete
   batch: {}
 
 exporters:
