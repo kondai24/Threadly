@@ -14,14 +14,22 @@ ENV_FILE ?= .env
 
 DB_SCHEME ?= mysql
 DATABASE_URL ?= $(if $(and $(DB_USER),$(DB_PASSWORD),$(DB_HOST),$(DB_PORT),$(DB)),$(DB_SCHEME)://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB),)
+OTEL_SERVICE_NAME ?= threadly-api
+OTEL_EXPORTER_OTLP_ENDPOINT ?= http://localhost:4317
+OTEL_EXPORTER_OTLP_PROTOCOL ?= grpc
+OTEL_TRACES_EXPORTER ?= otlp
+OTEL_METRICS_EXPORTER ?= none
+OTEL_LOGS_EXPORTER ?= none
 GOVULNCHECK_VERSION := v1.6.0
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 AIR_VERSION := v1.67.1
 AIR := $(shell go env GOPATH)/bin/air
 
 export DB_USER DB_PASSWORD DB_HOST DB_PORT DB PORT JWT_SECRET COOKIE_SECURE
+export OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL
+export OTEL_TRACES_EXPORTER OTEL_METRICS_EXPORTER OTEL_LOGS_EXPORTER
 
-.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
+.PHONY: tools dev dev-otelc build build-otelc swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
 tools:
 	go install go.uber.org/mock/mockgen@v0.6.0
@@ -40,9 +48,17 @@ dev:
 	@test -x "$(AIR)" || (echo "Air is not installed. Run 'make tools' first." >&2; exit 1)
 	$(AIR) -c .air.toml
 
+dev-otelc:
+	@test -x "$(AIR)" || (echo "Air is not installed. Run 'make tools' first." >&2; exit 1)
+	$(AIR) -c .air-otelc.toml
+
 build:
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/main $(SWAG_MAIN)
+
+build-otelc:
+	mkdir -p $(BIN_DIR)
+	go tool otelc go build -o $(BIN_DIR)/main-otelc $(SWAG_MAIN)
 
 swag:
 	$(SWAG) init \
