@@ -24,6 +24,15 @@ services:
     ports:
       - 3307:3306
 
+  # Tempo/Loki run as UID 10001, while new named volumes are root-owned.
+  # Fix the ownership automatically before either storage service starts.
+  observability-storage-init:
+    image: alpine:3.22
+    command: ["sh", "-c", "chown -R 10001:10001 /tempo /loki"]
+    volumes:
+      - tempo_data:/tempo
+      - loki_data:/loki
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.160.0
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
@@ -37,6 +46,9 @@ services:
   tempo:
     image: grafana/tempo:2.8.2
     command: ["-config.file=/etc/tempo/tempo.yaml"]
+    depends_on:
+      observability-storage-init:
+        condition: service_completed_successfully
     volumes:
       - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo_data:/tmp/tempo
@@ -46,6 +58,9 @@ services:
   loki:
     image: grafana/loki:3.7.0
     command: ["-config.file=/etc/loki/loki.yaml"]
+    depends_on:
+      observability-storage-init:
+        condition: service_completed_successfully
     volumes:
       - ./loki.yaml:/etc/loki/loki.yaml:ro
       - loki_data:/tmp/loki
