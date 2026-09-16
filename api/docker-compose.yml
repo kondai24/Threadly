@@ -24,6 +24,68 @@ services:
     ports:
       - 3307:3306
 
+  # Tempo/Loki run as UID 10001, while new named volumes are root-owned.
+  # Fix the ownership automatically before either storage service starts.
+  observability-storage-init:
+    image: alpine:3.22
+    command: ["sh", "-c", "chown -R 10001:10001 /tempo /loki"]
+    volumes:
+      - tempo_data:/tempo
+      - loki_data:/loki
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - 4317:4317
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    depends_on:
+      observability-storage-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/tmp/tempo
+    ports:
+      - 3200:3200
+
+  loki:
+    image: grafana/loki:3.7.0
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    depends_on:
+      observability-storage-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+      - loki_data:/tmp/loki
+
+  prometheus:
+    image: prom/prometheus:v3.5.5
+    command: ["--config.file=/etc/prometheus/prometheus.yaml"]
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - 3000:3000
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+
 volumes:
   db_data:
   test_db_data:
+  tempo_data:
+  loki_data:
+  prometheus_data:
