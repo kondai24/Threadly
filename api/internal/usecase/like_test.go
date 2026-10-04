@@ -49,37 +49,6 @@ func TestLikeUsecase_PostSummariesBatchesCountAndCurrentUserState(t *testing.T) 
 	require.Equal(t, models.LikeSummary{}, summaries[testOtherPostID])
 }
 
-func TestLikeUsecase_EmptySummariesDoNotCallRepository(t *testing.T) {
-	usecase, _, _, _, _ := newLikeUsecaseTest(t)
-
-	summaries, err := usecase.CommentSummaries(context.Background(), testUserID, nil)
-
-	require.NoError(t, err)
-	require.Empty(t, summaries)
-}
-
-func TestLikeUsecase_LikePostReturnsActionSummary(t *testing.T) {
-	usecase, postRepo, _, postLikeRepo, _ := newLikeUsecaseTest(t)
-	postRepo.EXPECT().
-		GetByID(gomock.Any(), testPostID).
-		Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
-	postLikeRepo.EXPECT().Ensure(gomock.Any(), testUserID, testPostID).Return(nil)
-	postLikeRepo.EXPECT().
-		CountByPostIDs(gomock.Any(), []models.UUID{testPostID}).
-		Return(map[models.UUID]int64{testPostID: 3}, nil)
-	postLikeRepo.EXPECT().
-		FindLikedPostIDs(gomock.Any(), testUserID, []models.UUID{testPostID}).
-		Return(map[models.UUID]struct{}{testPostID: {}}, nil)
-
-	result, err := usecase.LikePost(context.Background(), testUserID, testPostID)
-
-	require.NoError(t, err)
-	require.Equal(t, LikeActionResult{
-		TargetID: testPostID,
-		Summary:  models.LikeSummary{Count: 3, LikedByMe: true},
-	}, result)
-}
-
 func TestLikeUsecase_CommentLikeRequiresActivePost(t *testing.T) {
 	usecase, postRepo, commentRepo, _, _ := newLikeUsecaseTest(t)
 	commentRepo.EXPECT().

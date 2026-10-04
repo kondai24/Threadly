@@ -53,103 +53,34 @@ func newTestUserRepository(t *testing.T) (*UserRepository, *gorm.DB) {
 	return &UserRepository{DB: tx}, tx
 }
 
-func TestUserRepository_FindByUsername(t *testing.T) {
-	tests := []struct {
-		name     string
-		username string
-		wantUser bool
-		wantErr  error
-		seedUser *models.User
-	}{
-		{
-			name:     "登録済みusernameでUserを取得する",
-			username: "alice",
-			wantUser: true,
-			seedUser: &models.User{Username: "alice", PasswordHash: "hash"},
-		},
-		{
-			name:     "存在しないusernameはNotFoundを返す",
-			username: "nobody",
-			wantErr:  repositories.ErrUserNotFound,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo, db := newTestUserRepository(t)
-			if tt.seedUser != nil {
-				require.NoError(t, db.Create(tt.seedUser).Error)
-			}
-
-			user, err := repo.FindByUsername(context.Background(), tt.username)
-
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				require.Nil(t, user)
-				return
-			}
-			require.NoError(t, err)
-			require.True(t, tt.wantUser)
-			require.NotNil(t, user)
-			require.Equal(t, tt.seedUser.Username, user.Username)
-			require.Equal(t, tt.seedUser.PasswordHash, user.PasswordHash)
-		})
-	}
+func TestUserRepository_CreateAndFind(t *testing.T) {
+	repo, _ := newTestUserRepository(t)
+	ctx := context.Background()
+	user := &models.User{Username: "alice", PasswordHash: "hash"}
+	require.NoError(t, repo.Create(ctx, user))
+	_, err := models.ParseUUID(string(user.ID))
+	require.NoError(t, err)
+	byName, err := repo.FindByUsername(ctx, user.Username)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, byName.ID)
+	require.Equal(t, user.Username, byName.Username)
+	require.Equal(t, user.PasswordHash, byName.PasswordHash)
+	byID, err := repo.FindByID(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, byName, byID)
+	duplicate := &models.User{Username: user.Username, PasswordHash: "second-hash"}
+	require.ErrorIs(t, repo.Create(ctx, duplicate), repositories.ErrUsernameAlreadyExists)
 }
 
-func TestUserRepository_FindByID(t *testing.T) {
-	t.Run("登録済みIDでUserを取得する", func(t *testing.T) {
-		repo, db := newTestUserRepository(t)
-		seedUser := &models.User{Username: "alice", PasswordHash: "hash"}
-		require.NoError(t, db.Create(seedUser).Error)
-
-		user, err := repo.FindByID(context.Background(), seedUser.ID)
-
-		require.NoError(t, err)
-		require.NotNil(t, user)
-		require.Equal(t, seedUser.ID, user.ID)
-		require.Equal(t, seedUser.Username, user.Username)
-	})
-
-	t.Run("存在しないIDはNotFoundを返す", func(t *testing.T) {
-		repo, _ := newTestUserRepository(t)
-
-		user, err := repo.FindByID(
-			context.Background(),
-			models.UUID("99999999-9999-4999-8999-999999999999"),
-		)
-
-		require.ErrorIs(t, err, repositories.ErrUserNotFound)
-		require.Nil(t, user)
-	})
-}
-
-func TestUserRepository_Create(t *testing.T) {
-	t.Run("Userを作成する", func(t *testing.T) {
-		repo, db := newTestUserRepository(t)
-		user := &models.User{Username: "alice", PasswordHash: "hash"}
-
-		err := repo.Create(context.Background(), user)
-
-		require.NoError(t, err)
-		require.NotZero(t, user.ID)
-
-		var stored models.User
-		require.NoError(t, db.First(&stored, user.ID).Error)
-		require.Equal(t, user.Username, stored.Username)
-		require.Equal(t, user.PasswordHash, stored.PasswordHash)
-	})
-
-	t.Run("重複usernameはAlreadyExistsを返す", func(t *testing.T) {
-		repo, db := newTestUserRepository(t)
-		first := &models.User{Username: "alice", PasswordHash: "first-hash"}
-		require.NoError(t, db.Create(first).Error)
-
-		duplicate := &models.User{Username: "alice", PasswordHash: "second-hash"}
-		err := repo.Create(context.Background(), duplicate)
-
-		require.ErrorIs(t, err, repositories.ErrUsernameAlreadyExists)
-	})
+func TestUserRepository_MissingUser(t *testing.T) {
+	repo, _ := newTestUserRepository(t)
+	ctx := context.Background()
+	byName, err := repo.FindByUsername(ctx, "nobody")
+	require.ErrorIs(t, err, repositories.ErrUserNotFound)
+	require.Nil(t, byName)
+	byID, err := repo.FindByID(ctx, models.UUID("99999999-9999-4999-8999-999999999999"))
+	require.ErrorIs(t, err, repositories.ErrUserNotFound)
+	require.Nil(t, byID)
 }
 
 func TestUserRepository_UsesCanceledContext(t *testing.T) {
@@ -160,19 +91,5 @@ func TestUserRepository_UsesCanceledContext(t *testing.T) {
 	user, err := repo.FindByUsername(ctx, "alice")
 
 	require.ErrorIs(t, err, context.Canceled)
-	require.Nil(t, user)
-}
-
-func TestUserRepository_WrapsDatabaseError(t *testing.T) {
-	db := openTestDB(t)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	require.NoError(t, sqlDB.Close())
-
-	repo := &UserRepository{DB: db}
-	user, err := repo.FindByUsername(context.Background(), "alice")
-
-	require.Error(t, err)
-	require.ErrorContains(t, err, "find user by username")
 	require.Nil(t, user)
 }

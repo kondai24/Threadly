@@ -1,96 +1,95 @@
 package dto
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/usecase"
+
+	"github.com/stretchr/testify/require"
 )
 
-func TestPostListResponsesFromModelsUsesPublicFields(t *testing.T) {
-	createdAt := time.Date(2026, 8, 16, 4, 0, 0, 0, time.UTC)
-	posts := []*models.Post{
-		{
-			UUIDBaseModel: models.UUIDBaseModel{ID: "77777777-7777-4777-8777-777777777777", CreatedAt: createdAt},
-			Author: models.User{
-				UUIDBaseModel: models.UUIDBaseModel{ID: "11111111-1111-4111-8111-111111111111"},
-				Username:      "alice",
-				PasswordHash:  "must-not-leak",
-			},
-			Title:   "title",
-			Content: "content",
+func TestResponsesExposePublicJSONContracts(t *testing.T) {
+	timestamp := time.Date(2026, 8, 16, 4, 0, 0, 0, time.UTC)
+	user := models.User{
+		UUIDBaseModel: models.UUIDBaseModel{
+			ID: "11111111-1111-4111-8111-111111111111", CreatedAt: timestamp, UpdatedAt: timestamp,
 		},
+		Username:     "alice",
+		PasswordHash: "must-not-leak",
 	}
-
-	responses := PostListResponsesFromModels(posts)
-	if len(responses) != 1 {
-		t.Fatalf("response length = %d, want 1", len(responses))
-	}
-	if responses[0].ID != string(posts[0].ID) || responses[0].Author.ID != string(posts[0].Author.ID) {
-		t.Fatalf("response IDs = %+v, want post and author IDs", responses[0])
-	}
-	if responses[0].Author.Username != "alice" || responses[0].CreatedAt != createdAt {
-		t.Fatalf("response public fields = %+v", responses[0])
-	}
-}
-
-func TestCommentResponseFromModelInitializesEmptyReplies(t *testing.T) {
-	comment := &models.Comment{
-		UUIDBaseModel: models.UUIDBaseModel{ID: "77777777-7777-4777-8777-777777777777"},
-		Author: models.User{
-			UUIDBaseModel: models.UUIDBaseModel{ID: "11111111-1111-4111-8111-111111111111"},
-			Username:      "alice",
-			PasswordHash:  "must-not-leak",
-		},
-		Content: "comment",
-	}
-
-	response := CommentResponseFromModel(comment)
-	if response.Replies == nil {
-		t.Fatal("replies is nil, want an empty slice")
-	}
-	if len(response.Replies) != 0 {
-		t.Fatalf("replies length = %d, want 0", len(response.Replies))
-	}
-	if response.Author.Username != "alice" || response.ID != string(comment.ID) {
-		t.Fatalf("response public fields = %+v", response)
-	}
-}
-
-func TestResponsesIncludeLikeSummaryWithoutInternalFields(t *testing.T) {
 	post := &models.Post{
-		UUIDBaseModel: models.UUIDBaseModel{ID: "77777777-7777-4777-8777-777777777777"},
-		Author: models.User{
-			UUIDBaseModel: models.UUIDBaseModel{ID: "11111111-1111-4111-8111-111111111111"},
-			Username:      "alice",
-			PasswordHash:  "must-not-leak",
+		UUIDBaseModel: models.UUIDBaseModel{
+			ID: "77777777-7777-4777-8777-777777777777", CreatedAt: timestamp, UpdatedAt: timestamp,
 		},
-		Title: "title",
+		Author: user, Title: "title", Content: "content",
 	}
-	response := PostListResponseFromRead(usecase.PostRead{
-		Post:    post,
-		Summary: models.LikeSummary{Count: 3, LikedByMe: true},
-	})
-	if response.LikeCount != 3 || !response.LikedByMe {
-		t.Fatalf("post like summary = %+v", response)
+	reply := &models.Comment{
+		UUIDBaseModel: models.UUIDBaseModel{
+			ID: "99999999-9999-4999-8999-999999999999", CreatedAt: timestamp, UpdatedAt: timestamp,
+		},
+		Author: user, Content: "reply",
 	}
-
 	comment := &models.Comment{
-		UUIDBaseModel: models.UUIDBaseModel{ID: "88888888-8888-4888-8888-888888888888"},
-		Author:        post.Author,
-		Content:       "comment",
-	}
-	commentResponses := CommentResponsesFromRead(usecase.CommentListRead{
-		Comments: []*models.Comment{comment},
-		Summaries: map[models.UUID]models.LikeSummary{
-			comment.ID: {Count: 2, LikedByMe: true},
+		UUIDBaseModel: models.UUIDBaseModel{
+			ID: "88888888-8888-4888-8888-888888888888", CreatedAt: timestamp, UpdatedAt: timestamp,
 		},
-	})
-	if len(commentResponses) != 1 || commentResponses[0].LikeCount != 2 || !commentResponses[0].LikedByMe {
-		t.Fatalf("comment like summary = %+v", commentResponses)
+		Author: user, Content: "comment", Replies: []*models.Comment{reply},
 	}
-	if commentResponses[0].Replies == nil {
-		t.Fatal("replies is nil, want an empty slice")
+	cases := []struct {
+		name     string
+		response any
+		json     string
+	}{
+		{
+			name:     "Userはhashを公開しない",
+			response: UserResponseFromModel(&user),
+			json: `{"id":"11111111-1111-4111-8111-111111111111","username":"alice",
+    "createdAt":"2026-08-16T04:00:00Z","updatedAt":"2026-08-16T04:00:00Z"}`,
+		},
+		{
+			name: "Post一覧は公開投稿者とLike集計を返す",
+			response: PostListResponsesFromReads([]usecase.PostRead{{
+				Post: post, Summary: models.LikeSummary{Count: 3, LikedByMe: true},
+			}}),
+			json: `[{"id":"77777777-7777-4777-8777-777777777777","title":"title",
+    "author":{"id":"11111111-1111-4111-8111-111111111111","username":"alice"},
+    "createdAt":"2026-08-16T04:00:00Z","likeCount":3,"likedByMe":true}]`,
+		},
+		{
+			name: "Post詳細は本文と更新日時を返す",
+			response: PostDetailResponseFromRead(usecase.PostRead{
+				Post: post, Summary: models.LikeSummary{Count: 3, LikedByMe: true},
+			}),
+			json: `{"id":"77777777-7777-4777-8777-777777777777","title":"title","content":"content",
+    "author":{"id":"11111111-1111-4111-8111-111111111111","username":"alice"},
+    "createdAt":"2026-08-16T04:00:00Z","updatedAt":"2026-08-16T04:00:00Z","likeCount":3,"likedByMe":true}`,
+		},
+		{
+			name: "Commentと返信は個別のLike集計と空Repliesを返す",
+			response: CommentResponsesFromRead(usecase.CommentListRead{
+				Comments: []*models.Comment{comment},
+				Summaries: map[models.UUID]models.LikeSummary{
+					comment.ID: {Count: 2, LikedByMe: true},
+					reply.ID:   {Count: 1},
+				},
+			}),
+			json: `[{"id":"88888888-8888-4888-8888-888888888888","content":"comment",
+    "author":{"id":"11111111-1111-4111-8111-111111111111","username":"alice"},
+    "createdAt":"2026-08-16T04:00:00Z","updatedAt":"2026-08-16T04:00:00Z","likeCount":2,"likedByMe":true,
+    "replies":[{"id":"99999999-9999-4999-8999-999999999999","content":"reply",
+    "author":{"id":"11111111-1111-4111-8111-111111111111","username":"alice"},
+    "createdAt":"2026-08-16T04:00:00Z","updatedAt":"2026-08-16T04:00:00Z","likeCount":1,"likedByMe":false,
+    "replies":[]}]}]`,
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			body, err := json.Marshal(tt.response)
+			require.NoError(t, err)
+			require.JSONEq(t, tt.json, string(body))
+		})
 	}
 }

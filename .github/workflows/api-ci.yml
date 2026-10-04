@@ -42,6 +42,43 @@ jobs:
       - name: test
         run: go test -v ./...
 
+  integration-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    services:
+      mysql:
+        image: mysql:8.0.36
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: threadly_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ppassword"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:password@127.0.0.1:3307/threadly_test
+      TEST_DATABASE_DSN: root:password@tcp(127.0.0.1:3307)/threadly_test?parseTime=True
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.13"
+          cache: true
+          cache-dependency-path: api/go.sum
+
+      - name: setup atlas
+        uses: ariga/setup-atlas@v0
+
+      - name: integration test
+        run: make ENV_FILE=/dev/null GO_TEST='go test -count=1' integration-test
+
   lint:
     runs-on: ubuntu-latest
 

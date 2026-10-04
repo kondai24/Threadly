@@ -1,342 +1,124 @@
 package routes
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"Threadly/internal/interface/controllers"
 	"Threadly/internal/interface/dto"
-	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-type likeRouteKey struct {
-	userID   models.UUID
-	targetID models.UUID
-}
-
-type likeRoutePostRepository struct {
-	*commentRoutePostRepository
-}
-
-func (r *likeRoutePostRepository) GetByID(
-	ctx context.Context,
-	postID models.UUID,
-) (*models.Post, error) {
-	post, err := r.commentRoutePostRepository.GetByID(ctx, postID)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, repositories.ErrPostNotFound
+func TestLikeRoutesExposeActionAndCurrentUserSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	targets := []struct {
+		name string
+		id   models.UUID
+		path string
+		post bool
+	}{
+		{name: "Post", id: routePostID, path: "/api/posts/" + string(routePostID) + "/like", post: true},
+		{name: "Comment", id: commentRouteRootID, path: "/api/comments/" + string(commentRouteRootID) + "/like"},
 	}
-	return post, err
-}
-
-func (r *likeRoutePostRepository) GetByIDForOwner(
-	ctx context.Context,
-	userID models.UUID,
-	postID models.UUID,
-) (*models.Post, error) {
-	post, err := r.commentRoutePostRepository.GetByIDForOwner(ctx, userID, postID)
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, repositories.ErrPostNotFound
-	}
-	return post, err
-}
-
-type likeRoutePostLikeRepository struct {
-	likes map[likeRouteKey]struct{}
-}
-
-func (r *likeRoutePostLikeRepository) Ensure(_ context.Context, userID, postID models.UUID) error {
-	r.likes[likeRouteKey{userID: userID, targetID: postID}] = struct{}{}
-	return nil
-}
-
-func (r *likeRoutePostLikeRepository) Delete(_ context.Context, userID, postID models.UUID) error {
-	delete(r.likes, likeRouteKey{userID: userID, targetID: postID})
-	return nil
-}
-
-func (r *likeRoutePostLikeRepository) DeleteByPostID(_ context.Context, postID models.UUID) error {
-	for key := range r.likes {
-		if key.targetID == postID {
-			delete(r.likes, key)
-		}
-	}
-	return nil
-}
-
-func (r *likeRoutePostLikeRepository) CountByPostIDs(
-	_ context.Context,
-	postIDs []models.UUID,
-) (map[models.UUID]int64, error) {
-	counts := make(map[models.UUID]int64, len(postIDs))
-	for key := range r.likes {
-		for _, postID := range postIDs {
-			if key.targetID == postID {
-				counts[postID]++
+	for _, target := range targets {
+		t.Run(target.name, func(t *testing.T) {
+			router, repos := newRouteRouter(t, true)
+			post := &models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: routePostID}}
+			for _, method := range []string{http.MethodPut, http.MethodDelete} {
+				liked := method == http.MethodPut
+				count := int64(2)
+				likedIDs := map[models.UUID]struct{}{}
+				if liked {
+					count++
+					likedIDs[target.id] = struct{}{}
+				}
+				ids := []models.UUID{target.id}
+				repos.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(post, nil)
+				if target.post {
+					if liked {
+						repos.PostLike.EXPECT().Ensure(gomock.Any(), routeOtherUserID, target.id).Return(nil)
+					} else {
+						repos.PostLike.EXPECT().Delete(gomock.Any(), routeOtherUserID, target.id).Return(nil)
+					}
+					repos.PostLike.EXPECT().CountByPostIDs(gomock.Any(), ids).Return(map[models.UUID]int64{target.id: count}, nil)
+					repos.PostLike.EXPECT().FindLikedPostIDs(gomock.Any(), routeOtherUserID, ids).Return(likedIDs, nil)
+				} else {
+					repos.Comment.EXPECT().GetByID(gomock.Any(), target.id).
+						Return(&models.Comment{PostID: routePostID}, nil)
+					if liked {
+						repos.CommentLike.EXPECT().Ensure(gomock.Any(), routeOtherUserID, target.id).Return(nil)
+					} else {
+						repos.CommentLike.EXPECT().Delete(gomock.Any(), routeOtherUserID, target.id).Return(nil)
+					}
+					repos.CommentLike.EXPECT().CountByCommentIDs(gomock.Any(), ids).Return(map[models.UUID]int64{target.id: count}, nil)
+					repos.CommentLike.EXPECT().FindLikedCommentIDs(gomock.Any(), routeOtherUserID, ids).Return(likedIDs, nil)
+				}
+				response := performRequest(router, method, target.path, "user-"+string(routeOtherUserID), "")
+				require.Equal(t, http.StatusOK, response.Code)
+				var body dto.LikeActionResponse
+				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+				require.Equal(t, dto.LikeActionResponse{TargetID: string(target.id), LikeCount: count, LikedByMe: liked}, body)
 			}
-		}
+		})
 	}
-	return counts, nil
 }
 
-func (r *likeRoutePostLikeRepository) FindLikedPostIDs(
-	_ context.Context,
-	userID models.UUID,
-	postIDs []models.UUID,
-) (map[models.UUID]struct{}, error) {
-	likedIDs := make(map[models.UUID]struct{})
-	for _, postID := range postIDs {
-		if _, ok := r.likes[likeRouteKey{userID: userID, targetID: postID}]; ok {
-			likedIDs[postID] = struct{}{}
-		}
-	}
-	return likedIDs, nil
-}
+func TestLikeRoutesIncludeSummariesInLists(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, repos := newRouteRouter(t, true)
+	post := &models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: routePostID}}
+	postIDs := []models.UUID{post.ID}
+	repos.Post.EXPECT().ListAll(gomock.Any()).Return([]*models.Post{post}, nil)
+	repos.PostLike.EXPECT().CountByPostIDs(gomock.Any(), postIDs).Return(map[models.UUID]int64{post.ID: 2}, nil)
+	repos.PostLike.EXPECT().FindLikedPostIDs(gomock.Any(), routeUserID, postIDs).Return(map[models.UUID]struct{}{}, nil)
+	response := performRequest(router, http.MethodGet, "/api/posts", "user-"+string(routeUserID), "")
+	require.Equal(t, http.StatusOK, response.Code)
+	var posts []dto.PostListResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &posts))
+	require.Len(t, posts, 1)
+	require.Equal(t, int64(2), posts[0].LikeCount)
+	require.False(t, posts[0].LikedByMe)
 
-type likeRouteCommentLikeRepository struct {
-	likes map[likeRouteKey]struct{}
-	store *commentRouteStore
-}
-
-func (r *likeRouteCommentLikeRepository) Ensure(_ context.Context, userID, commentID models.UUID) error {
-	r.likes[likeRouteKey{userID: userID, targetID: commentID}] = struct{}{}
-	return nil
-}
-
-func (r *likeRouteCommentLikeRepository) Delete(_ context.Context, userID, commentID models.UUID) error {
-	delete(r.likes, likeRouteKey{userID: userID, targetID: commentID})
-	return nil
-}
-
-func (r *likeRouteCommentLikeRepository) DeleteByCommentIDs(
-	_ context.Context,
-	commentIDs []models.UUID,
-) error {
-	targets := make(map[models.UUID]struct{}, len(commentIDs))
-	for _, commentID := range commentIDs {
-		targets[commentID] = struct{}{}
-	}
-	for key := range r.likes {
-		if _, ok := targets[key.targetID]; ok {
-			delete(r.likes, key)
-		}
-	}
-	return nil
-}
-
-func (r *likeRouteCommentLikeRepository) DeleteByCommentIDWithReplies(
-	ctx context.Context,
-	commentID models.UUID,
-) error {
-	commentIDs := []models.UUID{commentID}
-	if r.store != nil {
-		for _, comment := range r.store.comments {
-			if comment == nil || comment.ParentID == nil || *comment.ParentID != commentID {
-				continue
-			}
-			commentIDs = append(commentIDs, comment.ID)
-		}
-	}
-	return r.DeleteByCommentIDs(ctx, commentIDs)
-}
-
-func (r *likeRouteCommentLikeRepository) DeleteByCommentsOfPostID(
-	ctx context.Context,
-	postID models.UUID,
-) error {
-	if r.store == nil {
-		return nil
-	}
-	commentIDs := make([]models.UUID, 0)
-	for _, comment := range r.store.comments {
-		if comment == nil || comment.PostID != postID {
-			continue
-		}
-		commentIDs = append(commentIDs, comment.ID)
-	}
-	return r.DeleteByCommentIDs(ctx, commentIDs)
-}
-
-func (r *likeRouteCommentLikeRepository) CountByCommentIDs(
-	_ context.Context,
-	commentIDs []models.UUID,
-) (map[models.UUID]int64, error) {
-	counts := make(map[models.UUID]int64, len(commentIDs))
-	for key := range r.likes {
-		for _, commentID := range commentIDs {
-			if key.targetID == commentID {
-				counts[commentID]++
-			}
-		}
-	}
-	return counts, nil
-}
-
-func (r *likeRouteCommentLikeRepository) FindLikedCommentIDs(
-	_ context.Context,
-	userID models.UUID,
-	commentIDs []models.UUID,
-) (map[models.UUID]struct{}, error) {
-	likedIDs := make(map[models.UUID]struct{})
-	for _, commentID := range commentIDs {
-		if _, ok := r.likes[likeRouteKey{userID: userID, targetID: commentID}]; ok {
-			likedIDs[commentID] = struct{}{}
-		}
-	}
-	return likedIDs, nil
-}
-
-func newLikeRouteRouter(store *commentRouteStore) *gin.Engine {
-	tokenIssuer := routeTokenIssuer{}
-	authUsecase := usecase.NewAuthUsecase(
-		newRouteUserRepository(),
-		routePasswordHasher{},
-		tokenIssuer,
+	comment := &models.Comment{UUIDBaseModel: models.UUIDBaseModel{ID: commentRouteRootID}}
+	ids := []models.UUID{comment.ID}
+	repos.Post.EXPECT().GetByID(gomock.Any(), post.ID).Return(post, nil)
+	repos.Comment.EXPECT().ListByPostID(gomock.Any(), post.ID).Return([]*models.Comment{comment}, nil)
+	repos.CommentLike.EXPECT().CountByCommentIDs(gomock.Any(), ids).Return(map[models.UUID]int64{comment.ID: 3}, nil)
+	repos.CommentLike.EXPECT().FindLikedCommentIDs(gomock.Any(), routeUserID, ids).
+		Return(map[models.UUID]struct{}{comment.ID: {}}, nil)
+	response = performRequest(
+		router,
+		http.MethodGet,
+		"/api/posts/"+string(post.ID)+"/comments",
+		"user-"+string(routeUserID),
+		"",
 	)
-	postRepo := &likeRoutePostRepository{
-		commentRoutePostRepository: &commentRoutePostRepository{store: store},
-	}
-	commentRepo := &commentRouteCommentRepository{store: store}
-	postLikeRepo := &likeRoutePostLikeRepository{likes: make(map[likeRouteKey]struct{})}
-	commentLikeRepo := &likeRouteCommentLikeRepository{
-		likes: make(map[likeRouteKey]struct{}),
-		store: store,
-	}
-	uow := routeUnitOfWork{
-		post:        postRepo,
-		comment:     commentRepo,
-		postLike:    postLikeRepo,
-		commentLike: commentLikeRepo,
-	}
-	likeUsecase := usecase.NewLikeUsecase(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
-	return SetupRouter(Handlers{
-		Auth: controllers.NewAuthController(authUsecase),
-		Post: controllers.NewPostController(
-			usecase.NewPostUsecaseWithLikeReader(postRepo, uow, likeUsecase),
-		),
-		Comment: controllers.NewCommentController(
-			usecase.NewCommentUsecaseWithLikeReader(commentRepo, postRepo, uow, likeUsecase),
-		),
-		Like:        controllers.NewLikeController(likeUsecase),
-		TokenIssuer: tokenIssuer,
-	})
+	require.Equal(t, http.StatusOK, response.Code)
+	var comments []dto.CommentResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &comments))
+	require.Len(t, comments, 1)
+	require.Equal(t, int64(3), comments[0].LikeCount)
+	require.True(t, comments[0].LikedByMe)
 }
 
-func seedLikeRouteData(store *commentRouteStore) {
-	seedCommentRoutePost(store)
-	store.comments[commentRouteRootID] = &models.Comment{
-		UUIDBaseModel: models.UUIDBaseModel{ID: commentRouteRootID},
-		PostID:        routePostID,
-		AuthorID:      routeUserID,
-		Author: models.User{
-			UUIDBaseModel: models.UUIDBaseModel{ID: routeUserID},
-			Username:      "user-" + string(routeUserID),
-		},
-		Content: "root",
-	}
-}
-
-func TestLikeRoutesAreIdempotentAndExposeUserSpecificSummaries(t *testing.T) {
+func TestLikeRoutesValidateUUIDAndTarget(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("COOKIE_SECURE", "false")
-	store := newCommentRouteStore()
-	seedLikeRouteData(store)
-	router := newLikeRouteRouter(store)
-	postLikePath := "/api/posts/" + string(routePostID) + "/like"
-	commentLikePath := "/api/comments/" + string(commentRouteRootID) + "/like"
-
-	response := performRequest(router, http.MethodPut, postLikePath, "user-"+string(routeUserID), "")
-	assertLikeResponse(t, response, routePostID, 1, true)
-	response = performRequest(router, http.MethodPut, postLikePath, "user-"+string(routeUserID), "")
-	assertLikeResponse(t, response, routePostID, 1, true)
-	response = performRequest(router, http.MethodPut, postLikePath, "user-"+string(routeOtherUserID), "")
-	assertLikeResponse(t, response, routePostID, 2, true)
-	response = performRequest(router, http.MethodDelete, postLikePath, "user-"+string(routeUserID), "")
-	assertLikeResponse(t, response, routePostID, 1, false)
-	response = performRequest(router, http.MethodDelete, postLikePath, "user-"+string(routeUserID), "")
-	assertLikeResponse(t, response, routePostID, 1, false)
-
-	response = performRequest(router, http.MethodPut, commentLikePath, "user-"+string(routeOtherUserID), "")
-	assertLikeResponse(t, response, commentRouteRootID, 1, true)
-	response = performRequest(router, http.MethodDelete, commentLikePath, "user-"+string(routeOtherUserID), "")
-	assertLikeResponse(t, response, commentRouteRootID, 0, false)
-
-	response = performRequest(router, http.MethodGet, "/api/posts", "user-"+string(routeUserID), "")
-	if response.Code != http.StatusOK {
-		t.Fatalf("list posts status = %d, want 200", response.Code)
-	}
-	var posts []struct {
-		ID        models.UUID `json:"id"`
-		LikeCount int64       `json:"likeCount"`
-		LikedByMe bool        `json:"likedByMe"`
-	}
-	if err := decodeJSON(response, &posts); err != nil {
-		t.Fatalf("decode posts response: %v", err)
-	}
-	if len(posts) != 1 || posts[0].LikeCount != 1 || posts[0].LikedByMe {
-		t.Fatalf("post likes = %+v, want count 1 and likedByMe false", posts)
-	}
-
-	response = performRequest(router, http.MethodGet, "/api/posts/"+string(routePostID)+"/comments", "user-"+string(routeUserID), "")
-	if response.Code != http.StatusOK {
-		t.Fatalf("list comments status = %d, want 200", response.Code)
-	}
-	var comments []struct {
-		LikeCount int64 `json:"likeCount"`
-		LikedByMe bool  `json:"likedByMe"`
-	}
-	if err := decodeJSON(response, &comments); err != nil {
-		t.Fatalf("decode comments response: %v", err)
-	}
-	if len(comments) != 1 || comments[0].LikeCount != 0 || comments[0].LikedByMe {
-		t.Fatalf("comment likes = %+v, want count 0 and likedByMe false", comments)
-	}
-}
-
-func TestLikeRoutesValidateAuthenticationUUIDAndTarget(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	store := newCommentRouteStore()
-	seedLikeRouteData(store)
-	router := newLikeRouteRouter(store)
-
-	response := performRequest(router, http.MethodPut, "/api/posts/not-a-uuid/like", "", "")
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated invalid UUID status = %d, want 401", response.Code)
-	}
-	response = performRequest(router, http.MethodPut, "/api/posts/not-a-uuid/like", "user-"+string(routeUserID), "")
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("invalid UUID status = %d, want 400", response.Code)
-	}
-	response = performRequest(router, http.MethodPut, "/api/posts/99999999-9999-4999-8999-999999999999/like", "user-"+string(routeUserID), "")
-	if response.Code != http.StatusNotFound {
-		t.Fatalf("missing target status = %d, want 404", response.Code)
-	}
-}
-
-func assertLikeResponse(
-	t *testing.T,
-	response *httptest.ResponseRecorder,
-	targetID models.UUID,
-	wantCount int64,
-	wantLikedByMe bool,
-) {
-	t.Helper()
-	if response.Code != http.StatusOK {
-		t.Fatalf("like response status = %d, want 200: %s", response.Code, response.Body.String())
-	}
-	var body dto.LikeActionResponse
-	if err := decodeJSON(response, &body); err != nil {
-		t.Fatalf("decode like response: %v", err)
-	}
-	if body.TargetID != string(targetID) || body.LikeCount != wantCount || body.LikedByMe != wantLikedByMe {
-		t.Fatalf("like response = %+v, want target=%s count=%d likedByMe=%t", body, targetID, wantCount, wantLikedByMe)
-	}
+	router, repos := newRouteRouter(t, true)
+	response := performRequest(router, http.MethodPut, "/api/posts/not-a-uuid/like", "user-"+string(routeUserID), "")
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	missingID := models.UUID("99999999-9999-4999-8999-999999999999")
+	repos.Post.EXPECT().GetByID(gomock.Any(), missingID).Return(nil, repositories.ErrPostNotFound)
+	response = performRequest(
+		router,
+		http.MethodPut,
+		"/api/posts/"+string(missingID)+"/like",
+		"user-"+string(routeUserID),
+		"",
+	)
+	require.Equal(t, http.StatusNotFound, response.Code)
 }

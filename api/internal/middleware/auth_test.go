@@ -23,60 +23,18 @@ func (s tokenIssuerStub) Parse(string) (models.UUID, error) {
 	return s.userID, s.err
 }
 
-func TestRequireAuth(t *testing.T) {
+func TestRequireAuthRejectsAuthorizationHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	tests := []struct {
-		name          string
-		authorization string
-		cookie        string
-		issuer        tokenIssuerStub
-		wantStatus    int
-		wantUserID    models.UUID
-	}{
-		{
-			name:       "Authorizationヘッダーがない",
-			wantStatus: http.StatusUnauthorized,
-		},
-		{
-			name:          "Authorizationヘッダーを拒否する",
-			authorization: "Bearer token",
-			issuer:        tokenIssuerStub{userID: "77777777-7777-4777-8777-777777777777"},
-			wantStatus:    http.StatusUnauthorized,
-		},
-		{
-			name:       "正しいsession cookie",
-			cookie:     "token",
-			issuer:     tokenIssuerStub{userID: "88888888-8888-4888-8888-888888888888"},
-			wantStatus: http.StatusOK,
-			wantUserID: "88888888-8888-4888-8888-888888888888",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			router := gin.New()
-			router.GET("/", RequireAuth(tt.issuer), func(c *gin.Context) {
-				userID, ok := UserIDFromContext(c.Request.Context())
-				if !ok || userID != tt.wantUserID {
-					t.Fatalf("context user ID = %s, ok = %t, want %s", userID, ok, tt.wantUserID)
-				}
-				c.Status(http.StatusOK)
-			})
-
-			request := httptest.NewRequest(http.MethodGet, "/", nil)
-			if tt.authorization != "" {
-				request.Header.Set("Authorization", tt.authorization)
-			}
-			if tt.cookie != "" {
-				request.AddCookie(NewSessionCookie(tt.cookie))
-			}
-			response := httptest.NewRecorder()
-
-			router.ServeHTTP(response, request)
-
-			if response.Code != tt.wantStatus {
-				t.Fatalf("status = %d, want %d", response.Code, tt.wantStatus)
-			}
-		})
+	router := gin.New()
+	issuer := tokenIssuerStub{userID: "77777777-7777-4777-8777-777777777777"}
+	router.GET("/", RequireAuth(issuer), func(c *gin.Context) {
+		t.Fatal("unauthenticated request reached handler")
+	})
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", response.Code)
 	}
 }

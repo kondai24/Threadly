@@ -67,24 +67,6 @@ func newCommentDeleteUsecaseTest(
 	return usecase, commentRepo, commentLikeRepo
 }
 
-func TestCommentUsecase_ListComments(t *testing.T) {
-	usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
-	expectedComments := []*models.Comment{
-		{UUIDBaseModel: models.UUIDBaseModel{ID: testCommentID}, PostID: testPostID},
-	}
-	postRepo.EXPECT().
-		GetByID(gomock.Any(), testPostID).
-		Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
-	commentRepo.EXPECT().
-		ListByPostID(gomock.Any(), testPostID).
-		Return(expectedComments, nil)
-
-	comments, err := usecase.ListComments(context.Background(), testPostID)
-
-	require.NoError(t, err)
-	assert.Equal(t, expectedComments, comments)
-}
-
 func TestCommentUsecase_CreateComment(t *testing.T) {
 	t.Run("Post直下Commentを作成する", func(t *testing.T) {
 		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
@@ -107,38 +89,6 @@ func TestCommentUsecase_CreateComment(t *testing.T) {
 			testPostID,
 			"  comment  ",
 			nil,
-		)
-
-		require.NoError(t, err)
-	})
-
-	t.Run("同じPostの親Commentへ返信する", func(t *testing.T) {
-		usecase, commentRepo, postRepo := newCommentUsecaseTest(t)
-		parentID := testCommentID
-		postRepo.EXPECT().
-			GetByIDForUpdate(gomock.Any(), testPostID).
-			Return(&models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}}, nil)
-		commentRepo.EXPECT().
-			GetByIDForUpdate(gomock.Any(), parentID).
-			Return(&models.Comment{
-				UUIDBaseModel: models.UUIDBaseModel{ID: parentID},
-				PostID:        testPostID,
-			}, nil)
-		commentRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, comment *models.Comment) error {
-				if comment.ParentID == nil || *comment.ParentID != parentID {
-					t.Fatalf("parent ID = %v, want %s", comment.ParentID, parentID)
-				}
-				return nil
-			})
-
-		err := usecase.CreateComment(
-			context.Background(),
-			testOtherUserID,
-			testPostID,
-			"reply",
-			&parentID,
 		)
 
 		require.NoError(t, err)

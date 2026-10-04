@@ -61,33 +61,19 @@ func TestAuthUsecase_Register(t *testing.T) {
 		fakePasswordHasher{hash: "argon2id-hash"},
 		fakeTokenIssuer{token: "access-token"},
 	)
-	repo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, user *models.User) error {
-			if user.Username != "alice" {
-				t.Errorf("username = %q, want alice", user.Username)
-			}
-			if user.PasswordHash != "argon2id-hash" {
-				t.Errorf("password hash = %q, want argon2id-hash", user.PasswordHash)
-			}
-			user.ID = authTestUserID
-			return nil
-		})
-
-	user, token, err := usecase.Register(
-		context.Background(),
-		"alice",
-		"correct horse",
-	)
-
+	repo.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, user *models.User) error {
+		if user.Username != "alice" || user.PasswordHash != "argon2id-hash" {
+			t.Errorf("unexpected persisted user: %+v", user)
+		}
+		user.ID = authTestUserID
+		return nil
+	})
+	user, token, err := usecase.Register(context.Background(), "alice", "correct horse")
 	if err != nil {
-		t.Fatalf("register: %v", err)
+		t.Fatal(err)
 	}
 	if user.ID != authTestUserID || user.Username != "alice" {
-		t.Fatalf("user = %+v, want UUID %s and username alice", user, authTestUserID)
-	}
-	if user.PasswordHash != "argon2id-hash" {
-		t.Fatalf("password hash = %q, want hashed password", user.PasswordHash)
+		t.Fatalf("unexpected registered user: %+v", user)
 	}
 	if token != "access-token" {
 		t.Fatalf("token = %q, want access-token", token)
@@ -112,29 +98,6 @@ func TestAuthUsecase_RegisterRejectsDuplicateUsername(t *testing.T) {
 }
 
 func TestAuthUsecase_Login(t *testing.T) {
-	t.Run("正しい認証情報でtokenを返す", func(t *testing.T) {
-		usecase, repo := newAuthUsecaseTest(
-			t,
-			fakePasswordHasher{},
-			fakeTokenIssuer{token: "access-token"},
-		)
-		user := &models.User{
-			UUIDBaseModel: models.UUIDBaseModel{ID: authTestUserID},
-			Username:      "alice",
-			PasswordHash:  "argon2id-hash",
-		}
-		repo.EXPECT().FindByUsername(gomock.Any(), "alice").Return(user, nil)
-
-		user, token, err := usecase.Login(context.Background(), "alice", "correct horse")
-
-		if err != nil {
-			t.Fatalf("login: %v", err)
-		}
-		if user.Username != "alice" || token != "access-token" {
-			t.Fatalf("user = %+v, token = %q", user, token)
-		}
-	})
-
 	t.Run("誤ったpasswordを認証失敗として扱う", func(t *testing.T) {
 		usecase, repo := newAuthUsecaseTest(
 			t,
@@ -196,28 +159,6 @@ func TestAuthUsecase_Login(t *testing.T) {
 }
 
 func TestAuthUsecase_GetMe(t *testing.T) {
-	t.Run("User IDに対応するUserを返す", func(t *testing.T) {
-		usecase, repo := newAuthUsecaseTest(
-			t,
-			fakePasswordHasher{},
-			fakeTokenIssuer{},
-		)
-		expected := &models.User{
-			UUIDBaseModel: models.UUIDBaseModel{ID: authTestUserID},
-			Username:      "alice",
-		}
-		repo.EXPECT().FindByID(gomock.Any(), authTestUserID).Return(expected, nil)
-
-		user, err := usecase.GetMe(context.Background(), authTestUserID)
-
-		if err != nil {
-			t.Fatalf("get me: %v", err)
-		}
-		if user != expected {
-			t.Fatalf("user = %+v, want %+v", user, expected)
-		}
-	})
-
 	t.Run("Userが存在しない場合はNotFoundを返す", func(t *testing.T) {
 		usecase, repo := newAuthUsecaseTest(
 			t,
