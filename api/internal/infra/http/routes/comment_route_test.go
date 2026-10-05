@@ -4,475 +4,186 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
-	"sort"
 	"testing"
-	"time"
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
-	"Threadly/internal/interface/controllers"
-	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 const (
-	commentRouteRootID     models.UUID = "77777777-7777-4777-8777-777777777777"
-	commentRouteReplyID    models.UUID = "88888888-8888-4888-8888-888888888888"
-	commentRouteOtherID    models.UUID = "99999999-9999-4999-8999-999999999999"
-	commentRouteSecondPost models.UUID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+	commentRouteRootID  models.UUID = "77777777-7777-4777-8777-777777777777"
+	commentRouteReplyID models.UUID = "88888888-8888-4888-8888-888888888888"
 )
 
-type commentRouteStore struct {
-	posts    map[models.UUID]*models.Post
-	comments map[models.UUID]*models.Comment
-	nextID   int
-}
-
-type commentRoutePostRepository struct {
-	store *commentRouteStore
-}
-
-type commentRouteCommentRepository struct {
-	store *commentRouteStore
-}
-
-func newCommentRouteStore() *commentRouteStore {
-	return &commentRouteStore{
-		posts:    make(map[models.UUID]*models.Post),
-		comments: make(map[models.UUID]*models.Comment),
-	}
-}
-
-func (r *commentRoutePostRepository) GetByID(
-	_ context.Context,
-	postID models.UUID,
-) (*models.Post, error) {
-	post, ok := r.store.posts[postID]
-	if !ok || post.DeletedAt.Valid {
-		return nil, repositories.ErrPostNotFound
-	}
-	return cloneCommentRoutePost(post), nil
-}
-
-func (r *commentRoutePostRepository) GetByIDForUpdate(
-	ctx context.Context,
-	postID models.UUID,
-) (*models.Post, error) {
-	return r.GetByID(ctx, postID)
-}
-
-func (r *commentRoutePostRepository) GetByIDForOwner(
-	_ context.Context,
-	userID models.UUID,
-	postID models.UUID,
-) (*models.Post, error) {
-	post, err := r.GetByID(context.Background(), postID)
-	if err != nil || post.AuthorID != userID {
-		return nil, repositories.ErrPostNotFound
-	}
-	return post, nil
-}
-
-func (r *commentRoutePostRepository) Create(
-	_ context.Context,
-	post *models.Post,
-) error {
-	post.ID = commentRouteSecondPost
-	post.Author = models.User{
-		UUIDBaseModel: models.UUIDBaseModel{ID: post.AuthorID},
-		Username:      "user-" + string(post.AuthorID),
-	}
-	r.store.posts[post.ID] = cloneCommentRoutePost(post)
-	return nil
-}
-
-func (r *commentRoutePostRepository) Update(
-	_ context.Context,
-	userID models.UUID,
-	post *models.Post,
-) error {
-	stored, ok := r.store.posts[post.ID]
-	if !ok || stored.DeletedAt.Valid || stored.AuthorID != userID {
-		return repositories.ErrPostNotFound
-	}
-	stored.Title = post.Title
-	stored.Content = post.Content
-	return nil
-}
-
-func (r *commentRoutePostRepository) DeleteByID(
-	_ context.Context,
-	userID models.UUID,
-	postID models.UUID,
-) (int64, error) {
-	post, ok := r.store.posts[postID]
-	if !ok || post.DeletedAt.Valid || post.AuthorID != userID {
-		return 0, nil
-	}
-
-	now := time.Now()
-	post.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-	return 1, nil
-}
-
-func (r *commentRoutePostRepository) ListAll(
-	_ context.Context,
-) ([]*models.Post, error) {
-	posts := make([]*models.Post, 0, len(r.store.posts))
-	for _, post := range r.store.posts {
-		if !post.DeletedAt.Valid {
-			posts = append(posts, cloneCommentRoutePost(post))
-		}
-	}
-	return posts, nil
-}
-
-func (r *commentRouteCommentRepository) Create(
-	_ context.Context,
-	comment *models.Comment,
-) error {
-	r.store.nextID++
-	var commentID models.UUID
-	if comment.ParentID == nil {
-		commentID = commentRouteRootID
-		if r.store.nextID > 1 {
-			commentID = commentRouteOtherID
-		}
-	} else {
-		commentID = commentRouteReplyID
-	}
-	now := time.Unix(int64(r.store.nextID), 0)
-	comment.ID = commentID
-	comment.CreatedAt = now
-	comment.UpdatedAt = now
-	comment.Author = models.User{
-		UUIDBaseModel: models.UUIDBaseModel{ID: comment.AuthorID},
-		Username:      "user-" + string(comment.AuthorID),
-	}
-	r.store.comments[comment.ID] = cloneCommentRouteComment(comment)
-	return nil
-}
-
-func (r *commentRouteCommentRepository) ListByPostID(
-	_ context.Context,
-	postID models.UUID,
-) ([]*models.Comment, error) {
-	roots := make([]*models.Comment, 0)
-	for _, comment := range r.store.comments {
-		if comment.PostID != postID || comment.DeletedAt.Valid || comment.ParentID != nil {
-			continue
-		}
-		root := cloneCommentRouteComment(comment)
-		root.Replies = make([]*models.Comment, 0)
-		for _, reply := range r.store.comments {
-			if reply.PostID == postID && !reply.DeletedAt.Valid &&
-				reply.ParentID != nil && *reply.ParentID == comment.ID {
-				root.Replies = append(root.Replies, cloneCommentRouteComment(reply))
-			}
-		}
-		sortCommentRouteComments(root.Replies)
-		roots = append(roots, root)
-	}
-	sortCommentRouteComments(roots)
-	return roots, nil
-}
-
-func (r *commentRouteCommentRepository) GetByID(
-	_ context.Context,
-	commentID models.UUID,
-) (*models.Comment, error) {
-	comment, ok := r.store.comments[commentID]
-	if !ok || comment.DeletedAt.Valid {
-		return nil, repositories.ErrCommentNotFound
-	}
-	return cloneCommentRouteComment(comment), nil
-}
-
-func (r *commentRouteCommentRepository) GetByIDForUpdate(
-	ctx context.Context,
-	commentID models.UUID,
-) (*models.Comment, error) {
-	return r.GetByID(ctx, commentID)
-}
-
-func (r *commentRouteCommentRepository) Update(
-	_ context.Context,
-	userID models.UUID,
-	commentID models.UUID,
-	content string,
-) (int64, error) {
-	comment, ok := r.store.comments[commentID]
-	if !ok || comment.DeletedAt.Valid || comment.AuthorID != userID {
-		return 0, nil
-	}
-	comment.Content = content
-	comment.UpdatedAt = time.Now()
-	return 1, nil
-}
-
-func (r *commentRouteCommentRepository) DeleteByPostID(
-	_ context.Context,
-	postID models.UUID,
-) (int64, error) {
-	now := time.Now()
-	var rows int64
-	for _, comment := range r.store.comments {
-		if comment.PostID != postID || comment.DeletedAt.Valid {
-			continue
-		}
-		comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-		rows++
-	}
-	return rows, nil
-}
-
-func (r *commentRouteCommentRepository) DeleteByIDWithReplies(
-	_ context.Context,
-	userID models.UUID,
-	commentID models.UUID,
-) (int64, error) {
-	comment, ok := r.store.comments[commentID]
-	if !ok || comment.DeletedAt.Valid || comment.AuthorID != userID {
-		return 0, nil
-	}
-
-	now := time.Now()
-	comment.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-	var rows int64 = 1
-	for _, reply := range r.store.comments {
-		if reply.ParentID == nil || *reply.ParentID != commentID || reply.DeletedAt.Valid {
-			continue
-		}
-		reply.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
-		rows++
-	}
-	return rows, nil
-}
-
-func newCommentRouteRouter(store *commentRouteStore) *gin.Engine {
-	tokenIssuer := routeTokenIssuer{}
-	authUsecase := usecase.NewAuthUsecase(
-		newRouteUserRepository(),
-		routePasswordHasher{},
-		tokenIssuer,
-	)
-	postRepo := &commentRoutePostRepository{store: store}
-	commentRepo := &commentRouteCommentRepository{store: store}
-	uow := routeUnitOfWork{post: postRepo, comment: commentRepo}
-	return SetupRouter(Handlers{
-		Auth: controllers.NewAuthController(authUsecase),
-		Post: controllers.NewPostController(usecase.NewPostUsecase(postRepo, uow)),
-		Comment: controllers.NewCommentController(
-			usecase.NewCommentUsecase(commentRepo, postRepo, uow),
-		),
-		TokenIssuer: tokenIssuer,
-	})
-}
-
-func seedCommentRoutePost(store *commentRouteStore) {
-	store.posts[routePostID] = &models.Post{
-		UUIDBaseModel: models.UUIDBaseModel{ID: routePostID},
-		AuthorID:      routeUserID,
-		Author: models.User{
-			UUIDBaseModel: models.UUIDBaseModel{ID: routeUserID},
-			Username:      "user-" + string(routeUserID),
-		},
-		Title:   "post",
-		Content: "content",
-	}
-}
-
-func TestSetupRouter_CommentsRespectThreadAndOwnershipBoundaries(t *testing.T) {
+func TestSetupRouter_CommentsExposeThreadAndAuthenticatedAuthor(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	t.Setenv("COOKIE_SECURE", "false")
-	store := newCommentRouteStore()
-	seedCommentRoutePost(store)
-	router := newCommentRouteRouter(store)
-	postPath := "/api/posts/" + string(routePostID)
-	rootPath := postPath + "/comments"
-
+	router, repos := newTestRouter(t)
+	post := &models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: routePostID}}
+	repos.Post.EXPECT().GetByIDForUpdate(gomock.Any(), routePostID).Return(post, nil).Times(2)
+	root := &models.Comment{
+		UUIDBaseModel: models.UUIDBaseModel{ID: commentRouteRootID},
+		PostID:        routePostID,
+		AuthorID:      routeUserID,
+		Author:        models.User{UUIDBaseModel: models.UUIDBaseModel{ID: routeUserID}, Username: "alice"},
+		Content:       "root",
+	}
+	reply := &models.Comment{
+		UUIDBaseModel: models.UUIDBaseModel{ID: commentRouteReplyID},
+		PostID:        routePostID,
+		ParentID:      &root.ID,
+		Author:        models.User{UUIDBaseModel: models.UUIDBaseModel{ID: routeOtherUserID}, Username: "bob"},
+		Content:       "reply",
+	}
+	repos.Comment.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, comment *models.Comment) error {
+			require.Equal(t, routeUserID, comment.AuthorID)
+			require.Equal(t, routePostID, comment.PostID)
+			require.Equal(t, "root", comment.Content)
+			require.Nil(t, comment.ParentID)
+			return nil
+		},
+	)
+	path := "/api/posts/" + string(routePostID) + "/comments"
 	response := performRequest(
 		router,
 		http.MethodPost,
-		rootPath,
+		path,
 		"user-"+string(routeUserID),
-		`{"content":"  root comment  ","authorId":"99999999-9999-4999-8999-999999999999"}`,
+		`{"content":"  root  ","authorId":"99999999-9999-4999-8999-999999999999"}`,
 	)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("root comment status = %d, want 201", response.Code)
-	}
-
+	require.Equal(t, http.StatusCreated, response.Code)
+	repos.Comment.EXPECT().GetByIDForUpdate(gomock.Any(), root.ID).Return(root, nil)
+	repos.Comment.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, comment *models.Comment) error {
+			require.Equal(t, routeOtherUserID, comment.AuthorID)
+			require.Equal(t, &root.ID, comment.ParentID)
+			require.Equal(t, "reply", comment.Content)
+			return nil
+		},
+	)
 	response = performRequest(
 		router,
 		http.MethodPost,
-		rootPath,
-		"user-"+string(routeUserID),
-		`{"content":"invalid parent","parentId":"not-a-uuid"}`,
-	)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("invalid parent status = %d, want 400", response.Code)
-	}
-
-	response = performRequest(
-		router,
-		http.MethodPost,
-		rootPath,
-		"user-"+string(routeOtherUserID),
-		`{"content":"other root"}`,
-	)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("other root comment status = %d, want 201", response.Code)
-	}
-
-	response = performRequest(
-		router,
-		http.MethodPost,
-		rootPath,
+		path,
 		"user-"+string(routeOtherUserID),
 		`{"content":"reply","parentId":"77777777-7777-4777-8777-777777777777"}`,
 	)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("reply status = %d, want 201", response.Code)
+	require.Equal(t, http.StatusCreated, response.Code)
+	root.Replies = []*models.Comment{reply}
+	repos.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(post, nil)
+	repos.Comment.EXPECT().ListByPostID(gomock.Any(), routePostID).Return([]*models.Comment{root}, nil)
+	response = performRequest(router, http.MethodGet, path, "user-"+string(routeOtherUserID), "")
+	require.Equal(t, http.StatusOK, response.Code)
+	var comments []struct {
+		ID      models.UUID             `json:"id"`
+		Author  routePostAuthorResponse `json:"author"`
+		Replies []struct {
+			ID     models.UUID             `json:"id"`
+			Author routePostAuthorResponse `json:"author"`
+		} `json:"replies"`
 	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &comments))
+	require.Len(t, comments, 1)
+	require.Equal(t, root.ID, comments[0].ID)
+	require.Equal(t, routeUserID, comments[0].Author.ID)
+	require.Len(t, comments[0].Replies, 1)
+	require.Equal(t, reply.ID, comments[0].Replies[0].ID)
+	require.Equal(t, routeOtherUserID, comments[0].Replies[0].Author.ID)
+	require.Equal(t, "bob", comments[0].Replies[0].Author.Username)
 
-	response = performRequest(
-		router,
-		http.MethodPost,
-		rootPath,
-		"user-"+string(routeOtherUserID),
-		`{"content":"second reply","parentId":"88888888-8888-4888-8888-888888888888"}`,
-	)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("second reply status = %d, want 400", response.Code)
-	}
-
-	response = performRequest(
-		router,
-		http.MethodGet,
-		rootPath,
-		"user-"+string(routeOtherUserID),
-		"",
-	)
-	if response.Code != http.StatusOK {
-		t.Fatalf("list comments status = %d, want 200", response.Code)
-	}
-	var comments []commentRouteResponse
-	if err := decodeJSON(response, &comments); err != nil {
-		t.Fatalf("decode comments response: %v", err)
-	}
-	if len(comments) != 2 || comments[0].ID != commentRouteOtherID {
-		t.Fatalf("root comments = %+v, want newer other root first", comments)
-	}
-	if len(comments[1].Replies) != 1 || comments[1].Replies[0].ID != commentRouteReplyID {
-		t.Fatalf("root replies = %+v, want one nested reply", comments[1].Replies)
-	}
-	if comments[1].Replies[0].Author.Username != "user-"+string(routeOtherUserID) {
-		t.Fatalf("reply author = %+v, want authenticated user", comments[1].Replies[0].Author)
-	}
-
+	repos.Comment.EXPECT().Update(gomock.Any(), routeUserID, root.ID, "updated").Return(int64(1), nil)
 	response = performRequest(
 		router,
 		http.MethodPut,
-		"/api/comments/"+string(commentRouteRootID),
-		"user-"+string(routeOtherUserID),
-		`{"content":"tampered"}`,
-	)
-	if response.Code != http.StatusNotFound {
-		t.Fatalf("other user update status = %d, want 404", response.Code)
-	}
-
-	response = performRequest(
-		router,
-		http.MethodPut,
-		"/api/comments/"+string(commentRouteRootID),
+		"/api/comments/"+string(root.ID),
 		"user-"+string(routeUserID),
-		`{"content":"  updated root  "}`,
+		`{"content":"  updated  "}`,
 	)
-	if response.Code != http.StatusOK {
-		t.Fatalf("owner update status = %d, want 200", response.Code)
+	require.Equal(t, http.StatusOK, response.Code)
+	repos.Comment.EXPECT().GetByIDForUpdate(gomock.Any(), root.ID).Return(root, nil)
+	repos.CommentLike.EXPECT().DeleteByCommentIDWithReplies(gomock.Any(), root.ID).Return(nil)
+	repos.Comment.EXPECT().DeleteByIDWithReplies(gomock.Any(), routeUserID, root.ID).Return(int64(2), nil)
+	response = performRequest(router, http.MethodDelete, "/api/comments/"+string(root.ID), "user-"+string(routeUserID), "")
+	require.Equal(t, http.StatusNoContent, response.Code)
+}
+
+func TestSetupRouter_CommentErrorsPreserveHTTPBoundaries(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rootID := commentRouteRootID
+	post := &models.Post{UUIDBaseModel: models.UUIDBaseModel{ID: routePostID}}
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		setup  func(routeRepositories)
+		status int
+	}{
+		{
+			name:   "不正なparent IDを400にする",
+			method: http.MethodPost,
+			path:   "/api/posts/" + string(routePostID) + "/comments",
+			body:   `{"content":"reply","parentId":"not-a-uuid"}`,
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "返信への返信を400にする",
+			method: http.MethodPost,
+			path:   "/api/posts/" + string(routePostID) + "/comments",
+			body:   `{"content":"reply","parentId":"88888888-8888-4888-8888-888888888888"}`,
+			setup: func(r routeRepositories) {
+				r.Post.EXPECT().GetByIDForUpdate(gomock.Any(), routePostID).Return(post, nil)
+				r.Comment.EXPECT().GetByIDForUpdate(gomock.Any(), commentRouteReplyID).Return(&models.Comment{
+					PostID: routePostID, ParentID: &rootID,
+				}, nil)
+			},
+			status: http.StatusBadRequest,
+		},
+		{
+			name:   "削除済みの親への返信を404にする",
+			method: http.MethodPost,
+			path:   "/api/posts/" + string(routePostID) + "/comments",
+			body:   `{"content":"reply","parentId":"77777777-7777-4777-8777-777777777777"}`,
+			setup: func(r routeRepositories) {
+				r.Post.EXPECT().GetByIDForUpdate(gomock.Any(), routePostID).Return(post, nil)
+				r.Comment.EXPECT().GetByIDForUpdate(gomock.Any(), commentRouteRootID).
+					Return(nil, repositories.ErrCommentNotFound)
+			},
+			status: http.StatusNotFound,
+		},
+		{
+			name:   "他UserのComment更新を404にする",
+			method: http.MethodPut,
+			path:   "/api/comments/" + string(commentRouteRootID),
+			body:   `{"content":"tampered"}`,
+			setup: func(r routeRepositories) {
+				r.Comment.EXPECT().Update(gomock.Any(), routeOtherUserID, commentRouteRootID, "tampered").
+					Return(int64(0), repositories.ErrCommentNotFound)
+			},
+			status: http.StatusNotFound,
+		},
+		{
+			name:   "削除済みPostのComment一覧を404にする",
+			method: http.MethodGet,
+			path:   "/api/posts/" + string(routePostID) + "/comments",
+			setup: func(r routeRepositories) {
+				r.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(nil, repositories.ErrPostNotFound)
+			},
+			status: http.StatusNotFound,
+		},
 	}
-
-	response = performRequest(
-		router,
-		http.MethodDelete,
-		"/api/comments/"+string(commentRouteRootID),
-		"user-"+string(routeUserID),
-		"",
-	)
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("owner delete status = %d, want 204", response.Code)
-	}
-
-	response = performRequest(
-		router,
-		http.MethodPost,
-		rootPath,
-		"user-"+string(routeOtherUserID),
-		`{"content":"reply to deleted","parentId":"77777777-7777-4777-8777-777777777777"}`,
-	)
-	if response.Code != http.StatusNotFound {
-		t.Fatalf("deleted parent reply status = %d, want 404", response.Code)
-	}
-
-	response = performRequest(
-		router,
-		http.MethodDelete,
-		"/api/posts/"+string(routePostID),
-		"user-"+string(routeUserID),
-		"",
-	)
-	if response.Code != http.StatusNoContent {
-		t.Fatalf("post delete status = %d, want 204", response.Code)
-	}
-
-	response = performRequest(router, http.MethodGet, rootPath, "user-"+string(routeUserID), "")
-	if response.Code != http.StatusNotFound {
-		t.Fatalf("deleted post comment list status = %d, want 404", response.Code)
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			router, repos := newTestRouter(t)
+			if tt.setup != nil {
+				tt.setup(repos)
+			}
+			response := performRequest(router, tt.method, tt.path, "user-"+string(routeOtherUserID), tt.body)
+			require.Equal(t, tt.status, response.Code)
+		})
 	}
 }
-
-func decodeJSON(response *httptest.ResponseRecorder, value any) error {
-	return json.NewDecoder(response.Body).Decode(value)
-}
-
-type commentRouteAuthorResponse struct {
-	ID       models.UUID `json:"id"`
-	Username string      `json:"username"`
-}
-
-type commentRouteResponse struct {
-	ID      models.UUID                `json:"id"`
-	Content string                     `json:"content"`
-	Author  commentRouteAuthorResponse `json:"author"`
-	Replies []commentRouteResponse     `json:"replies"`
-}
-
-func cloneCommentRoutePost(post *models.Post) *models.Post {
-	cloned := *post
-	return &cloned
-}
-
-func cloneCommentRouteComment(comment *models.Comment) *models.Comment {
-	cloned := *comment
-	if comment.ParentID != nil {
-		parentID := *comment.ParentID
-		cloned.ParentID = &parentID
-	}
-	cloned.Replies = nil
-	return &cloned
-}
-
-func sortCommentRouteComments(comments []*models.Comment) {
-	sort.Slice(comments, func(i, j int) bool {
-		if comments[i].CreatedAt.Equal(comments[j].CreatedAt) {
-			return comments[i].ID > comments[j].ID
-		}
-		return comments[i].CreatedAt.After(comments[j].CreatedAt)
-	})
-}
-
-var _ repositories.CommentRepository = (*commentRouteCommentRepository)(nil)
-var _ repositories.PostRepository = (*commentRoutePostRepository)(nil)

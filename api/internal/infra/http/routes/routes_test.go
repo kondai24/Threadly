@@ -16,85 +16,18 @@ import (
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/middleware"
 	"Threadly/internal/usecase"
+	"Threadly/internal/usecase/mocks"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
-
-type routePostRepository struct {
-	posts map[models.UUID]*models.Post
-}
 
 const (
 	routeUserID      models.UUID = "11111111-1111-4111-8111-111111111111"
 	routeOtherUserID models.UUID = "22222222-2222-4222-8222-222222222222"
 	routePostID      models.UUID = "33333333-3333-4333-8333-333333333333"
 )
-
-func newRoutePostRepository() *routePostRepository {
-	return &routePostRepository{
-		posts: make(map[models.UUID]*models.Post),
-	}
-}
-
-func (r *routePostRepository) GetByID(_ context.Context, postID models.UUID) (*models.Post, error) {
-	post, ok := r.posts[postID]
-	if !ok {
-		return nil, repositories.ErrPostNotFound
-	}
-	return clonePost(post), nil
-}
-
-func (r *routePostRepository) GetByIDForUpdate(
-	ctx context.Context,
-	postID models.UUID,
-) (*models.Post, error) {
-	return r.GetByID(ctx, postID)
-}
-
-func (r *routePostRepository) GetByIDForOwner(_ context.Context, userID models.UUID, id models.UUID) (*models.Post, error) {
-	post, ok := r.posts[id]
-	if !ok || post.AuthorID != userID {
-		return nil, repositories.ErrPostNotFound
-	}
-	return clonePost(post), nil
-}
-
-func (r *routePostRepository) Create(_ context.Context, post *models.Post) error {
-	post.ID = routePostID
-	post.Author = models.User{
-		UUIDBaseModel: models.UUIDBaseModel{ID: post.AuthorID},
-		Username:      "user-" + string(post.AuthorID),
-	}
-	r.posts[post.ID] = clonePost(post)
-	return nil
-}
-
-func (r *routePostRepository) Update(_ context.Context, userID models.UUID, post *models.Post) error {
-	stored, ok := r.posts[post.ID]
-	if !ok || stored.AuthorID != userID {
-		return repositories.ErrPostNotFound
-	}
-	stored.Title = post.Title
-	stored.Content = post.Content
-	return nil
-}
-
-func (r *routePostRepository) DeleteByID(_ context.Context, userID models.UUID, postID models.UUID) (int64, error) {
-	post, ok := r.posts[postID]
-	if !ok || post.AuthorID != userID {
-		return 0, nil
-	}
-	delete(r.posts, postID)
-	return 1, nil
-}
-
-func (r *routePostRepository) ListAll(_ context.Context) ([]*models.Post, error) {
-	posts := make([]*models.Post, 0)
-	for _, post := range r.posts {
-		posts = append(posts, clonePost(post))
-	}
-	return posts, nil
-}
 
 type routeUserRepository struct {
 	users map[models.UUID]*models.User
@@ -159,99 +92,6 @@ func routeHashPassword(password string) string {
 
 type routeTokenIssuer struct{}
 
-type routePostLikeRepository struct{}
-
-func (routePostLikeRepository) Ensure(context.Context, models.UUID, models.UUID) error {
-	return nil
-}
-
-func (routePostLikeRepository) Delete(context.Context, models.UUID, models.UUID) error {
-	return nil
-}
-
-func (routePostLikeRepository) DeleteByPostID(context.Context, models.UUID) error {
-	return nil
-}
-
-func (routePostLikeRepository) CountByPostIDs(
-	context.Context,
-	[]models.UUID,
-) (map[models.UUID]int64, error) {
-	return map[models.UUID]int64{}, nil
-}
-
-func (routePostLikeRepository) FindLikedPostIDs(
-	context.Context,
-	models.UUID,
-	[]models.UUID,
-) (map[models.UUID]struct{}, error) {
-	return map[models.UUID]struct{}{}, nil
-}
-
-type routeCommentLikeRepository struct{}
-
-func (routeCommentLikeRepository) Ensure(context.Context, models.UUID, models.UUID) error {
-	return nil
-}
-
-func (routeCommentLikeRepository) Delete(context.Context, models.UUID, models.UUID) error {
-	return nil
-}
-
-func (routeCommentLikeRepository) DeleteByCommentIDs(context.Context, []models.UUID) error {
-	return nil
-}
-
-func (routeCommentLikeRepository) DeleteByCommentIDWithReplies(context.Context, models.UUID) error {
-	return nil
-}
-
-func (routeCommentLikeRepository) DeleteByCommentsOfPostID(context.Context, models.UUID) error {
-	return nil
-}
-
-func (routeCommentLikeRepository) CountByCommentIDs(
-	context.Context,
-	[]models.UUID,
-) (map[models.UUID]int64, error) {
-	return map[models.UUID]int64{}, nil
-}
-
-func (routeCommentLikeRepository) FindLikedCommentIDs(
-	context.Context,
-	models.UUID,
-	[]models.UUID,
-) (map[models.UUID]struct{}, error) {
-	return map[models.UUID]struct{}{}, nil
-}
-
-type routeUnitOfWork struct {
-	post        repositories.PostRepository
-	comment     repositories.CommentRepository
-	postLike    repositories.PostLikeRepository
-	commentLike repositories.CommentLikeRepository
-}
-
-func (u routeUnitOfWork) WithinTransaction(
-	ctx context.Context,
-	fn func(repositories.TransactionRepositories) error,
-) error {
-	postLike := u.postLike
-	if postLike == nil {
-		postLike = routePostLikeRepository{}
-	}
-	commentLike := u.commentLike
-	if commentLike == nil {
-		commentLike = routeCommentLikeRepository{}
-	}
-	return fn(repositories.TransactionRepositories{
-		Post:        u.post,
-		Comment:     u.comment,
-		PostLike:    postLike,
-		CommentLike: commentLike,
-	})
-}
-
 func (routeTokenIssuer) Issue(userID models.UUID) (string, error) {
 	return "user-" + string(userID), nil
 }
@@ -267,29 +107,67 @@ func (routeTokenIssuer) Parse(rawToken string) (models.UUID, error) {
 	return userID, nil
 }
 
-func clonePost(post *models.Post) *models.Post {
-	cloned := *post
-	return &cloned
-}
-
 func cloneUser(user *models.User) *models.User {
 	cloned := *user
 	return &cloned
 }
 
-func newTestRouter(postRepo *routePostRepository) *gin.Engine {
-	tokenIssuer := routeTokenIssuer{}
-	authUsecase := usecase.NewAuthUsecase(
-		newRouteUserRepository(),
-		routePasswordHasher{},
-		tokenIssuer,
-	)
-	postUsecase := usecase.NewPostUsecase(postRepo, routeUnitOfWork{post: postRepo})
+type routeRepositories struct {
+	Post        *mocks.MockPostRepository
+	Comment     *mocks.MockCommentRepository
+	PostLike    *mocks.MockPostLikeRepository
+	CommentLike *mocks.MockCommentLikeRepository
+}
+
+type routeUnitOfWork struct {
+	repos repositories.TransactionRepositories
+}
+
+func (u routeUnitOfWork) WithinTransaction(
+	_ context.Context,
+	fn func(repositories.TransactionRepositories) error,
+) error {
+	return fn(u.repos)
+}
+
+func newTestRouter(t *testing.T) (*gin.Engine, routeRepositories) {
+	t.Helper()
+	return newRouteRouter(t, false)
+}
+
+func newRouteRouter(t *testing.T, withLikes bool) (*gin.Engine, routeRepositories) {
+	t.Helper()
+	ctrl := gomock.NewController(t)
+	repos := routeRepositories{
+		Post:        mocks.NewMockPostRepository(ctrl),
+		Comment:     mocks.NewMockCommentRepository(ctrl),
+		PostLike:    mocks.NewMockPostLikeRepository(ctrl),
+		CommentLike: mocks.NewMockCommentLikeRepository(ctrl),
+	}
+	uow := routeUnitOfWork{repos: repositories.TransactionRepositories{
+		Post:        repos.Post,
+		Comment:     repos.Comment,
+		PostLike:    repos.PostLike,
+		CommentLike: repos.CommentLike,
+	}}
+	tokens := routeTokenIssuer{}
+	auth := usecase.NewAuthUsecase(newRouteUserRepository(), routePasswordHasher{}, tokens)
+	post := usecase.NewPostUsecase(repos.Post, uow)
+	comment := usecase.NewCommentUsecase(repos.Comment, repos.Post, uow)
+	var likeController *controllers.LikeController
+	if withLikes {
+		likes := usecase.NewLikeUsecase(repos.Post, repos.Comment, repos.PostLike, repos.CommentLike)
+		post = usecase.NewPostUsecaseWithLikeReader(repos.Post, uow, likes)
+		comment = usecase.NewCommentUsecaseWithLikeReader(repos.Comment, repos.Post, uow, likes)
+		likeController = controllers.NewLikeController(likes)
+	}
 	return SetupRouter(Handlers{
-		Auth:        controllers.NewAuthController(authUsecase),
-		Post:        controllers.NewPostController(postUsecase),
-		TokenIssuer: tokenIssuer,
-	})
+		Auth:        controllers.NewAuthController(auth),
+		Post:        controllers.NewPostController(post),
+		Comment:     controllers.NewCommentController(comment),
+		Like:        likeController,
+		TokenIssuer: tokens,
+	}), repos
 }
 
 type routePostAuthorResponse struct {
@@ -316,7 +194,7 @@ type routeAuthResponse struct {
 func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("COOKIE_SECURE", "true")
-	router := newTestRouter(newRoutePostRepository())
+	router, _ := newTestRouter(t)
 	credentials := `{"username":"alice","password":"password"}`
 
 	registerResponse := performRequest(
@@ -396,7 +274,7 @@ func TestSetupRouter_RegisterLoginAndMe(t *testing.T) {
 func TestSetupRouter_HTTPDevelopmentUsesCompatibleSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("COOKIE_SECURE", "false")
-	router := newTestRouter(newRoutePostRepository())
+	router, _ := newTestRouter(t)
 
 	response := performRequest(
 		router,
@@ -425,7 +303,7 @@ func TestSetupRouter_HTTPDevelopmentUsesCompatibleSessionCookie(t *testing.T) {
 
 func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	router := newTestRouter(newRoutePostRepository())
+	router, _ := newRouteRouter(t, true)
 	postPath := "/api/posts/" + string(routePostID)
 	tests := []struct {
 		name   string
@@ -471,6 +349,10 @@ func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 			method: http.MethodDelete,
 			path:   "/api/comments/" + string(routePostID),
 		},
+		{name: "Post Likeを拒否する", method: http.MethodPut, path: "/api/posts/not-a-uuid/like"},
+		{name: "Post Unlikeを拒否する", method: http.MethodDelete, path: postPath + "/like"},
+		{name: "Comment Likeを拒否する", method: http.MethodPut, path: "/api/comments/" + string(commentRouteRootID) + "/like"},
+		{name: "Comment Unlikeを拒否する", method: http.MethodDelete, path: "/api/comments/" + string(commentRouteRootID) + "/like"},
 	}
 
 	for _, tt := range tests {
@@ -485,72 +367,67 @@ func TestSetupRouter_ProtectedRoutesRequireSessionCookie(t *testing.T) {
 
 func TestSetupRouter_PostsAreReadableByAllAuthenticatedUsers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	postRepo := newRoutePostRepository()
-	router := newTestRouter(postRepo)
-
-	response := performRequest(router, http.MethodGet, "/api/posts", "", "")
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated list status = %d, want 401", response.Code)
+	router, repos := newTestRouter(t)
+	post := &models.Post{
+		UUIDBaseModel: models.UUIDBaseModel{ID: routePostID},
+		AuthorID:      routeUserID,
+		Author:        models.User{UUIDBaseModel: models.UUIDBaseModel{ID: routeUserID}, Username: "alice"},
+		Title:         "owned",
+		Content:       "content",
 	}
-
-	response = performRequest(
+	repos.Post.EXPECT().Create(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, created *models.Post) error {
+			require.Equal(t, routeUserID, created.AuthorID)
+			require.Equal(t, post.Title, created.Title)
+			require.Equal(t, post.Content, created.Content)
+			return nil
+		},
+	)
+	response := performRequest(
 		router,
 		http.MethodPost,
 		"/api/posts",
 		"user-"+string(routeUserID),
 		`{"title":"owned","content":"content","authorId":"99999999-9999-4999-8999-999999999999"}`,
 	)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("create status = %d, want 201", response.Code)
-	}
-	if postRepo.posts[routePostID].AuthorID != routeUserID {
-		t.Fatalf("stored author ID = %s, want token user ID %s", postRepo.posts[routePostID].AuthorID, routeUserID)
-	}
+	require.Equal(t, http.StatusCreated, response.Code)
 
-	response = performRequest(router, http.MethodGet, "/api/posts", "user-"+string(routeUserID), "")
-	if response.Code != http.StatusOK {
-		t.Fatalf("owner list status = %d, want 200", response.Code)
-	}
-	var ownerPosts []routePostResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &ownerPosts); err != nil {
-		t.Fatalf("decode owner list: %v", err)
-	}
-	if len(ownerPosts) != 1 {
-		t.Fatalf("owner list length = %d, want 1", len(ownerPosts))
-	}
-	if ownerPosts[0].Author.ID != routeUserID || ownerPosts[0].Author.Username != "user-"+string(routeUserID) {
-		t.Fatalf("owner list author = %+v, want route user", ownerPosts[0].Author)
-	}
-
+	repos.Post.EXPECT().ListAll(gomock.Any()).Return([]*models.Post{post}, nil)
 	response = performRequest(router, http.MethodGet, "/api/posts", "user-"+string(routeOtherUserID), "")
-	if response.Code != http.StatusOK {
-		t.Fatalf("other user list status = %d, want 200", response.Code)
-	}
-	var otherPosts []routePostResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &otherPosts); err != nil {
-		t.Fatalf("decode other user list: %v", err)
-	}
-	if len(otherPosts) != 1 {
-		t.Fatalf("other user list length = %d, want 1", len(otherPosts))
-	}
+	require.Equal(t, http.StatusOK, response.Code)
+	var posts []routePostResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &posts))
+	require.Len(t, posts, 1)
+	require.Equal(t, routeUserID, posts[0].Author.ID)
+	require.Equal(t, "alice", posts[0].Author.Username)
 
-	response = performRequest(router, http.MethodGet, "/api/posts/"+string(routePostID), "user-"+string(routeOtherUserID), "")
-	if response.Code != http.StatusOK {
-		t.Fatalf("other user detail status = %d, want 200", response.Code)
-	}
-	var otherPost routePostResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &otherPost); err != nil {
-		t.Fatalf("decode other user detail: %v", err)
-	}
-	if otherPost.Author.ID != routeUserID || otherPost.Author.Username != "user-"+string(routeUserID) {
-		t.Fatalf("other user detail author = %+v, want route user", otherPost.Author)
-	}
+	repos.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(post, nil)
+	response = performRequest(
+		router,
+		http.MethodGet,
+		"/api/posts/"+string(routePostID),
+		"user-"+string(routeOtherUserID),
+		"",
+	)
+	require.Equal(t, http.StatusOK, response.Code)
+	var detail routePostResponse
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &detail))
+	require.Equal(t, posts[0].Author, detail.Author)
+	require.Equal(t, post.Title, detail.Title)
+	require.Equal(t, post.Content, detail.Content)
 
+	repos.Post.EXPECT().GetByIDForOwner(gomock.Any(), routeOtherUserID, routePostID).
+		Return(nil, repositories.ErrPostNotFound)
+	repos.Post.EXPECT().GetByIDForUpdate(gomock.Any(), routePostID).Return(post, nil)
 	for _, method := range []string{http.MethodPut, http.MethodDelete} {
-		response = performRequest(router, method, "/api/posts/"+string(routePostID), "user-"+string(routeOtherUserID), `{"title":"tampered"}`)
-		if response.Code != http.StatusNotFound {
-			t.Fatalf("other user %s status = %d, want 404", method, response.Code)
-		}
+		response = performRequest(
+			router,
+			method,
+			"/api/posts/"+string(routePostID),
+			"user-"+string(routeOtherUserID),
+			`{"title":"tampered"}`,
+		)
+		require.Equal(t, http.StatusNotFound, response.Code)
 	}
 }
 

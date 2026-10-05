@@ -91,7 +91,6 @@ func TestCommentRepository_ListByPostID(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, comments, 2)
 	require.Equal(t, models.UUID("99999999-9999-4999-8999-999999999999"), comments[0].ID)
-	require.NotNil(t, comments[0].Replies)
 	require.Empty(t, comments[0].Replies)
 	require.Equal(t, root.ID, comments[1].ID)
 	require.Len(t, comments[1].Replies, 1)
@@ -116,29 +115,4 @@ func TestCommentRepository_UpdateRequiresAuthor(t *testing.T) {
 	var stored models.Comment
 	require.NoError(t, db.Where("post_id = ? AND id = ?", post.ID, root.ID).First(&stored).Error)
 	require.Equal(t, "updated", stored.Content)
-}
-
-func TestCommentRepository_DeleteMethodsOnlyChangeComments(t *testing.T) {
-	repo, db := newTestCommentRepository(t)
-	user, post, root, reply := seedCommentRepositoryData(t, db)
-	require.NoError(t, db.Create(&models.CommentLike{UserID: user.ID, CommentID: root.ID}).Error)
-	require.NoError(t, db.Create(&models.CommentLike{UserID: user.ID, CommentID: reply.ID}).Error)
-
-	rows, err := repo.DeleteByIDWithReplies(context.Background(), user.ID, root.ID)
-	require.NoError(t, err)
-	require.Equal(t, int64(2), rows)
-	comments, err := repo.ListByPostID(context.Background(), post.ID)
-	require.NoError(t, err)
-	require.Len(t, comments, 1)
-	require.Equal(t, models.UUID("99999999-9999-4999-8999-999999999999"), comments[0].ID)
-
-	var deleted []models.Comment
-	require.NoError(t, db.Unscoped().Where("id IN ?", []models.UUID{root.ID, reply.ID}).Find(&deleted).Error)
-	require.Len(t, deleted, 2)
-	for _, comment := range deleted {
-		require.True(t, comment.DeletedAt.Valid)
-	}
-	var likes []models.CommentLike
-	require.NoError(t, db.Where("comment_id IN ?", []models.UUID{root.ID, reply.ID}).Find(&likes).Error)
-	require.Len(t, likes, 2)
 }

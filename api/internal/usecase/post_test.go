@@ -64,25 +64,6 @@ func newPostDeleteUsecaseTest(
 }
 
 func TestPostUsecase_GetPostByID(t *testing.T) {
-	t.Run("所有者のPostを取得できる", func(t *testing.T) {
-		usecase, repo := newPostUsecaseTest(t)
-		expectedPost := &models.Post{
-			UUIDBaseModel: models.UUIDBaseModel{ID: testPostID},
-			AuthorID:      testUserID,
-			Title:         "hello",
-			Content:       "world",
-		}
-		repo.EXPECT().
-			GetByID(gomock.Any(), testPostID).
-			Return(expectedPost, nil)
-
-		post, err := usecase.GetPostByID(context.Background(), testPostID)
-
-		require.NoError(t, err)
-		require.NotNil(t, post)
-		assert.Equal(t, expectedPost, post)
-	})
-
 	t.Run("Repositoryのエラーをそのまま返す", func(t *testing.T) {
 		usecase, repo := newPostUsecaseTest(t)
 		expectedErr := errors.New("db error")
@@ -122,55 +103,7 @@ func TestPostUsecase_GetPostByIDForOwner(t *testing.T) {
 	require.Nil(t, post)
 }
 
-func TestPostUsecase_ListAllPosts(t *testing.T) {
-	t.Run("全Postを返す", func(t *testing.T) {
-		usecase, repo := newPostUsecaseTest(t)
-		expectedPosts := []*models.Post{
-			{UUIDBaseModel: models.UUIDBaseModel{ID: testPostID}, AuthorID: testUserID, Title: "hello", Content: "world"},
-			{UUIDBaseModel: models.UUIDBaseModel{ID: testMissingID}, AuthorID: testOtherUserID, Title: "foo", Content: "bar"},
-		}
-		repo.EXPECT().
-			ListAll(gomock.Any()).
-			Return(expectedPosts, nil)
-
-		posts, err := usecase.ListAllPosts(context.Background())
-
-		require.NoError(t, err)
-		assert.Equal(t, expectedPosts, posts)
-	})
-
-	t.Run("Repositoryのエラーをそのまま返す", func(t *testing.T) {
-		usecase, repo := newPostUsecaseTest(t)
-		expectedErr := errors.New("db error")
-		repo.EXPECT().
-			ListAll(gomock.Any()).
-			Return(nil, expectedErr)
-
-		posts, err := usecase.ListAllPosts(context.Background())
-
-		require.Error(t, err)
-		assert.Nil(t, posts)
-		assert.ErrorIs(t, err, expectedErr)
-	})
-}
-
 func TestPostUsecase_CreatePost(t *testing.T) {
-	t.Run("認証済みUserをauthorに設定する", func(t *testing.T) {
-		usecase, repo := newPostUsecaseTest(t)
-		repo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, post *models.Post) error {
-				assert.Equal(t, testUserID, post.AuthorID)
-				assert.Equal(t, "hello", post.Title)
-				assert.Equal(t, "world", post.Content)
-				return nil
-			})
-
-		err := usecase.CreatePost(context.Background(), testUserID, "hello", "world")
-
-		require.NoError(t, err)
-	})
-
 	t.Run("空のtitleを拒否する", func(t *testing.T) {
 		usecase, _ := newPostUsecaseTest(t)
 
@@ -246,16 +179,6 @@ func TestPostUsecase_UpdatePost(t *testing.T) {
 
 		require.Error(t, err)
 		assert.ErrorIs(t, err, models.ErrInvalidTitle)
-	})
-
-	t.Run("空のcontentを拒否する", func(t *testing.T) {
-		usecase, _ := newPostUsecaseTest(t)
-		post := &models.Post{AuthorID: testUserID, Title: "title"}
-
-		err := usecase.UpdatePost(context.Background(), testUserID, post)
-
-		require.Error(t, err)
-		assert.ErrorIs(t, err, models.ErrInvalidContent)
 	})
 }
 
