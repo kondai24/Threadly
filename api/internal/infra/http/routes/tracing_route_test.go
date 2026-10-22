@@ -64,25 +64,25 @@ func TestHandlers_RecordHandlerSpanAboveUsecaseSpans(t *testing.T) {
 		want   []string
 	}{
 		{
-			name: "AuthController.RegisterHandler", method: http.MethodPost, path: "/api/auth/register",
+			name: "登録はHandler配下にUsecase Spanを残す", method: http.MethodPost, path: "/api/auth/register",
 			body: `{"username":"alice","password":"` + routeSecret + `"}`,
 			want: []string{"AuthUsecase.Register success", "AuthController.RegisterHandler success"},
 		},
 		{
-			name: "AuthController.LoginHandler", method: http.MethodPost, path: "/api/auth/login",
+			name: "認証失敗のLoginは両層でunauthenticated", method: http.MethodPost, path: "/api/auth/login",
 			body: `{"username":"alice","password":"` + routeSecret + `"}`,
 			want: []string{"AuthUsecase.Login unauthenticated", "AuthController.LoginHandler unauthenticated"},
 		},
 		{
-			name: "AuthController.LogoutHandler", method: http.MethodPost, path: "/api/auth/logout",
+			name: "LogoutはUsecaseなしでHandler Spanだけを残す", method: http.MethodPost, path: "/api/auth/logout",
 			want: []string{"AuthController.LogoutHandler success"},
 		},
 		{
-			name: "AuthController.MeHandler", method: http.MethodGet, path: "/api/me",
+			name: "存在しない現在UserはNotFound", method: http.MethodGet, path: "/api/me",
 			want: []string{"AuthUsecase.GetMe not_found", "AuthController.MeHandler not_found"},
 		},
 		{
-			name: "PostController.ListPostsHandler", method: http.MethodGet, path: "/api/posts",
+			name: "Post一覧はLike集計を含む階層を残す", method: http.MethodGet, path: "/api/posts",
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().ListAll(gomock.Any()).Return(nil, nil)
 			},
@@ -93,11 +93,11 @@ func TestHandlers_RecordHandlerSpanAboveUsecaseSpans(t *testing.T) {
 			},
 		},
 		{
-			name: "PostController.GetPostByIDHandler", method: http.MethodGet, path: "/api/posts/not-a-uuid",
+			name: "不正なPost IDはHandlerだけでinvalid_input", method: http.MethodGet, path: "/api/posts/not-a-uuid",
 			want: []string{"PostController.GetPostByIDHandler invalid_input"},
 		},
 		{
-			name: "PostController.CreatePostHandler", method: http.MethodPost, path: "/api/posts",
+			name: "Post作成はsuccess", method: http.MethodPost, path: "/api/posts",
 			body: `{"title":"title","content":"` + routeSecret + `"}`,
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
@@ -105,33 +105,33 @@ func TestHandlers_RecordHandlerSpanAboveUsecaseSpans(t *testing.T) {
 			want: []string{"PostUsecase.CreatePost success", "PostController.CreatePostHandler success"},
 		},
 		{
-			name: "PostController.UpdatePostHandler", method: http.MethodPut, path: postPath, body: `{"title":"title"}`,
+			name: "非所有者のPost更新はNotFound", method: http.MethodPut, path: postPath, body: `{"title":"title"}`,
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().GetByIDForOwner(gomock.Any(), routeUserID, routePostID).Return(nil, repositories.ErrPostNotFound)
 			},
 			want: []string{"PostUsecase.GetPostByIDForOwner not_found", "PostController.UpdatePostHandler not_found"},
 		},
 		{
-			name: "PostController.DeletePostHandler", method: http.MethodDelete, path: postPath,
+			name: "Post削除のDB障害はinternal_error", method: http.MethodDelete, path: postPath,
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().GetByIDForUpdate(gomock.Any(), routePostID).Return(nil, internalErr)
 			},
 			want: []string{"PostUsecase.DeletePost internal_error", "PostController.DeletePostHandler internal_error"},
 		},
 		{
-			name: "CommentController.ListCommentsHandler", method: http.MethodGet, path: postPath + "/comments",
+			name: "存在しないPostのComment一覧はNotFound", method: http.MethodGet, path: postPath + "/comments",
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(nil, repositories.ErrPostNotFound)
 			},
 			want: []string{"CommentUsecase.ListCommentsForUser not_found", "CommentController.ListCommentsHandler not_found"},
 		},
 		{
-			name: "CommentController.CreateCommentHandler", method: http.MethodPost, path: postPath + "/comments",
+			name: "不正なJSONのComment作成はHandlerだけでinvalid_input", method: http.MethodPost, path: postPath + "/comments",
 			body: `{"content":`,
 			want: []string{"CommentController.CreateCommentHandler invalid_input"},
 		},
 		{
-			name: "CommentController.UpdateCommentHandler", method: http.MethodPut, path: commentPath,
+			name: "Comment更新はsuccess", method: http.MethodPut, path: commentPath,
 			body: `{"content":"updated"}`,
 			setup: func(repos routeRepositories) {
 				repos.Comment.EXPECT().Update(gomock.Any(), routeUserID, routeCommentID, "updated").Return(int64(1), nil)
@@ -139,32 +139,32 @@ func TestHandlers_RecordHandlerSpanAboveUsecaseSpans(t *testing.T) {
 			want: []string{"CommentUsecase.UpdateComment success", "CommentController.UpdateCommentHandler success"},
 		},
 		{
-			name: "CommentController.DeleteCommentHandler", method: http.MethodDelete, path: "/api/comments/not-a-uuid",
+			name: "不正なComment IDの削除はHandlerだけでinvalid_input", method: http.MethodDelete, path: "/api/comments/not-a-uuid",
 			want: []string{"CommentController.DeleteCommentHandler invalid_input"},
 		},
 		{
-			name: "LikeController.LikePostHandler", method: http.MethodPut, path: postPath + "/like",
+			name: "存在しないPostのLikeはNotFound", method: http.MethodPut, path: postPath + "/like",
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(nil, repositories.ErrPostNotFound)
 			},
 			want: []string{"LikeUsecase.LikePost not_found", "LikeController.LikePostHandler not_found"},
 		},
 		{
-			name: "LikeController.UnlikePostHandler", method: http.MethodDelete, path: postPath + "/like",
+			name: "存在しないPostのLike解除はNotFound", method: http.MethodDelete, path: postPath + "/like",
 			setup: func(repos routeRepositories) {
 				repos.Post.EXPECT().GetByID(gomock.Any(), routePostID).Return(nil, repositories.ErrPostNotFound)
 			},
 			want: []string{"LikeUsecase.UnlikePost not_found", "LikeController.UnlikePostHandler not_found"},
 		},
 		{
-			name: "LikeController.LikeCommentHandler", method: http.MethodPut, path: commentPath + "/like",
+			name: "存在しないCommentのLikeはNotFound", method: http.MethodPut, path: commentPath + "/like",
 			setup: func(repos routeRepositories) {
 				repos.Comment.EXPECT().GetByID(gomock.Any(), routeCommentID).Return(nil, repositories.ErrCommentNotFound)
 			},
 			want: []string{"LikeUsecase.LikeComment not_found", "LikeController.LikeCommentHandler not_found"},
 		},
 		{
-			name: "LikeController.UnlikeCommentHandler", method: http.MethodDelete, path: "/api/comments/not-a-uuid/like",
+			name: "不正なComment IDのLike解除はHandlerだけでinvalid_input", method: http.MethodDelete, path: "/api/comments/not-a-uuid/like",
 			want: []string{"LikeController.UnlikeCommentHandler invalid_input"},
 		},
 	}
