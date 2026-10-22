@@ -53,6 +53,16 @@ func Start(ctx context.Context, tracer trace.Tracer, layer Layer, name string) (
 	)
 }
 
+// StartServerは、HTTP全体を表すSpanをSpanKindServerで開始する。
+func StartServer(ctx context.Context, tracer trace.Tracer, name string) (context.Context, trace.Span) {
+	return tracer.Start(
+		ctx,
+		name,
+		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(layerKey.String(string(LayerHTTP))),
+	)
+}
+
 // Endは、結果分類を記録してSpanを終了する。recoveredがnilでなければpanicとして記録し、
 // 終了後に同じ値でpanicを再送出する。呼び出し側はdefer内でrecover()を直接渡す。
 func End(span trace.Span, result Result, recovered any) {

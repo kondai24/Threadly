@@ -179,6 +179,7 @@ func newRouteRouterWithTracer(
 		Comment:     controllers.NewCommentController(comment, tracer),
 		Like:        likeController,
 		TokenIssuer: tokens,
+		Tracer:      tracer,
 	}), repos
 }
 

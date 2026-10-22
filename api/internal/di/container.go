@@ -108,6 +108,7 @@ func provideHandlers(
 	commentController *controllers.CommentController,
 	likeController *controllers.LikeController,
 	tokenIssuer usecase.TokenIssuer,
+	tracer trace.Tracer,
 ) routes.Handlers {
 	return routes.Handlers{
 		Auth:        authController,
@@ -115,6 +116,7 @@ func provideHandlers(
 		Comment:     commentController,
 		Like:        likeController,
 		TokenIssuer: tokenIssuer,
+		Tracer:      tracer,
 	}
 }
 
