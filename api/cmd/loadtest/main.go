@@ -47,12 +47,12 @@ func report(args []string) int {
 	if err != nil {
 		invalidInput()
 	}
-	defer manifest.Close()
+	defer func() { _ = manifest.Close() }()
 	points, err := os.Open(*pointsPath)
 	if err != nil {
 		invalidInput()
 	}
-	defer points.Close()
+	defer func() { _ = points.Close() }()
 	result, err := loadtest.GenerateReport(manifest, points)
 	if err != nil {
 		invalidInput()
