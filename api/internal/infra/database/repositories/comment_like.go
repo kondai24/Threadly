@@ -6,26 +6,32 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
 
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 // CommentLikeRepositoryは、CommentLikeRepository契約をGORMへ適配する。
 type CommentLikeRepository struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Tracer trace.Tracer
 }
 
 // NewCommentLikeRepositoryは、指定されたDB handleへ結び付いたCommentLikeRepositoryを生成する。
-func NewCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepository {
-	return &CommentLikeRepository{DB: db}
+func NewCommentLikeRepository(db *gorm.DB, tracer trace.Tracer) repositories.CommentLikeRepository {
+	return &CommentLikeRepository{DB: db, Tracer: tracer}
 }
 
 func (r *CommentLikeRepository) Ensure(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.Ensure")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	like := &models.CommentLike{UserID: userID, CommentID: commentID}
 	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返しても
 	// エラーにしない。
@@ -45,7 +51,10 @@ func (r *CommentLikeRepository) Delete(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.Delete")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	result := r.DB.WithContext(ctx).
 		Where("user_id = ? AND comment_id = ?", userID, commentID).
 		Delete(&models.CommentLike{})
@@ -58,7 +67,10 @@ func (r *CommentLikeRepository) Delete(
 func (r *CommentLikeRepository) DeleteByCommentIDs(
 	ctx context.Context,
 	commentIDs []models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.DeleteByCommentIDs")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	if len(commentIDs) == 0 {
 		return nil
 	}
@@ -78,7 +90,10 @@ func (r *CommentLikeRepository) DeleteByCommentIDs(
 func (r *CommentLikeRepository) DeleteByCommentIDWithReplies(
 	ctx context.Context,
 	commentID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.DeleteByCommentIDWithReplies")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	commentIDQuery := r.DB.WithContext(ctx).
 		Model(&models.Comment{}).
 		Select("id").
@@ -97,7 +112,10 @@ func (r *CommentLikeRepository) DeleteByCommentIDWithReplies(
 func (r *CommentLikeRepository) DeleteByCommentsOfPostID(
 	ctx context.Context,
 	postID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.DeleteByCommentsOfPostID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	commentIDQuery := r.DB.WithContext(ctx).
 		Model(&models.Comment{}).
 		Select("id").
@@ -114,7 +132,10 @@ func (r *CommentLikeRepository) DeleteByCommentsOfPostID(
 func (r *CommentLikeRepository) CountByCommentIDs(
 	ctx context.Context,
 	commentIDs []models.UUID,
-) (map[models.UUID]int64, error) {
+) (_ map[models.UUID]int64, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.CountByCommentIDs")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 親Commentと返信をまとめたID集合を一括集計し、CommentごとのCOUNTを発行しない。
 	counts := make(map[models.UUID]int64, len(commentIDs))
 	if len(commentIDs) == 0 {
@@ -144,7 +165,10 @@ func (r *CommentLikeRepository) FindLikedCommentIDs(
 	ctx context.Context,
 	userID models.UUID,
 	commentIDs []models.UUID,
-) (map[models.UUID]struct{}, error) {
+) (_ map[models.UUID]struct{}, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentLikeRepository.FindLikedCommentIDs")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// current-userのLike状態だけをID集合で取得し、responseのlikedByMeへ変換できる形にする。
 	likedIDs := make(map[models.UUID]struct{}, len(commentIDs))
 	if len(commentIDs) == 0 {

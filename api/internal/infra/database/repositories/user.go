@@ -7,21 +7,27 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
 
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
 // UserRepositoryは、UserRepository契約をGORMへ適配する。
 type UserRepository struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Tracer trace.Tracer
 }
 
 // NewUserRepositoryは、指定されたDB handleへ結び付いたUserRepositoryを生成する。
-func NewUserRepository(db *gorm.DB) repositories.UserRepository {
-	return &UserRepository{DB: db}
+func NewUserRepository(db *gorm.DB, tracer trace.Tracer) repositories.UserRepository {
+	return &UserRepository{DB: db, Tracer: tracer}
 }
 
-func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
+func (r *UserRepository) FindByUsername(ctx context.Context, username string) (_ *models.User, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "UserRepository.FindByUsername")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	var user models.User
 	result := r.DB.WithContext(ctx).Where("username = ?", username).First(&user)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -33,7 +39,10 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	return &user, nil
 }
 
-func (r *UserRepository) FindByID(ctx context.Context, id models.UUID) (*models.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id models.UUID) (_ *models.User, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "UserRepository.FindByID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	var user models.User
 	result := r.DB.WithContext(ctx).First(&user, id)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -45,8 +54,11 @@ func (r *UserRepository) FindByID(ctx context.Context, id models.UUID) (*models.
 	return &user, nil
 }
 
-func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
-	err := r.DB.WithContext(ctx).Create(user).Error
+func (r *UserRepository) Create(ctx context.Context, user *models.User) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "UserRepository.Create")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
+	err = r.DB.WithContext(ctx).Create(user).Error
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return repositories.ErrUsernameAlreadyExists
 	}
