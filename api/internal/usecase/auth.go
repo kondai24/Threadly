@@ -7,6 +7,9 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -36,6 +39,7 @@ type AuthUsecase struct {
 	repo   repositories.UserRepository
 	hasher PasswordHasher
 	tokens TokenIssuer
+	tracer trace.Tracer
 }
 
 // NewAuthUsecaseは、認証Usecaseを依存性注入で構築する。
@@ -43,11 +47,13 @@ func NewAuthUsecase(
 	repo repositories.UserRepository,
 	hasher PasswordHasher,
 	tokens TokenIssuer,
+	tracer trace.Tracer,
 ) *AuthUsecase {
 	return &AuthUsecase{
 		repo:   repo,
 		hasher: hasher,
 		tokens: tokens,
+		tracer: tracer,
 	}
 }
 
@@ -55,7 +61,10 @@ func (u *AuthUsecase) Register(
 	ctx context.Context,
 	username string,
 	password string,
-) (*models.User, string, error) {
+) (_ *models.User, _ string, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "AuthUsecase.Register")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if err := models.ValidateUsername(username); err != nil {
 		return nil, "", err
 	}
@@ -90,7 +99,10 @@ func (u *AuthUsecase) Login(
 	ctx context.Context,
 	username string,
 	password string,
-) (*models.User, string, error) {
+) (_ *models.User, _ string, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "AuthUsecase.Login")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if err := models.ValidateUsername(username); err != nil {
 		return nil, "", err
 	}
@@ -121,7 +133,10 @@ func (u *AuthUsecase) Login(
 	return user, token, nil
 }
 
-func (u *AuthUsecase) GetMe(ctx context.Context, userID models.UUID) (*models.User, error) {
+func (u *AuthUsecase) GetMe(ctx context.Context, userID models.UUID) (_ *models.User, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "AuthUsecase.GetMe")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	user, err := u.repo.FindByID(ctx, userID)
 	if errors.Is(err, repositories.ErrUserNotFound) {
 		// RepositoryのNotFoundをUsecaseの契約へ変換し、Controllerへ永続化層を漏らさない。
