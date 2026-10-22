@@ -15,7 +15,7 @@ make migrate-apply
 make dev
 ```
 
-`make tools` は mockgen、swag、Air、Atlas CLIをインストールします。Atlas CLIはmacOSのHomebrewを利用します。`make dev` は Air を起動し、`cmd/`・`internal/`・`docs/` 配下の変更を検知すると API を再ビルド・再起動します。Air は Go 1.25 と互換性のある固定バージョンをインストールします。
+`make tools` は mockgen、swag、Air、Atlas CLIをインストールします。Atlas CLIはmacOSのHomebrewを利用します。`make dev` は Air を起動し、`cmd/`・`internal/`・`docs/` 配下の変更を検知すると API を再ビルド・再起動します。Air は Go 1.26 と互換性のある固定バージョンをインストールします。
 
 `JWT_SECRET` は必須です。HS256 の署名鍵として利用するため、32バイト以上の秘密値を設定してください。設定項目は `.env.sample` にも記載しています。
 

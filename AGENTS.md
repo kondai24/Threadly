@@ -10,7 +10,7 @@
 
 ## プロジェクト構成
 
-- `api/`: Go 1.25系、Gin、GORM、MySQL、AtlasによるAPI。
+- `api/`: Go 1.26系、Gin、GORM、MySQL、AtlasによるAPI。
 - `front/`: Node.js 22系、React、TypeScript、ViteによるFront。
 - `api/internal/domain/`: ModelとRepository契約。
 - `api/internal/usecase/`: 業務ルール、認証・認可、Unit of Work。
