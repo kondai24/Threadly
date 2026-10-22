@@ -7,7 +7,9 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
 
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -15,15 +17,19 @@ import (
 // CommentRepositoryは、CommentRepository契約をGORMへ適配する。
 // DBにはroot DBまたはUnitOfWorkが生成したtransaction-bound DBが入る。
 type CommentRepository struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Tracer trace.Tracer
 }
 
 // NewCommentRepositoryは、指定されたDB handleへ結び付いたCommentRepositoryを生成する。
-func NewCommentRepository(db *gorm.DB) repositories.CommentRepository {
-	return &CommentRepository{DB: db}
+func NewCommentRepository(db *gorm.DB, tracer trace.Tracer) repositories.CommentRepository {
+	return &CommentRepository{DB: db, Tracer: tracer}
 }
 
-func (r *CommentRepository) Create(ctx context.Context, comment *models.Comment) error {
+func (r *CommentRepository) Create(ctx context.Context, comment *models.Comment) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.Create")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	if err := r.DB.WithContext(ctx).Create(comment).Error; err != nil {
 		return fmt.Errorf("create comment: %w", err)
 	}
@@ -33,7 +39,10 @@ func (r *CommentRepository) Create(ctx context.Context, comment *models.Comment)
 func (r *CommentRepository) ListByPostID(
 	ctx context.Context,
 	postID models.UUID,
-) ([]*models.Comment, error) {
+) (_ []*models.Comment, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.ListByPostID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 親Commentだけを取得し、RepliesはGORMのPreloadで1段階に限定して復元する。
 	comments := make([]*models.Comment, 0)
 	result := r.DB.WithContext(ctx).
@@ -55,7 +64,10 @@ func (r *CommentRepository) ListByPostID(
 func (r *CommentRepository) GetByID(
 	ctx context.Context,
 	commentID models.UUID,
-) (*models.Comment, error) {
+) (_ *models.Comment, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.GetByID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	var comment models.Comment
 	result := r.DB.WithContext(ctx).First(&comment, "id = ?", commentID)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -71,7 +83,10 @@ func (r *CommentRepository) GetByID(
 func (r *CommentRepository) GetByIDForUpdate(
 	ctx context.Context,
 	commentID models.UUID,
-) (*models.Comment, error) {
+) (_ *models.Comment, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.GetByIDForUpdate")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 返信作成・削除の前提となるCommentをロックし、存在確認直後の競合更新を防ぐ。
 	var comment models.Comment
 	result := r.DB.WithContext(ctx).
@@ -91,7 +106,10 @@ func (r *CommentRepository) Update(
 	userID models.UUID,
 	commentID models.UUID,
 	content string,
-) (int64, error) {
+) (_ int64, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.Update")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 所有者条件をSQLへ含め、非所有者へ更新対象の存在を返さない。
 	result := r.DB.WithContext(ctx).
 		Model(&models.Comment{}).
@@ -109,7 +127,10 @@ func (r *CommentRepository) Update(
 func (r *CommentRepository) DeleteByPostID(
 	ctx context.Context,
 	postID models.UUID,
-) (int64, error) {
+) (_ int64, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.DeleteByPostID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// Post配下の全Commentを論理削除する。CommentLikeの物理削除は別Repositoryが担当する。
 	result := r.DB.WithContext(ctx).
 		Where("post_id = ?", postID).
@@ -128,7 +149,10 @@ func (r *CommentRepository) DeleteByIDWithReplies(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
-) (int64, error) {
+) (_ int64, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "CommentRepository.DeleteByIDWithReplies")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	result := r.DB.WithContext(ctx).
 		Where("id = ? AND author_id = ?", commentID, userID).
 		Delete(&models.Comment{})

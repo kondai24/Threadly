@@ -9,6 +9,7 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing/tracingtest"
 	"Threadly/internal/usecase"
 
 	"github.com/stretchr/testify/require"
@@ -43,17 +44,17 @@ func TestDeleteUsecasesCommitOrRollBackRelatedData(t *testing.T) {
 			t.Run(target+"/"+outcome, func(t *testing.T) {
 				user, posts, comments := seedDeleteData(t, db)
 				ctx := context.Background()
-				uow := NewUnitOfWork(db)
+				uow := NewUnitOfWork(db, noopTracer())
 				expectedErr := errors.New("transaction failed after deletes")
 				if rollback {
 					uow = rollbackUnitOfWork{UnitOfWork: uow, err: expectedErr}
 				}
 				var err error
 				if target == "Post" {
-					service := usecase.NewPostUsecase(NewPostRepository(db), uow)
+					service := usecase.NewPostUsecase(NewPostRepository(db, noopTracer()), uow)
 					err = service.DeletePost(ctx, user.ID, posts[0].ID)
 				} else {
-					service := usecase.NewCommentUsecase(NewCommentRepository(db), NewPostRepository(db), uow)
+					service := usecase.NewCommentUsecase(NewCommentRepository(db, noopTracer()), NewPostRepository(db, noopTracer()), uow)
 					err = service.DeleteComment(ctx, user.ID, comments[0].ID)
 				}
 				if rollback {
@@ -133,11 +134,43 @@ func seedDeleteData(t *testing.T, db *gorm.DB) (*models.User, []*models.Post, []
 		if i == 1 {
 			comment.ParentID = &comments[0].ID
 		}
-		require.NoError(t, NewCommentRepository(db).Create(context.Background(), comment))
+		require.NoError(t, NewCommentRepository(db, noopTracer()).Create(context.Background(), comment))
 		commentIDs = append(commentIDs, comment.ID)
 		_, err := models.ParseUUID(string(comment.ID))
 		require.NoError(t, err)
 		require.NoError(t, db.Create(&models.CommentLike{UserID: user.ID, CommentID: comment.ID}).Error)
 	}
 	return user, posts, comments
+}
+
+func TestUnitOfWork_PassesTracerToTransactionRepositories(t *testing.T) {
+	db := openTestDB(t)
+	tracer, recorder := tracingtest.NewRecorder()
+	ctx, parent := tracer.Start(context.Background(), "PostUsecase.DeletePost")
+	missingID := models.UUID("99999999-9999-4999-8999-999999999999")
+
+	err := NewUnitOfWork(db, tracer).WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+		_, err := tx.Post.GetByID(ctx, missingID)
+		require.ErrorIs(t, err, repositories.ErrPostNotFound)
+		_, err = tx.Comment.GetByID(ctx, missingID)
+		require.ErrorIs(t, err, repositories.ErrCommentNotFound)
+		require.NoError(t, tx.PostLike.DeleteByPostID(ctx, missingID))
+		require.NoError(t, tx.CommentLike.DeleteByCommentIDs(ctx, nil))
+		return nil
+	})
+	require.NoError(t, err)
+	parent.End()
+
+	spans := recorder.Ended()
+	// UoW自体はSpanを作らず、tx-bound Repositoryの操作だけが呼び出し元Spanの子になる。
+	require.Equal(t, []string{
+		"PostRepository.GetByID not_found",
+		"CommentRepository.GetByID not_found",
+		"PostLikeRepository.DeleteByPostID success",
+		"CommentLikeRepository.DeleteByCommentIDs success",
+		"PostUsecase.DeletePost ",
+	}, tracingtest.Results(spans))
+	for _, span := range spans[:4] {
+		require.Equal(t, parent.SpanContext().SpanID(), span.Parent().SpanID())
+	}
 }

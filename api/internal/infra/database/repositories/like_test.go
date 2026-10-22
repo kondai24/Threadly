@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"Threadly/internal/domain/models"
+	"Threadly/internal/tracing/tracingtest"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -31,7 +32,7 @@ func TestPostLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tx.Rollback().Error) })
 
 	user, post, _ := seedLikeRepositoryData(t, tx)
-	repo := &PostLikeRepository{DB: tx}
+	repo := &PostLikeRepository{DB: tx, Tracer: noopTracer()}
 
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, post.ID))
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, post.ID))
@@ -62,7 +63,7 @@ func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, tx.Rollback().Error) })
 
 	user, _, comment := seedLikeRepositoryData(t, tx)
-	repo := &CommentLikeRepository{DB: tx}
+	repo := &CommentLikeRepository{DB: tx, Tracer: noopTracer()}
 
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, comment.ID))
 	require.NoError(t, repo.Ensure(context.Background(), user.ID, comment.ID))
@@ -84,4 +85,49 @@ func TestCommentLikeRepository_IsIdempotentAndSupportsRelike(t *testing.T) {
 	counts, err = repo.CountByCommentIDs(context.Background(), []models.UUID{comment.ID})
 	require.NoError(t, err)
 	require.Equal(t, int64(1), counts[comment.ID])
+}
+
+func TestLikeRepositories_RecordOneSpanPerOperationIncludingEmptyInput(t *testing.T) {
+	db := openTestDB(t)
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	t.Cleanup(func() { require.NoError(t, tx.Rollback().Error) })
+	user, post, comment := seedLikeRepositoryData(t, tx)
+	tracer, recorder := tracingtest.NewRecorder()
+	postLikes := NewPostLikeRepository(tx, tracer)
+	commentLikes := NewCommentLikeRepository(tx, tracer)
+	ctx := context.Background()
+
+	require.NoError(t, postLikes.Ensure(ctx, user.ID, post.ID))
+	require.NoError(t, postLikes.Delete(ctx, user.ID, post.ID))
+	require.NoError(t, postLikes.DeleteByPostID(ctx, post.ID))
+	// 空集合の早期returnでもRepository操作としてSpanを1本残す。
+	_, err := postLikes.CountByPostIDs(ctx, nil)
+	require.NoError(t, err)
+	_, err = postLikes.FindLikedPostIDs(ctx, user.ID, nil)
+	require.NoError(t, err)
+	require.NoError(t, commentLikes.Ensure(ctx, user.ID, comment.ID))
+	require.NoError(t, commentLikes.Delete(ctx, user.ID, comment.ID))
+	require.NoError(t, commentLikes.DeleteByCommentIDs(ctx, nil))
+	require.NoError(t, commentLikes.DeleteByCommentIDWithReplies(ctx, comment.ID))
+	require.NoError(t, commentLikes.DeleteByCommentsOfPostID(ctx, post.ID))
+	_, err = commentLikes.CountByCommentIDs(ctx, []models.UUID{comment.ID})
+	require.NoError(t, err)
+	_, err = commentLikes.FindLikedCommentIDs(ctx, user.ID, []models.UUID{comment.ID})
+	require.NoError(t, err)
+
+	require.Equal(t, []string{
+		"PostLikeRepository.Ensure success",
+		"PostLikeRepository.Delete success",
+		"PostLikeRepository.DeleteByPostID success",
+		"PostLikeRepository.CountByPostIDs success",
+		"PostLikeRepository.FindLikedPostIDs success",
+		"CommentLikeRepository.Ensure success",
+		"CommentLikeRepository.Delete success",
+		"CommentLikeRepository.DeleteByCommentIDs success",
+		"CommentLikeRepository.DeleteByCommentIDWithReplies success",
+		"CommentLikeRepository.DeleteByCommentsOfPostID success",
+		"CommentLikeRepository.CountByCommentIDs success",
+		"CommentLikeRepository.FindLikedCommentIDs success",
+	}, tracingtest.Results(recorder.Ended()))
 }
