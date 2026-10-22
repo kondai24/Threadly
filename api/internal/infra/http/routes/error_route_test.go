@@ -46,7 +46,7 @@ func TestSetupRouter_InternalErrorsHideDetails(t *testing.T) {
 				tokens := routeTokenIssuer{}
 				tracer := noop.NewTracerProvider().Tracer("test")
 				auth := usecase.NewAuthUsecase(repo, failingPasswordHasher{err: internalErr}, tokens, tracer)
-				return SetupRouter(Handlers{Auth: controllers.NewAuthController(auth, tracer), TokenIssuer: tokens})
+				return SetupRouter(Handlers{Auth: controllers.NewAuthController(auth, tracer), TokenIssuer: tokens, Tracer: tracer})
 			},
 		},
 		{

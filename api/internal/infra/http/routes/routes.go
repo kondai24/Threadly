@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Handlersは、Routerが必要とするHTTP adapterと認証検証器をまとめる。
@@ -19,12 +20,14 @@ type Handlers struct {
 	Comment     *controllers.CommentController
 	Like        *controllers.LikeController
 	TokenIssuer usecase.TokenIssuer
+	Tracer      trace.Tracer
 }
 
 // SetupRouterは、公開Routeと認証必須RouteをMiddleware順序込みで構成する。
 func SetupRouter(h Handlers) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery())
+	// Trace MiddlewareをRecoveryより外側に置き、panic後の500と認証拒否もHTTP Spanへ含める。
+	router.Use(gin.Logger(), middleware.TraceHTTP(h.Tracer), gin.Recovery())
 
 	docs.SwaggerInfo.BasePath = "/"
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
