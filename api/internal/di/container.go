@@ -12,6 +12,8 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/dig"
 	"gorm.io/gorm"
 )
@@ -20,6 +22,7 @@ func NewContainer() (*dig.Container, error) {
 	container := dig.New()
 
 	constructors := []any{
+		provideTracer,
 		database.ConnectionDB,
 		provideUserRepository,
 		providePostRepository,
@@ -52,28 +55,33 @@ func NewContainer() (*dig.Container, error) {
 	return container, nil
 }
 
-func providePostRepository(db *gorm.DB) repositories.PostRepository {
-	return dbrepository.NewPostRepository(db)
+// provideTracerは、実行時SDKを起動処理へ接続するまで、無送信のTracerを明示的に渡す。
+func provideTracer() trace.Tracer {
+	return noop.NewTracerProvider().Tracer("Threadly/api")
 }
 
-func provideUserRepository(db *gorm.DB) repositories.UserRepository {
-	return dbrepository.NewUserRepository(db)
+func providePostRepository(db *gorm.DB, tracer trace.Tracer) repositories.PostRepository {
+	return dbrepository.NewPostRepository(db, tracer)
 }
 
-func provideCommentRepository(db *gorm.DB) repositories.CommentRepository {
-	return dbrepository.NewCommentRepository(db)
+func provideUserRepository(db *gorm.DB, tracer trace.Tracer) repositories.UserRepository {
+	return dbrepository.NewUserRepository(db, tracer)
 }
 
-func provideUnitOfWork(db *gorm.DB) repositories.UnitOfWork {
-	return dbrepository.NewUnitOfWork(db)
+func provideCommentRepository(db *gorm.DB, tracer trace.Tracer) repositories.CommentRepository {
+	return dbrepository.NewCommentRepository(db, tracer)
 }
 
-func providePostLikeRepository(db *gorm.DB) repositories.PostLikeRepository {
-	return dbrepository.NewPostLikeRepository(db)
+func provideUnitOfWork(db *gorm.DB, tracer trace.Tracer) repositories.UnitOfWork {
+	return dbrepository.NewUnitOfWork(db, tracer)
 }
 
-func provideCommentLikeRepository(db *gorm.DB) repositories.CommentLikeRepository {
-	return dbrepository.NewCommentLikeRepository(db)
+func providePostLikeRepository(db *gorm.DB, tracer trace.Tracer) repositories.PostLikeRepository {
+	return dbrepository.NewPostLikeRepository(db, tracer)
+}
+
+func provideCommentLikeRepository(db *gorm.DB, tracer trace.Tracer) repositories.CommentLikeRepository {
+	return dbrepository.NewCommentLikeRepository(db, tracer)
 }
 
 func providePostLikeSummaryReader(likeUsecase *usecase.LikeUsecase) usecase.PostLikeSummaryReader {

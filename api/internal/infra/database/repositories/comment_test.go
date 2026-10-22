@@ -9,6 +9,7 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing/tracingtest"
 
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -24,7 +25,7 @@ func newTestCommentRepository(t *testing.T) (*CommentRepository, *gorm.DB) {
 		require.NoError(t, tx.Rollback().Error)
 	})
 
-	return &CommentRepository{DB: tx}, tx
+	return &CommentRepository{DB: tx, Tracer: noopTracer()}, tx
 }
 
 func seedCommentRepositoryData(t *testing.T, db *gorm.DB) (*models.User, *models.Post, *models.Comment, *models.Comment) {
@@ -115,4 +116,37 @@ func TestCommentRepository_UpdateRequiresAuthor(t *testing.T) {
 	var stored models.Comment
 	require.NoError(t, db.Where("post_id = ? AND id = ?", post.ID, root.ID).First(&stored).Error)
 	require.Equal(t, "updated", stored.Content)
+}
+
+func TestCommentRepository_RecordsOneSpanPerOperation(t *testing.T) {
+	repo, tx := newTestCommentRepository(t)
+	tracer, recorder := tracingtest.NewRecorder()
+	repo.Tracer = tracer
+	ctx := context.Background()
+	user, post, root, _ := seedCommentRepositoryData(t, tx)
+	comment := &models.Comment{PostID: post.ID, AuthorID: user.ID, Content: "comment"}
+
+	require.NoError(t, repo.Create(ctx, comment))
+	_, err := repo.ListByPostID(ctx, post.ID)
+	require.NoError(t, err)
+	_, err = repo.GetByID(ctx, comment.ID)
+	require.NoError(t, err)
+	_, err = repo.GetByIDForUpdate(ctx, comment.ID)
+	require.NoError(t, err)
+	_, err = repo.Update(ctx, user.ID, comment.ID, "updated")
+	require.NoError(t, err)
+	_, err = repo.DeleteByIDWithReplies(ctx, user.ID, root.ID)
+	require.NoError(t, err)
+	_, err = repo.DeleteByPostID(ctx, post.ID)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{
+		"CommentRepository.Create success",
+		"CommentRepository.ListByPostID success",
+		"CommentRepository.GetByID success",
+		"CommentRepository.GetByIDForUpdate success",
+		"CommentRepository.Update success",
+		"CommentRepository.DeleteByIDWithReplies success",
+		"CommentRepository.DeleteByPostID success",
+	}, tracingtest.Results(recorder.Ended()))
 }

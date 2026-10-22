@@ -6,26 +6,32 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
 
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 // PostLikeRepositoryは、PostLikeRepository契約をGORMへ適配する。
 type PostLikeRepository struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Tracer trace.Tracer
 }
 
 // NewPostLikeRepositoryは、指定されたDB handleへ結び付いたPostLikeRepositoryを生成する。
-func NewPostLikeRepository(db *gorm.DB) repositories.PostLikeRepository {
-	return &PostLikeRepository{DB: db}
+func NewPostLikeRepository(db *gorm.DB, tracer trace.Tracer) repositories.PostLikeRepository {
+	return &PostLikeRepository{DB: db, Tracer: tracer}
 }
 
 func (r *PostLikeRepository) Ensure(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostLikeRepository.Ensure")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	like := &models.PostLike{UserID: userID, PostID: postID}
 	// 未Likeなら作成し、Like済みなら何もしないことで、同じLikeを繰り返しても
 	// エラーにしない。
@@ -45,7 +51,10 @@ func (r *PostLikeRepository) Delete(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostLikeRepository.Delete")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	result := r.DB.WithContext(ctx).
 		Where("user_id = ? AND post_id = ?", userID, postID).
 		Delete(&models.PostLike{})
@@ -58,7 +67,10 @@ func (r *PostLikeRepository) Delete(
 func (r *PostLikeRepository) DeleteByPostID(
 	ctx context.Context,
 	postID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostLikeRepository.DeleteByPostID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	result := r.DB.WithContext(ctx).
 		Where("post_id = ?", postID).
 		Delete(&models.PostLike{})
@@ -71,7 +83,10 @@ func (r *PostLikeRepository) DeleteByPostID(
 func (r *PostLikeRepository) CountByPostIDs(
 	ctx context.Context,
 	postIDs []models.UUID,
-) (map[models.UUID]int64, error) {
+) (_ map[models.UUID]int64, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostLikeRepository.CountByPostIDs")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// Post一覧の各行を個別COUNTせず、対象ID集合をGROUP BYしてN+1を避ける。
 	counts := make(map[models.UUID]int64, len(postIDs))
 	if len(postIDs) == 0 {
@@ -101,7 +116,10 @@ func (r *PostLikeRepository) FindLikedPostIDs(
 	ctx context.Context,
 	userID models.UUID,
 	postIDs []models.UUID,
-) (map[models.UUID]struct{}, error) {
+) (_ map[models.UUID]struct{}, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostLikeRepository.FindLikedPostIDs")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 件数とは別にcurrent-userのLike状態を取得し、全UserのLike情報を公開しない。
 	likedIDs := make(map[models.UUID]struct{}, len(postIDs))
 	if len(postIDs) == 0 {
