@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"Threadly/internal/middleware"
 	"Threadly/internal/tracing"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,8 @@ func endHandlerSpan(c *gin.Context, span trace.Span, recovered any) {
 	status := c.Writer.Status()
 	if recovered != nil {
 		status = 0
+		// HTTP SpanはRecovery後の500しか観測できないため、panicだったことを固定マーカーで伝える。
+		middleware.MarkTracePanic(c)
 	}
 	tracing.SetHTTPAttributes(span, c.Request.Method, c.FullPath(), status)
 	tracing.End(span, tracing.HTTPResult(status), recovered)

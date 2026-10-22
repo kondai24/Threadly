@@ -178,11 +178,15 @@ func TestHandlers_RecordHandlerSpanAboveUsecaseSpans(t *testing.T) {
 			performRequest(router, tt.method, tt.path, "user-"+string(routeUserID), tt.body)
 
 			spans := recorder.Ended()
-			require.Equal(t, tt.want, tracingtest.Results(spans))
-			handler := spans[len(spans)-1]
+			require.Equal(t, tt.want, tracingtest.Results(spans[:len(spans)-1]))
+			httpSpan := spans[len(spans)-1]
+			handler := spans[len(spans)-2]
+			require.Equal(t, "http", tracingtest.Attribute(httpSpan, "threadly.layer"))
+			require.Equal(t, handler.SpanContext().TraceID(), httpSpan.SpanContext().TraceID())
+			require.Equal(t, httpSpan.SpanContext().SpanID(), handler.Parent().SpanID())
 			require.Equal(t, "handler", tracingtest.Attribute(handler, "threadly.layer"))
 			require.Equal(t, tt.method, tracingtest.Attribute(handler, "http.request.method"))
-			for _, span := range spans[:len(spans)-1] {
+			for _, span := range spans[:len(spans)-2] {
 				if tracingtest.Attribute(span, "threadly.layer") == "usecase" &&
 					!strings.HasPrefix(span.Name(), "LikeUsecase.PostSummaries") {
 					require.Equal(t, handler.SpanContext().SpanID(), span.Parent().SpanID())
@@ -212,6 +216,7 @@ func TestUpdatePostHandler_RecordsOwnerLookupAndUpdateAsSiblings(t *testing.T) {
 		"PostUsecase.GetPostByIDForOwner success",
 		"PostUsecase.UpdatePost success",
 		"PostController.UpdatePostHandler success",
+		"PUT /api/posts/:id success",
 	}, tracingtest.Results(spans))
 	handler := spans[2]
 	require.Equal(t, handler.SpanContext().SpanID(), spans[0].Parent().SpanID())
@@ -233,9 +238,15 @@ func TestHandlers_StartUnderIncomingSpanAndKeepRequestContext(t *testing.T) {
 	parent.End()
 
 	spans := recorder.Ended()
-	require.Equal(t, []string{"AuthUsecase.GetMe not_found", "AuthController.MeHandler not_found"}, tracingtest.Results(spans))
-	require.Equal(t, parent.SpanContext().TraceID(), spans[1].SpanContext().TraceID())
-	require.Equal(t, parent.SpanContext().SpanID(), spans[1].Parent().SpanID())
+	require.Equal(t, []string{
+		"AuthUsecase.GetMe not_found",
+		"AuthController.MeHandler not_found",
+		"GET /api/me not_found",
+	}, tracingtest.Results(spans))
+	// Trace headerがない場合、受信Contextに既にあるSpanを親として引き継ぐ。
+	require.Equal(t, parent.SpanContext().TraceID(), spans[2].SpanContext().TraceID())
+	require.Equal(t, parent.SpanContext().SpanID(), spans[2].Parent().SpanID())
+	require.Equal(t, spans[2].SpanContext().SpanID(), spans[1].Parent().SpanID())
 	require.Len(t, parentRecorder.Ended(), 1)
 }
 
@@ -245,7 +256,7 @@ func TestHandlers_DoNotStartWhenAuthenticationRejectsRequest(t *testing.T) {
 	response := performRequest(router, http.MethodGet, "/api/posts", "", "")
 
 	require.Equal(t, http.StatusUnauthorized, response.Code)
-	require.Empty(t, recorder.Ended())
+	require.Equal(t, []string{"GET /api/posts unauthenticated"}, tracingtest.Results(recorder.Ended()))
 }
 
 func TestHandlers_PanicEndsSpansAndRecoveryReturns500(t *testing.T) {
@@ -261,10 +272,13 @@ func TestHandlers_PanicEndsSpansAndRecoveryReturns500(t *testing.T) {
 	require.Equal(t, []string{
 		"PostUsecase.ListAllPostsForUser panic",
 		"PostController.ListPostsHandler panic",
+		"GET /api/posts panic",
 	}, tracingtest.Results(spans))
 	for _, span := range spans {
 		require.Equal(t, codes.Error, span.Status().Code)
 	}
 	require.Empty(t, tracingtest.Attribute(spans[1], "http.response.status_code"))
+	// HTTP SpanはRecoveryが書いた500を記録しつつ、Handlerのpanic分類を引き継ぐ。
+	require.Equal(t, "500", tracingtest.Attribute(spans[2], "http.response.status_code"))
 	requireNoSecretInSpans(t, spans)
 }
