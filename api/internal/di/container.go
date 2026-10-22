@@ -13,16 +13,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/dig"
 	"gorm.io/gorm"
 )
 
-func NewContainer() (*dig.Container, error) {
+// NewContainerは、起動処理が所有するTrace Providerから得たTracerを全層へ配線する。
+// 無送信時もnilではなくnoop Tracerを受け取る。
+func NewContainer(tracer trace.Tracer) (*dig.Container, error) {
 	container := dig.New()
 
 	constructors := []any{
-		provideTracer,
+		func() trace.Tracer { return tracer },
 		database.ConnectionDB,
 		provideUserRepository,
 		providePostRepository,
@@ -53,11 +54,6 @@ func NewContainer() (*dig.Container, error) {
 	}
 
 	return container, nil
-}
-
-// provideTracerは、実行時SDKを起動処理へ接続するまで、無送信のTracerを明示的に渡す。
-func provideTracer() trace.Tracer {
-	return noop.NewTracerProvider().Tracer("Threadly/api")
 }
 
 func providePostRepository(db *gorm.DB, tracer trace.Tracer) repositories.PostRepository {
