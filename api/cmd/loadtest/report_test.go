@@ -154,10 +154,10 @@ func TestReport_RejectsExactLatencyAndErrorRateBoundaries(t *testing.T) {
 }
 
 func TestReport_KeepsWarmupOutOfCapacityButEvaluatesItsQuality(t *testing.T) {
-	manifest, points := completeReportFixture()
+	manifest, _ := completeReportFixture()
 	warmup := reportStage{Stage: "warmup", Phase: "warmup", Start: manifest.Stages[0].Start.Add(-70 * time.Second), SendEnd: manifest.Stages[0].Start.Add(-10 * time.Second), End: manifest.Stages[0].Start.Add(-10 * time.Second), Complete: true}
 	manifest.Stages = []reportStage{warmup}
-	points = nil
+	var points []metricPoint
 	for i := 0; i < 60; i++ {
 		points = append(points, point(warmup, "lt_http_duration", i, 500, "success"), point(warmup, "http_reqs", i, 1, ""), point(warmup, "lt_operations_started", i, 1, ""), point(warmup, "lt_operations_completed", i, 1, "success"), point(warmup, "iterations", i, 1, ""))
 	}
