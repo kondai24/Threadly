@@ -313,7 +313,7 @@ func TestUsecases_ClassifyExpectedResultsAndUnexpectedFailures(t *testing.T) {
 			require.Equal(t, tt.wantStatus, spans[0].Status().Code)
 			for _, event := range spans[0].Events() {
 				for _, attr := range event.Attributes {
-					require.NotContains(t, attr.Value.Emit(), "dummy-secret")
+					require.NotContains(t, attr.Value.String(), "dummy-secret")
 				}
 			}
 		})
@@ -362,7 +362,7 @@ func TestUsecases_PanicEndsSpanAndRepanics(t *testing.T) {
 	require.Equal(t, codes.Error, spans[0].Status().Code)
 	for _, event := range spans[0].Events() {
 		for _, attr := range event.Attributes {
-			require.NotContains(t, attr.Value.Emit(), secret)
+			require.NotContains(t, attr.Value.String(), secret)
 		}
 	}
 }
