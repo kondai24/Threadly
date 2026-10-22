@@ -22,7 +22,7 @@ func NewRecorder() (trace.Tracer, *tracetest.SpanRecorder) {
 func Attribute(span sdktrace.ReadOnlySpan, key string) string {
 	for _, attr := range span.Attributes() {
 		if string(attr.Key) == key {
-			return attr.Value.Emit()
+			return attr.Value.String()
 		}
 	}
 	return ""
