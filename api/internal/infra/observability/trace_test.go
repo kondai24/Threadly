@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/grpc/codes"
@@ -237,4 +238,23 @@ func TestTraceRuntime_StartsAndShutsDownWithinDeadlineWhenCollectorIsUnreachable
 	err = runtime.Shutdown(ctx)
 	require.Less(t, time.Since(started), 2*time.Second)
 	require.EqualError(t, err, "trace shutdown_failed")
+}
+
+func TestTraceRuntime_IgnoresSpanLimitEnvironment(t *testing.T) {
+	// SDKが環境変数から読むspan limitも表外の設定として扱い、既定値で固定する。
+	t.Setenv("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", "1")
+	t.Setenv("OTEL_ATTRIBUTE_COUNT_LIMIT", "1")
+	collector := startFakeCollector(t)
+	runtime := newExportingRuntime(t, collector)
+
+	_, span := runtime.Tracer().Start(context.Background(), "span", trace.WithAttributes(
+		attribute.String("threadly.layer", "usecase"),
+		attribute.String("threadly.result", "success"),
+	))
+	span.End()
+	require.NoError(t, runtime.Shutdown(context.Background()))
+
+	spans := exportedSpans(t, collector)
+	require.Len(t, spans, 1)
+	require.Len(t, spans[0].GetAttributes(), 2)
 }

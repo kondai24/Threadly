@@ -61,6 +61,15 @@ func NewTraceRuntime(ctx context.Context, getenv func(string) string) (*TraceRun
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.AlwaysSample())),
 		// defer span.End()がpanic値とstackをexception eventとして自動保存する経路を塞ぐ。
 		sdktrace.WithoutPanicRecording(),
+		// 既定のWithSpanLimitsはOTEL_SPAN_*を読むため、SDKの既定値を明示して環境から変えない。
+		sdktrace.WithRawSpanLimits(sdktrace.SpanLimits{
+			AttributeValueLengthLimit:   sdktrace.DefaultAttributeValueLengthLimit,
+			AttributeCountLimit:         sdktrace.DefaultAttributeCountLimit,
+			EventCountLimit:             sdktrace.DefaultEventCountLimit,
+			LinkCountLimit:              sdktrace.DefaultLinkCountLimit,
+			AttributePerEventCountLimit: sdktrace.DefaultAttributePerEventCountLimit,
+			AttributePerLinkCountLimit:  sdktrace.DefaultAttributePerLinkCountLimit,
+		}),
 		// queue満杯時はSpanを落とし、HTTP処理を送信待ちで止めない（WithBlockingは使わない）。
 		sdktrace.WithBatcher(
 			fixedResourceExporter{SpanExporter: exporter, resource: serviceResource},
@@ -75,6 +84,7 @@ func NewTraceRuntime(ctx context.Context, getenv func(string) string) (*TraceRun
 
 // exporterOptionsは、Exporterが環境変数から読む設定を検証済みの値で上書きする。
 // headerやTLS設定が環境から暗黙に混入しないよう、空のheaderと資格情報も明示する。
+// 圧縮も環境から変わらないようgzipで固定する（無圧縮の指定は不正値としてerror handlerへ報告されるため）。
 func exporterOptions(config traceConfig) []otlptracegrpc.Option {
 	transport := insecure.NewCredentials()
 	if config.endpoint.Scheme == "https" {
@@ -84,6 +94,7 @@ func exporterOptions(config traceConfig) []otlptracegrpc.Option {
 		otlptracegrpc.WithEndpoint(config.endpoint.Host),
 		otlptracegrpc.WithTLSCredentials(transport),
 		otlptracegrpc.WithHeaders(map[string]string{}),
+		otlptracegrpc.WithCompressor("gzip"),
 		otlptracegrpc.WithTimeout(exportTimeout),
 	}
 }
