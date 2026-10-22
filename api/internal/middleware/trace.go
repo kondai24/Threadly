@@ -22,16 +22,24 @@ func TraceHTTP(tracer trace.Tracer) gin.HandlerFunc {
 		route := c.FullPath()
 		ctx, span := tracing.StartServer(ctx, tracer, httpSpanName(c.Request.Method, route))
 		c.Request = c.Request.WithContext(ctx)
+		// 後続が差し替えたc.Requestではなく、開始時に保持したHTTP Span自体を更新する。
+		// Recoveryより外へpanicが抜けた場合も、Spanを終了してから同じpanicを再送出する。
+		defer func() {
+			recovered := recover()
+			status := c.Writer.Status()
+			if recovered != nil {
+				// 応答を書く前に抜けたpanicでは、既定の200を最終statusとして記録しない。
+				status = 0
+			}
+			tracing.SetHTTPAttributes(span, c.Request.Method, route, status)
+			result := tracing.HTTPResult(status)
+			if c.GetBool(tracePanicKey) {
+				result = tracing.ResultPanic
+			}
+			tracing.End(span, result, recovered)
+		}()
 
 		c.Next()
-
-		// 後続が差し替えたc.Requestではなく、開始時に保持したHTTP Span自体を更新する。
-		tracing.SetHTTPAttributes(span, c.Request.Method, route, c.Writer.Status())
-		result := tracing.HTTPResult(c.Writer.Status())
-		if c.GetBool(tracePanicKey) {
-			result = tracing.ResultPanic
-		}
-		tracing.End(span, result, nil)
 	}
 }
 
