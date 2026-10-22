@@ -51,10 +51,10 @@ func TestDeleteUsecasesCommitOrRollBackRelatedData(t *testing.T) {
 				}
 				var err error
 				if target == "Post" {
-					service := usecase.NewPostUsecase(NewPostRepository(db, noopTracer()), uow)
+					service := usecase.NewPostUsecase(NewPostRepository(db, noopTracer()), uow, noopTracer())
 					err = service.DeletePost(ctx, user.ID, posts[0].ID)
 				} else {
-					service := usecase.NewCommentUsecase(NewCommentRepository(db, noopTracer()), NewPostRepository(db, noopTracer()), uow)
+					service := usecase.NewCommentUsecase(NewCommentRepository(db, noopTracer()), NewPostRepository(db, noopTracer()), uow, noopTracer())
 					err = service.DeleteComment(ctx, user.ID, comments[0].ID)
 				}
 				if rollback {
@@ -172,5 +172,28 @@ func TestUnitOfWork_PassesTracerToTransactionRepositories(t *testing.T) {
 	}, tracingtest.Results(spans))
 	for _, span := range spans[:4] {
 		require.Equal(t, parent.SpanContext().SpanID(), span.Parent().SpanID())
+	}
+}
+
+func TestDeletePost_RecordsTransactionRepositorySpansUnderUsecase(t *testing.T) {
+	db := openTestDB(t)
+	user, posts, _ := seedDeleteData(t, db)
+	tracer, recorder := tracingtest.NewRecorder()
+	service := usecase.NewPostUsecase(NewPostRepository(db, tracer), NewUnitOfWork(db, tracer), tracer)
+
+	require.NoError(t, service.DeletePost(context.Background(), user.ID, posts[0].ID))
+
+	spans := recorder.Ended()
+	require.Equal(t, []string{
+		"PostRepository.GetByIDForUpdate success",
+		"CommentLikeRepository.DeleteByCommentsOfPostID success",
+		"PostLikeRepository.DeleteByPostID success",
+		"CommentRepository.DeleteByPostID success",
+		"PostRepository.DeleteByID success",
+		"PostUsecase.DeletePost success",
+	}, tracingtest.Results(spans))
+	usecaseSpan := spans[len(spans)-1]
+	for _, span := range spans[:len(spans)-1] {
+		require.Equal(t, usecaseSpan.SpanContext().SpanID(), span.Parent().SpanID())
 	}
 }

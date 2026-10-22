@@ -7,6 +7,9 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 var ErrLikeTargetNotFound = errors.New("like target not found")
@@ -36,6 +39,7 @@ type LikeUsecase struct {
 	commentRepo     repositories.CommentRepository
 	postLikeRepo    repositories.PostLikeRepository
 	commentLikeRepo repositories.CommentLikeRepository
+	tracer          trace.Tracer
 }
 
 // NewLikeUsecaseは、Post/CommentとLikeテーブルの永続化契約を注入してUsecaseを構築する。
@@ -44,12 +48,14 @@ func NewLikeUsecase(
 	commentRepo repositories.CommentRepository,
 	postLikeRepo repositories.PostLikeRepository,
 	commentLikeRepo repositories.CommentLikeRepository,
+	tracer trace.Tracer,
 ) *LikeUsecase {
 	return &LikeUsecase{
 		postRepo:        postRepo,
 		commentRepo:     commentRepo,
 		postLikeRepo:    postLikeRepo,
 		commentLikeRepo: commentLikeRepo,
+		tracer:          tracer,
 	}
 }
 
@@ -58,7 +64,10 @@ func (u *LikeUsecase) LikePost(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) (LikeActionResult, error) {
+) (_ LikeActionResult, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "LikeUsecase.LikePost")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if err := u.ensurePost(ctx, postID); err != nil {
 		return LikeActionResult{}, err
 	}
@@ -77,7 +86,10 @@ func (u *LikeUsecase) UnlikePost(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) (LikeActionResult, error) {
+) (_ LikeActionResult, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "LikeUsecase.UnlikePost")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if err := u.ensurePost(ctx, postID); err != nil {
 		return LikeActionResult{}, err
 	}
@@ -96,7 +108,10 @@ func (u *LikeUsecase) LikeComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
-) (LikeActionResult, error) {
+) (_ LikeActionResult, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "LikeUsecase.LikeComment")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if err := u.ensureCommentTarget(ctx, commentID); err != nil {
 		return LikeActionResult{}, err
 	}
@@ -115,7 +130,10 @@ func (u *LikeUsecase) UnlikeComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
-) (LikeActionResult, error) {
+) (_ LikeActionResult, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "LikeUsecase.UnlikeComment")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if err := u.ensureCommentTarget(ctx, commentID); err != nil {
 		return LikeActionResult{}, err
 	}
@@ -131,6 +149,18 @@ func (u *LikeUsecase) UnlikeComment(
 
 // PostSummariesは、対象Post集合の件数とcurrent-userのLike状態を一括取得する。
 func (u *LikeUsecase) PostSummaries(
+	ctx context.Context,
+	userID models.UUID,
+	postIDs []models.UUID,
+) (_ map[models.UUID]models.LikeSummary, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "LikeUsecase.PostSummaries")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	return u.loadPostSummaries(ctx, userID, postIDs)
+}
+
+// loadPostSummariesは、Like操作後の集計からも使うため、公開入口のSpanを重ねない。
+func (u *LikeUsecase) loadPostSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	postIDs []models.UUID,
@@ -163,6 +193,18 @@ func (u *LikeUsecase) PostSummaries(
 
 // CommentSummariesは、対象Comment集合の件数とcurrent-userのLike状態を一括取得する。
 func (u *LikeUsecase) CommentSummaries(
+	ctx context.Context,
+	userID models.UUID,
+	commentIDs []models.UUID,
+) (_ map[models.UUID]models.LikeSummary, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "LikeUsecase.CommentSummaries")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	return u.loadCommentSummaries(ctx, userID, commentIDs)
+}
+
+// loadCommentSummariesは、Like操作後の集計からも使うため、公開入口のSpanを重ねない。
+func (u *LikeUsecase) loadCommentSummaries(
 	ctx context.Context,
 	userID models.UUID,
 	commentIDs []models.UUID,
@@ -225,7 +267,7 @@ func (u *LikeUsecase) postSummary(
 	userID models.UUID,
 	postID models.UUID,
 ) (models.LikeSummary, error) {
-	summaries, err := u.PostSummaries(ctx, userID, []models.UUID{postID})
+	summaries, err := u.loadPostSummaries(ctx, userID, []models.UUID{postID})
 	if err != nil {
 		return models.LikeSummary{}, err
 	}
@@ -237,7 +279,7 @@ func (u *LikeUsecase) commentSummary(
 	userID models.UUID,
 	commentID models.UUID,
 ) (models.LikeSummary, error) {
-	summaries, err := u.CommentSummaries(ctx, userID, []models.UUID{commentID})
+	summaries, err := u.loadCommentSummaries(ctx, userID, []models.UUID{commentID})
 	if err != nil {
 		return models.LikeSummary{}, err
 	}

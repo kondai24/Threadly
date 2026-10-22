@@ -8,6 +8,9 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CommentLikeSummaryReaderは、Commentの閲覧結果に必要なLike集計だけを提供する。
@@ -27,6 +30,7 @@ type CommentUsecase struct {
 	postRepo    repositories.PostRepository
 	uow         repositories.UnitOfWork
 	likeReader  CommentLikeSummaryReader
+	tracer      trace.Tracer
 }
 
 // NewCommentUsecaseは、Like集計を必要としないComment操作用のUsecaseを構築する。
@@ -34,11 +38,13 @@ func NewCommentUsecase(
 	commentRepo repositories.CommentRepository,
 	postRepo repositories.PostRepository,
 	uow repositories.UnitOfWork,
+	tracer trace.Tracer,
 ) *CommentUsecase {
 	return &CommentUsecase{
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
 		uow:         uow,
+		tracer:      tracer,
 	}
 }
 
@@ -48,16 +54,29 @@ func NewCommentUsecaseWithLikeReader(
 	postRepo repositories.PostRepository,
 	uow repositories.UnitOfWork,
 	likeReader CommentLikeSummaryReader,
+	tracer trace.Tracer,
 ) *CommentUsecase {
 	return &CommentUsecase{
 		commentRepo: commentRepo,
 		postRepo:    postRepo,
 		uow:         uow,
 		likeReader:  likeReader,
+		tracer:      tracer,
 	}
 }
 
 func (u *CommentUsecase) ListComments(
+	ctx context.Context,
+	postID models.UUID,
+) (_ []*models.Comment, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "CommentUsecase.ListComments")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	return u.listComments(ctx, postID)
+}
+
+// listCommentsは、ListCommentsForUserからも使う一覧取得で、公開入口のSpanを重ねない。
+func (u *CommentUsecase) listComments(
 	ctx context.Context,
 	postID models.UUID,
 ) ([]*models.Comment, error) {
@@ -78,8 +97,11 @@ func (u *CommentUsecase) ListCommentsForUser(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) (CommentListRead, error) {
-	comments, err := u.ListComments(ctx, postID)
+) (_ CommentListRead, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "CommentUsecase.ListCommentsForUser")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	comments, err := u.listComments(ctx, postID)
 	if err != nil {
 		return CommentListRead{}, err
 	}
@@ -115,7 +137,10 @@ func (u *CommentUsecase) CreateComment(
 	postID models.UUID,
 	content string,
 	parentID *models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "CommentUsecase.CreateComment")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	comment := &models.Comment{
 		PostID:   postID,
 		AuthorID: userID,
@@ -150,7 +175,10 @@ func (u *CommentUsecase) UpdateComment(
 	userID models.UUID,
 	commentID models.UUID,
 	content string,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "CommentUsecase.UpdateComment")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	comment := &models.Comment{Content: strings.TrimSpace(content)}
 	if err := comment.Validate(); err != nil {
 		return err
@@ -176,9 +204,12 @@ func (u *CommentUsecase) DeleteComment(
 	ctx context.Context,
 	userID models.UUID,
 	commentID models.UUID,
-) error {
+) (err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "CommentUsecase.DeleteComment")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	var rows int64
-	err := u.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+	err = u.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
 		comment, err := tx.Comment.GetByIDForUpdate(ctx, commentID)
 		if err != nil {
 			return err

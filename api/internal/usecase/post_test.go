@@ -30,7 +30,7 @@ func newPostUsecaseTest(t *testing.T) (*PostUsecase, *mocks.MockPostRepository) 
 	repo := mocks.NewMockPostRepository(ctrl)
 	usecase := NewPostUsecase(repo, testUnitOfWork{
 		repos: repositories.TransactionRepositories{Post: repo},
-	})
+	}, noopTracer())
 	return usecase, repo
 }
 
@@ -59,7 +59,7 @@ func newPostDeleteUsecaseTest(
 			PostLike:    postLikeRepo,
 			CommentLike: commentLikeRepo,
 		},
-	})
+	}, noopTracer())
 	return usecase, postRepo, commentRepo, postLikeRepo, commentLikeRepo
 }
 
