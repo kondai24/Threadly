@@ -41,11 +41,11 @@ func requireNoSecretInSpans(t *testing.T, spans []sdktrace.ReadOnlySpan) {
 		require.NotContains(t, span.Name(), routeSecret)
 		require.NotContains(t, span.Status().Description, routeSecret)
 		for _, attr := range span.Attributes() {
-			require.NotContains(t, attr.Value.Emit(), routeSecret)
+			require.NotContains(t, attr.Value.String(), routeSecret)
 		}
 		for _, event := range span.Events() {
 			for _, attr := range event.Attributes {
-				require.NotContains(t, attr.Value.Emit(), routeSecret)
+				require.NotContains(t, attr.Value.String(), routeSecret)
 			}
 		}
 	}
