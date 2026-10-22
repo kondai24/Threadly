@@ -1,7 +1,7 @@
 # 負荷試験の計画と段階集計
 
-現時点で利用できるのは、Dockerへ接続しない `plan` / `report` と専用Composeの構成定義です。
-`prepare` / `reset` / `run`、固定fixture投入、k6の送信シナリオ、live監視・停止、ディスク監視は未実装です。
+現時点で利用できるのは、Dockerへ接続しない `plan` / `report`、専用Composeの構成定義とk6のHTTP操作です。
+`prepare` / `reset` / `run`、固定fixture投入、live監視・停止、ディスク監視は未実装です。
 専用DBの対象照合やVM上限のpreflightも未実装のため、この構成を手動で起動して負荷試験を始めないでください。
 
 ## 開発用CLIの確認
@@ -89,10 +89,36 @@ make vulncheck
 ```
 
 CLIのテストは一時ディレクトリへbuildした実行ファイルのstdout・stderr・終了コードを観測します。
-fixtureの期待値は固定の手計算例です。実MySQL・実k6・VM/swap・実効制限・Trace画面・全負荷試験の検証を含みません。
+fixtureの期待値は固定の手計算例です。実MySQL・VM/swap・実効制限・Trace画面・全負荷試験の検証を含みません。
+
+## k6の少量機能テスト
+
+k6 2.3.0のローカル実行ファイルを指定します。テストが一時HTTPサーバーをloopbackへ起動し、実k6で少量の操作を送ります。コンテナ・DB・Threadly APIは使用しません。
+
+```sh
+# api/ から。ローカルに取得した実行ファイルへの絶対パスを指定します。
+K6_BINARY=/path/to/k6 go test ./cmd/loadtest -run TestK6 -count=1
+```
+
+`K6_BINARY` 未指定ではk6テストをskipします。指定済みで実行できない場合は失敗します。
+CIの `k6-functional-test` は公式2.3.0のLinux binaryを固定checksumで確認し、このテストを実行します。
+検証対象はHTTP受信順・件数・JSON body・Cookie、生Point、秘密非出力です。5秒timeoutの検証も含みます。
+
+`scripts/operations.js` はsmoke、閲覧、混在、loginのHTTP操作とPoint出力を担当します。
+混在はglobal iterationの剰余20で16閲覧・4書き込み、Like/Unlikeを含む22HTTPを送ります。201の空bodyを許容し、200でも内容不正なら失敗です。
+CookieはVUごとの割当を明示し、応答Cookieを次の操作へ流用しません。loginは毎iterationに1回だけ送り、認証応答のUserとCookieを検証します。
+
+`scripts/scenario.js` は後続のrun制御が段階ごとに起動する入口です。専用 `http://api:8080` のみを許容し、`LOADTEST_CONFIG` / `LOADTEST_ACCOUNTS` で渡したJSONファイルを読みます。
+configはschema_version=1、run_id、scenario、dataset、phase、stage、base_urlとfixtureを持ちます。
+fixtureは同じindexで対応する `post_ids` / `parent_comment_ids` / `reply_ids` のUUID配列です。loginではfixtureを使いません。
+accountsはVU順の配列で、重複しないid/usernameと、閲覧・混在・smoke用のcookieまたはlogin用のpasswordを保持します。browse/mixedは32件、loginは8件、smokeは1件です。
+
+入口のoptionsはwarmup60秒、測定120秒、固定到着率・固定VU上限、drain最大10秒、smoke最大30秒です。
+設定の `k6 inspect` 確認は送信時間・資源上限の実測を意味しません。
+認証情報の取得・残存期限確認、0600一時ファイルの生成/削除、段階間の排他、900秒watchdog、停止理由の保存は未実装のrun制御が担当します。スクリプト単独で本試験を開始しないでください。
 
 ## 続きの実装条件
 
 次はprepare/resetです。専用MySQLへ既存Atlas migrationを明示適用し、固定件数・FK/unique・transaction rollback・再生成checksumと対象保護を、公開CLIから検証する必要があります。
-その後にk6の業務操作、run制御、資源・Trace・ディスク監視を進めます。開発DBや既存test-dbを初期化対象へ代用しません。
+実DBを使うprepare/resetは未完了のまま、独立したk6操作を機能テストしました。fixture生成物との結合はprepare/reset完了後、run制御と資源・Trace・ディスク監視はその後に進めます。開発DBや既存test-dbを初期化対象へ代用しません。
 artifacts / results / secrets / .envはGit対象外です。通常のDB・Trace volumeを削除する手順はありません。
