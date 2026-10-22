@@ -21,6 +21,12 @@ make dev
 
 `api/.env` がある場合、Makefileが `DB_USER`・`DB_PASSWORD`・`DB_HOST`・`DB_PORT`・`DB` から `DATABASE_URL` を自動生成します。そのため、ローカル開発では `DATABASE_URL` を毎回設定する必要はありません。別のDBを対象にする場合は、従来どおり `DATABASE_URL='mysql://...' make migrate-apply` のように明示指定できます。
 
+## Trace
+
+通常の `make build`・`make dev` で、HTTP全体・Handler・Usecase・RepositoryのSpanを同じTraceとして送信できます。送信先は `docker compose up -d otel-collector tempo grafana` で起動するCollectorで、Grafana Explore（http://localhost:3000）のTempo datasourceから確認します。
+
+`api/.env` の `OTEL_TRACES_EXPORTER` が未設定または `none` の場合は送信しません。送信する場合は `.env.sample` のOTEL設定例を参考に、`OTEL_TRACES_EXPORTER=otlp`、`OTEL_SERVICE_NAME`、`OTEL_EXPORTER_OTLP_ENDPOINT`、`OTEL_EXPORTER_OTLP_PROTOCOL=grpc` を設定します。対応外の値は起動時にエラーになります。送信を一時的に止める場合は `OTEL_SDK_DISABLED=true` にして再起動します。Collectorに接続できなくてもAPIは起動し、Traceは失われることがあります。
+
 ## 認証
 
 パスワードは Argon2id でハッシュ化して保存します。登録またはログインが成功すると、1時間有効な `HttpOnly; SameSite=Lax` セッションCookieが設定されます。HTTPS環境では `Secure` も有効になり、Cookie名は `__Host-threadly-session` です。JWT本体はレスポンスボディやブラウザJavaScriptへ返しません。
