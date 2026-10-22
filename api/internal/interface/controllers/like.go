@@ -10,16 +10,18 @@ import (
 	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // LikeControllerは、LikeUsecaseの結果をHTTP statusとLike操作DTOへ変換するadapterである。
 type LikeController struct {
 	usecase *usecase.LikeUsecase
+	tracer  trace.Tracer
 }
 
 // NewLikeControllerは、LikeUsecaseをHTTP adapterへ注入する。
-func NewLikeController(likeUsecase *usecase.LikeUsecase) *LikeController {
-	return &LikeController{usecase: likeUsecase}
+func NewLikeController(likeUsecase *usecase.LikeUsecase, tracer trace.Tracer) *LikeController {
+	return &LikeController{usecase: likeUsecase, tracer: tracer}
 }
 
 // LikePostHandler godoc
@@ -36,6 +38,9 @@ func NewLikeController(likeUsecase *usecase.LikeUsecase) *LikeController {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/like [put]
 func (lc *LikeController) LikePostHandler(c *gin.Context) {
+	span := startHandlerSpan(c, lc.tracer, "LikeController.LikePostHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	lc.handlePostLike(c, true)
 }
 
@@ -53,6 +58,9 @@ func (lc *LikeController) LikePostHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/like [delete]
 func (lc *LikeController) UnlikePostHandler(c *gin.Context) {
+	span := startHandlerSpan(c, lc.tracer, "LikeController.UnlikePostHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	lc.handlePostLike(c, false)
 }
 
@@ -70,6 +78,9 @@ func (lc *LikeController) UnlikePostHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/comments/{id}/like [put]
 func (lc *LikeController) LikeCommentHandler(c *gin.Context) {
+	span := startHandlerSpan(c, lc.tracer, "LikeController.LikeCommentHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	lc.handleCommentLike(c, true)
 }
 
@@ -87,6 +98,9 @@ func (lc *LikeController) LikeCommentHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/comments/{id}/like [delete]
 func (lc *LikeController) UnlikeCommentHandler(c *gin.Context) {
+	span := startHandlerSpan(c, lc.tracer, "LikeController.UnlikeCommentHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	lc.handleCommentLike(c, false)
 }
 
