@@ -7,6 +7,9 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // PostLikeSummaryReaderは、Postの閲覧結果に必要なLike集計だけを提供する。
@@ -25,14 +28,16 @@ type PostUsecase struct {
 	repo       repositories.PostRepository
 	uow        repositories.UnitOfWork
 	likeReader PostLikeSummaryReader
+	tracer     trace.Tracer
 }
 
 // NewPostUsecaseは、Like集計を必要としないPost操作用のUsecaseを構築する。
 func NewPostUsecase(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
+	tracer trace.Tracer,
 ) *PostUsecase {
-	return &PostUsecase{repo: repo, uow: uow}
+	return &PostUsecase{repo: repo, uow: uow, tracer: tracer}
 }
 
 // NewPostUsecaseWithLikeReaderは、Post取得結果へLike集計を付加するUsecaseを構築する。
@@ -40,12 +45,21 @@ func NewPostUsecaseWithLikeReader(
 	repo repositories.PostRepository,
 	uow repositories.UnitOfWork,
 	likeReader PostLikeSummaryReader,
+	tracer trace.Tracer,
 ) *PostUsecase {
-	return &PostUsecase{repo: repo, uow: uow, likeReader: likeReader}
+	return &PostUsecase{repo: repo, uow: uow, likeReader: likeReader, tracer: tracer}
 }
 
 // 認証済みUserが閲覧できるPostを取得する。閲覧時は所有者条件を付けない。
-func (u *PostUsecase) GetPostByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
+func (u *PostUsecase) GetPostByID(ctx context.Context, postID models.UUID) (_ *models.Post, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.GetPostByID")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	return u.getPostByID(ctx, postID)
+}
+
+// getPostByIDは、GetPostByIDForUserからも使う閲覧取得で、公開入口のSpanを重ねない。
+func (u *PostUsecase) getPostByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
 	post, err := u.repo.GetByID(ctx, postID)
 	if err != nil {
 		return nil, translatePostRepositoryError(err)
@@ -57,8 +71,11 @@ func (u *PostUsecase) GetPostByIDForUser(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) (*PostRead, error) {
-	post, err := u.GetPostByID(ctx, postID)
+) (_ *PostRead, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.GetPostByIDForUser")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	post, err := u.getPostByID(ctx, postID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +91,10 @@ func (u *PostUsecase) GetPostByIDForOwner(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) (*models.Post, error) {
+) (_ *models.Post, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.GetPostByIDForOwner")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	post, err := u.repo.GetByIDForOwner(ctx, userID, postID)
 	if err != nil {
 		return nil, translatePostRepositoryError(err)
@@ -83,15 +103,26 @@ func (u *PostUsecase) GetPostByIDForOwner(
 }
 
 // 認証済みUserが閲覧できる全Postを取得する。
-func (u *PostUsecase) ListAllPosts(ctx context.Context) ([]*models.Post, error) {
+func (u *PostUsecase) ListAllPosts(ctx context.Context) (_ []*models.Post, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.ListAllPosts")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	return u.listAllPosts(ctx)
+}
+
+// listAllPostsは、ListAllPostsForUserからも使う一覧取得で、公開入口のSpanを重ねない。
+func (u *PostUsecase) listAllPosts(ctx context.Context) ([]*models.Post, error) {
 	return u.repo.ListAll(ctx)
 }
 
 func (u *PostUsecase) ListAllPostsForUser(
 	ctx context.Context,
 	userID models.UUID,
-) ([]PostRead, error) {
-	posts, err := u.ListAllPosts(ctx)
+) (_ []PostRead, err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.ListAllPostsForUser")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
+	posts, err := u.listAllPosts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +173,10 @@ func (u *PostUsecase) postSummaries(
 }
 
 // author_idはリクエストではなく、検証済みtokenのUser IDから設定する。
-func (u *PostUsecase) CreatePost(ctx context.Context, userID models.UUID, title string, content string) error {
+func (u *PostUsecase) CreatePost(ctx context.Context, userID models.UUID, title string, content string) (err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.CreatePost")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	post := &models.Post{
 		AuthorID: userID,
 		Title:    title,
@@ -155,7 +189,10 @@ func (u *PostUsecase) CreatePost(ctx context.Context, userID models.UUID, title 
 }
 
 // 所有者でない場合はNotFoundとして扱い、他UserのPostの存在を隠す。
-func (u *PostUsecase) UpdatePost(ctx context.Context, userID models.UUID, post *models.Post) error {
+func (u *PostUsecase) UpdatePost(ctx context.Context, userID models.UUID, post *models.Post) (err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.UpdatePost")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	if post.AuthorID != userID {
 		return ErrPostNotFound
 	}
@@ -171,9 +208,12 @@ func (u *PostUsecase) UpdatePost(ctx context.Context, userID models.UUID, post *
 // DeletePostは、認可・関連Likeのcleanup・Comment/Postの論理削除を同じTransactionで実行する。
 // callback内ではroot DBのRepositoryを使わず、UoWから受け取った
 // Transaction-bound Repositoryだけを使う。
-func (u *PostUsecase) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) error {
+func (u *PostUsecase) DeletePost(ctx context.Context, userID models.UUID, postID models.UUID) (err error) {
+	ctx, span := tracing.Start(ctx, u.tracer, tracing.LayerUsecase, "PostUsecase.DeletePost")
+	defer func() { tracing.End(span, usecaseResult(err), recover()) }()
+
 	var rows int64
-	err := u.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
+	err = u.uow.WithinTransaction(ctx, func(tx repositories.TransactionRepositories) error {
 		post, err := tx.Post.GetByIDForUpdate(ctx, postID)
 		if err != nil {
 			return err
