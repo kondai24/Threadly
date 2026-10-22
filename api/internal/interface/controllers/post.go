@@ -10,16 +10,18 @@ import (
 	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // PostControllerは、PostUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type PostController struct {
 	usecase *usecase.PostUsecase
+	tracer  trace.Tracer
 }
 
 // NewPostControllerは、PostUsecaseをHTTP adapterへ注入する。
-func NewPostController(postUsecase *usecase.PostUsecase) *PostController {
-	return &PostController{usecase: postUsecase}
+func NewPostController(postUsecase *usecase.PostUsecase, tracer trace.Tracer) *PostController {
+	return &PostController{usecase: postUsecase, tracer: tracer}
 }
 
 // ListPostsHandler godoc
@@ -33,6 +35,9 @@ func NewPostController(postUsecase *usecase.PostUsecase) *PostController {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts [get]
 func (pc *PostController) ListPostsHandler(c *gin.Context) {
+	span := startHandlerSpan(c, pc.tracer, "PostController.ListPostsHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -61,6 +66,9 @@ func (pc *PostController) ListPostsHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [get]
 func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
+	span := startHandlerSpan(c, pc.tracer, "PostController.GetPostByIDHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -94,6 +102,9 @@ func (pc *PostController) GetPostByIDHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts [post]
 func (pc *PostController) CreatePostHandler(c *gin.Context) {
+	span := startHandlerSpan(c, pc.tracer, "PostController.CreatePostHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -129,6 +140,9 @@ func (pc *PostController) CreatePostHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [put]
 func (pc *PostController) UpdatePostHandler(c *gin.Context) {
+	span := startHandlerSpan(c, pc.tracer, "PostController.UpdatePostHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -184,6 +198,9 @@ func (pc *PostController) UpdatePostHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id} [delete]
 func (pc *PostController) DeletePostHandler(c *gin.Context) {
+	span := startHandlerSpan(c, pc.tracer, "PostController.DeletePostHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})

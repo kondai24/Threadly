@@ -44,8 +44,9 @@ func TestSetupRouter_InternalErrorsHideDetails(t *testing.T) {
 					UUIDBaseModel: models.UUIDBaseModel{ID: routeUserID}, PasswordHash: "hash",
 				}, nil)
 				tokens := routeTokenIssuer{}
-				auth := usecase.NewAuthUsecase(repo, failingPasswordHasher{err: internalErr}, tokens, noop.NewTracerProvider().Tracer("test"))
-				return SetupRouter(Handlers{Auth: controllers.NewAuthController(auth), TokenIssuer: tokens})
+				tracer := noop.NewTracerProvider().Tracer("test")
+				auth := usecase.NewAuthUsecase(repo, failingPasswordHasher{err: internalErr}, tokens, tracer)
+				return SetupRouter(Handlers{Auth: controllers.NewAuthController(auth, tracer), TokenIssuer: tokens})
 			},
 		},
 		{

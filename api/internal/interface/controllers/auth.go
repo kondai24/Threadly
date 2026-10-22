@@ -10,16 +10,18 @@ import (
 	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // AuthControllerは、認証Usecaseの結果をHTTP status・Cookie・DTOへ変換するadapterである。
 type AuthController struct {
 	usecase *usecase.AuthUsecase
+	tracer  trace.Tracer
 }
 
 // NewAuthControllerは、認証UsecaseをHTTP adapterへ注入する。
-func NewAuthController(authUsecase *usecase.AuthUsecase) *AuthController {
-	return &AuthController{usecase: authUsecase}
+func NewAuthController(authUsecase *usecase.AuthUsecase, tracer trace.Tracer) *AuthController {
+	return &AuthController{usecase: authUsecase, tracer: tracer}
 }
 
 // RegisterHandler godoc
@@ -35,6 +37,9 @@ func NewAuthController(authUsecase *usecase.AuthUsecase) *AuthController {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/auth/register [post]
 func (ac *AuthController) RegisterHandler(c *gin.Context) {
+	span := startHandlerSpan(c, ac.tracer, "AuthController.RegisterHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	var req dto.CredentialsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
@@ -63,6 +68,9 @@ func (ac *AuthController) RegisterHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/auth/login [post]
 func (ac *AuthController) LoginHandler(c *gin.Context) {
+	span := startHandlerSpan(c, ac.tracer, "AuthController.LoginHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	var req dto.CredentialsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, dto.ErrorResponse{Error: "invalid request body"})
@@ -85,6 +93,9 @@ func (ac *AuthController) LoginHandler(c *gin.Context) {
 // @Success 204
 // @Router /api/auth/logout [post]
 func (ac *AuthController) LogoutHandler(c *gin.Context) {
+	span := startHandlerSpan(c, ac.tracer, "AuthController.LogoutHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	http.SetCookie(c.Writer, middleware.NewExpiredSessionCookie())
 	c.Status(http.StatusNoContent)
 }
@@ -101,6 +112,9 @@ func (ac *AuthController) LogoutHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/me [get]
 func (ac *AuthController) MeHandler(c *gin.Context) {
+	span := startHandlerSpan(c, ac.tracer, "AuthController.MeHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
