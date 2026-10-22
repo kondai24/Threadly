@@ -89,7 +89,7 @@ func TestEnd_RecordsPanicAndRepanicsSameValue(t *testing.T) {
 	require.Equal(t, "panic", spans[0].Status().Description)
 	for _, event := range spans[0].Events() {
 		for _, attr := range event.Attributes {
-			require.NotContains(t, attr.Value.Emit(), secret)
+			require.NotContains(t, attr.Value.String(), secret)
 		}
 	}
 }
