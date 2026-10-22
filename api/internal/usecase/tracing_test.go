@@ -88,81 +88,82 @@ func TestUsecases_RecordOneEntrySpanPerPublicCall(t *testing.T) {
 	databaseErr := errors.New("database unavailable")
 	cases := []struct {
 		name string
+		span string
 		call func(context.Context, *usecaseSpanFixture) error
 		want string
 	}{
-		{name: "AuthUsecase.Register", want: "invalid_input", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "登録の入力不正はinvalid_input", span: "AuthUsecase.Register", want: "invalid_input", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			_, _, err := f.auth.Register(ctx, "", "")
 			return err
 		}},
-		{name: "AuthUsecase.Login", want: "unauthenticated", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "存在しないusernameのLoginはunauthenticated", span: "AuthUsecase.Login", want: "unauthenticated", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.users.EXPECT().FindByUsername(gomock.Any(), "alice").Return(nil, repositories.ErrUserNotFound)
 			_, _, err := f.auth.Login(ctx, "alice", "password")
 			return err
 		}},
-		{name: "AuthUsecase.GetMe", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "現在のUser取得はsuccess", span: "AuthUsecase.GetMe", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.users.EXPECT().FindByID(gomock.Any(), testUserID).Return(&models.User{}, nil)
 			_, err := f.auth.GetMe(ctx, testUserID)
 			return err
 		}},
-		{name: "PostUsecase.GetPostByID", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "存在しないPostの取得はnot_found", span: "PostUsecase.GetPostByID", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByID(gomock.Any(), testMissingID).Return(nil, repositories.ErrPostNotFound)
 			_, err := f.post.GetPostByID(ctx, testMissingID)
 			return err
 		}},
-		{name: "PostUsecase.GetPostByIDForUser", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "User向けPost取得は内部の閲覧取得Spanを重ねない", span: "PostUsecase.GetPostByIDForUser", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByID(gomock.Any(), testPostID).Return(post, nil)
 			_, err := f.post.GetPostByIDForUser(ctx, testUserID, testPostID)
 			return err
 		}},
-		{name: "PostUsecase.GetPostByIDForOwner", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "所有者向けPost取得はsuccess", span: "PostUsecase.GetPostByIDForOwner", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByIDForOwner(gomock.Any(), testUserID, testPostID).Return(post, nil)
 			_, err := f.post.GetPostByIDForOwner(ctx, testUserID, testPostID)
 			return err
 		}},
-		{name: "PostUsecase.ListAllPosts", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Post一覧はsuccess", span: "PostUsecase.ListAllPosts", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().ListAll(gomock.Any()).Return(nil, nil)
 			_, err := f.post.ListAllPosts(ctx)
 			return err
 		}},
-		{name: "PostUsecase.ListAllPostsForUser", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "User向けPost一覧は内部の一覧取得Spanを重ねない", span: "PostUsecase.ListAllPostsForUser", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().ListAll(gomock.Any()).Return(nil, nil)
 			_, err := f.post.ListAllPostsForUser(ctx, testUserID)
 			return err
 		}},
-		{name: "PostUsecase.CreatePost", want: "invalid_input", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Post作成の入力不正はinvalid_input", span: "PostUsecase.CreatePost", want: "invalid_input", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			return f.post.CreatePost(ctx, testUserID, "", "content")
 		}},
-		{name: "PostUsecase.UpdatePost", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "非所有者のPost更新はnot_found", span: "PostUsecase.UpdatePost", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			return f.post.UpdatePost(ctx, testOtherUserID, post)
 		}},
-		{name: "PostUsecase.DeletePost", want: "internal_error", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Post削除のDB障害はinternal_error", span: "PostUsecase.DeletePost", want: "internal_error", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByIDForUpdate(gomock.Any(), testPostID).Return(nil, databaseErr)
 			return f.post.DeletePost(ctx, testUserID, testPostID)
 		}},
-		{name: "CommentUsecase.ListComments", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "存在しないPostのComment一覧はnot_found", span: "CommentUsecase.ListComments", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByID(gomock.Any(), testMissingID).Return(nil, repositories.ErrPostNotFound)
 			_, err := f.comment.ListComments(ctx, testMissingID)
 			return err
 		}},
-		{name: "CommentUsecase.ListCommentsForUser", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "User向けComment一覧は内部の一覧取得Spanを重ねない", span: "CommentUsecase.ListCommentsForUser", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByID(gomock.Any(), testPostID).Return(post, nil)
 			f.comments.EXPECT().ListByPostID(gomock.Any(), testPostID).Return(nil, nil)
 			_, err := f.comment.ListCommentsForUser(ctx, testUserID, testPostID)
 			return err
 		}},
-		{name: "CommentUsecase.CreateComment", want: "invalid_input", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Comment作成の入力不正はinvalid_input", span: "CommentUsecase.CreateComment", want: "invalid_input", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			return f.comment.CreateComment(ctx, testUserID, testPostID, " ", nil)
 		}},
-		{name: "CommentUsecase.UpdateComment", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Comment更新はsuccess", span: "CommentUsecase.UpdateComment", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.comments.EXPECT().Update(gomock.Any(), testUserID, testCommentID, "updated").Return(int64(1), nil)
 			return f.comment.UpdateComment(ctx, testUserID, testCommentID, "updated")
 		}},
-		{name: "CommentUsecase.DeleteComment", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "非所有者のComment削除はnot_found", span: "CommentUsecase.DeleteComment", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.comments.EXPECT().GetByIDForUpdate(gomock.Any(), testCommentID).Return(comment, nil)
 			return f.comment.DeleteComment(ctx, testUserID, testCommentID)
 		}},
-		{name: "LikeUsecase.LikePost", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Post Likeは操作後の集計Spanを重ねない", span: "LikeUsecase.LikePost", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByID(gomock.Any(), testPostID).Return(post, nil)
 			f.postLikes.EXPECT().Ensure(gomock.Any(), testUserID, testPostID).Return(nil)
 			f.postLikes.EXPECT().CountByPostIDs(gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -170,17 +171,17 @@ func TestUsecases_RecordOneEntrySpanPerPublicCall(t *testing.T) {
 			_, err := f.like.LikePost(ctx, testUserID, testPostID)
 			return err
 		}},
-		{name: "LikeUsecase.UnlikePost", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "存在しないPostのLike解除はnot_found", span: "LikeUsecase.UnlikePost", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.posts.EXPECT().GetByID(gomock.Any(), testMissingID).Return(nil, repositories.ErrPostNotFound)
 			_, err := f.like.UnlikePost(ctx, testUserID, testMissingID)
 			return err
 		}},
-		{name: "LikeUsecase.LikeComment", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "存在しないCommentのLikeはnot_found", span: "LikeUsecase.LikeComment", want: "not_found", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.comments.EXPECT().GetByID(gomock.Any(), testMissingID).Return(nil, repositories.ErrCommentNotFound)
 			_, err := f.like.LikeComment(ctx, testUserID, testMissingID)
 			return err
 		}},
-		{name: "LikeUsecase.UnlikeComment", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "Comment Like解除は操作後の集計Spanを重ねない", span: "LikeUsecase.UnlikeComment", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			f.comments.EXPECT().GetByID(gomock.Any(), testCommentID).Return(comment, nil)
 			f.posts.EXPECT().GetByID(gomock.Any(), testPostID).Return(post, nil)
 			f.commentLikes.EXPECT().Delete(gomock.Any(), testUserID, testCommentID).Return(nil)
@@ -189,11 +190,11 @@ func TestUsecases_RecordOneEntrySpanPerPublicCall(t *testing.T) {
 			_, err := f.like.UnlikeComment(ctx, testUserID, testCommentID)
 			return err
 		}},
-		{name: "LikeUsecase.PostSummaries", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "空集合のPost集計も入口Spanを残す", span: "LikeUsecase.PostSummaries", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			_, err := f.like.PostSummaries(ctx, testUserID, nil)
 			return err
 		}},
-		{name: "LikeUsecase.CommentSummaries", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
+		{name: "空集合のComment集計も入口Spanを残す", span: "LikeUsecase.CommentSummaries", want: "success", call: func(ctx context.Context, f *usecaseSpanFixture) error {
 			_, err := f.like.CommentSummaries(ctx, testUserID, nil)
 			return err
 		}},
@@ -205,7 +206,7 @@ func TestUsecases_RecordOneEntrySpanPerPublicCall(t *testing.T) {
 			_ = tt.call(context.Background(), f)
 
 			spans := recorder.Ended()
-			require.Equal(t, []string{tt.name + " " + tt.want}, tracingtest.Results(spans))
+			require.Equal(t, []string{tt.span + " " + tt.want}, tracingtest.Results(spans))
 			require.Equal(t, "usecase", tracingtest.Attribute(spans[0], "threadly.layer"))
 			wantStatus := codes.Unset
 			if tt.want == "internal_error" {
