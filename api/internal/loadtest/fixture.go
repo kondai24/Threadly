@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"Threadly/internal/domain/models"
+
+	"gorm.io/gorm"
 )
 
 const (
@@ -144,11 +146,11 @@ func (f Fixture) logicalLines() []string {
 }
 
 func userLine(user models.User) string {
-	return strings.Join([]string{"user", string(user.ID), user.Username, timeText(user.CreatedAt), timeText(user.UpdatedAt)}, "|")
+	return strings.Join([]string{"user", string(user.ID), user.Username, timeText(user.CreatedAt), timeText(user.UpdatedAt), deletedText(user.DeletedAt)}, "|")
 }
 
 func postLine(post models.Post) string {
-	return strings.Join([]string{"post", string(post.ID), string(post.AuthorID), post.Title, post.Content, timeText(post.CreatedAt), timeText(post.UpdatedAt)}, "|")
+	return strings.Join([]string{"post", string(post.ID), string(post.AuthorID), post.Title, post.Content, timeText(post.CreatedAt), timeText(post.UpdatedAt), deletedText(post.DeletedAt)}, "|")
 }
 
 func commentLine(comment models.Comment) string {
@@ -156,7 +158,7 @@ func commentLine(comment models.Comment) string {
 	if comment.ParentID != nil {
 		parent = string(*comment.ParentID)
 	}
-	return strings.Join([]string{"comment", string(comment.ID), string(comment.PostID), string(comment.AuthorID), parent, comment.Content, timeText(comment.CreatedAt), timeText(comment.UpdatedAt)}, "|")
+	return strings.Join([]string{"comment", string(comment.ID), string(comment.PostID), string(comment.AuthorID), parent, comment.Content, timeText(comment.CreatedAt), timeText(comment.UpdatedAt), deletedText(comment.DeletedAt)}, "|")
 }
 
 func postLikeLine(like models.PostLike) string {
@@ -168,6 +170,14 @@ func commentLikeLine(like models.CommentLike) string {
 }
 
 func timeText(at time.Time) string { return at.UTC().Format(time.RFC3339Nano) }
+
+// deletedTextは、fixtureでは常にNULLであるdeleted_atを区別して記録する。
+func deletedText(deletedAt gorm.DeletedAt) string {
+	if !deletedAt.Valid {
+		return "null"
+	}
+	return timeText(deletedAt.Time)
+}
 
 func checksumLines(lines []string) string {
 	sorted := append([]string(nil), lines...)

@@ -48,8 +48,12 @@ func seed(args []string) int {
 	}
 	summary, err := loadtest.LoadFixture(context.Background(), db, fixture, auth.NewArgon2idHasher(), userPassword)
 	if err != nil {
+		// 初期化済みDBと読み戻し不一致は準備の不整合として、接続・投入障害と区別する。
 		if errors.Is(err, loadtest.ErrAlreadyInitialized) {
 			return fail(&loadtest.Failure{Code: 5, Reason: "already_initialized"})
+		}
+		if errors.Is(err, loadtest.ErrFixtureMismatch) {
+			return fail(&loadtest.Failure{Code: 5, Reason: "fixture_mismatch"})
 		}
 		return fail(&loadtest.Failure{Code: 4, Reason: "seed_failed"})
 	}

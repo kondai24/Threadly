@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestGenerateFixture_SmallFollowsFixedCountsAndRelations(t *testing.T) {
@@ -96,11 +97,17 @@ func TestFixtureChecksum_IsDeterministicAndCoversLogicalData(t *testing.T) {
 	require.Equal(t, first.Checksum(), second.Checksum())
 	second.Comments[3].Content = "changed"
 	require.NotEqual(t, first.Checksum(), second.Checksum())
+
+	// 論理削除された行は、IDや本文が同じでも投入済みfixtureと一致させない。
+	third, err := GenerateFixture("small")
+	require.NoError(t, err)
+	third.Posts[0].DeletedAt = gorm.DeletedAt{Time: third.Posts[0].CreatedAt, Valid: true}
+	require.NotEqual(t, first.Checksum(), third.Checksum())
 }
 
 func TestFixtureChecksum_MatchesRecordedSmallFixtureV1(t *testing.T) {
 	// fixture v1の生成規則を変えた場合は版を上げ、過去の結果と比較しないため固定値で検出する。
 	fixture, err := GenerateFixture("small")
 	require.NoError(t, err)
-	require.Equal(t, "sha256:052c0dd27e04cfbafa26f75a49cf3e9a5574c2cac98ba18d81746423e3e18eb7", fixture.Checksum())
+	require.Equal(t, "sha256:e38737c5799a81cd429cea5f2f23e1c68c2e82103ee0f6854a2cec1e022a479e", fixture.Checksum())
 }

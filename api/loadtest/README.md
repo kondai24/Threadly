@@ -135,13 +135,14 @@ go run ./cmd/loadtest reset --reset-traces --confirm-project threadly-loadtest
 
 `prepare` は次の順で準備し、成功時だけ `loadtest/state/fixture.json` へ未使用fixtureとして記録します。
 
-1. 専用DB volumeが存在する場合、Composeのproject/volume labelが専用対象と一致するかを照合する。
+1. 解決済みComposeのproject名・DB名・volume名と、既存の `loadtest-db` container・DB volumeのComposeラベルが専用対象と一致するかを照合する。
 2. `builder`（1CPU・1536MiB）で通常の `go build ./cmd/api` とCLIを作る。
 3. `loadtest-db` を起動し、`migrate`（Atlas 1.3.5 community）で既存migrationを明示適用する。
 4. `tool` containerの `seed` が、空のDBへ固定fixture v1を1つのtransactionで投入する。DBから読み戻したchecksumが生成値と一致した場合だけcommitする。
 5. ホスト側でdataset・件数・checksumを再生成値と照合する。
 
-準備済み・秘密設定なし・別projectのvolume・checksum不一致は終了5、Docker操作の失敗は終了4で、状態を書き換えません。全体の上限は10分です。
+準備済み・秘密設定なし・対象不一致・seedの拒否（初期化済みDBや読み戻し不一致）・checksum不一致は終了5、Docker操作の失敗は終了4で、状態を書き換えません。
+build / migrate / seedは名前付きの一時containerで実行し、失敗やtimeout（全体10分）では排他を解放する前に名前指定で削除します。
 `reset` は確認値が `threadly-loadtest` と一致し、volumeの所有を照合できた場合だけ、`down --remove-orphans` の後に専用DB volumeを名前指定で削除します。
 Trace volumeは `--reset-traces` の明示時だけ削除します。`down -v` は使いません。prepare / reset / runは `loadtest/state/lock` で排他し、実行中なら何もせず終了5です。
 
@@ -154,8 +155,8 @@ IDは種別と連番から作る固定UUID、時刻は2026-01-01T00:00:00Zから
 # 生成規則とchecksum（DB不要）
 go test ./internal/loadtest -run 'Fixture' -count=1
 
-# 実MySQLへの投入・rollback。TEST_DATABASE_DSNのserverへ使い捨てschemaを作り、終了時に削除します。
-# 既存test-dbのschemaやデータには触れません。
+# 実MySQLへの投入・rollback・unique/FK制約。TEST_DATABASE_DSNのserverへ使い捨てschemaを作り、
+# atlas CLIで既存migrationを適用してから検証し、終了時に削除します。既存test-dbのschemaやデータには触れません。
 TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3307)/threadly_test?parseTime=True' \
   go test -tags=integration ./internal/loadtest -run LoadFixture -count=1
 
