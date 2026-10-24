@@ -12,13 +12,15 @@ import (
 
 // Stageは、送信区間とdrainを含む段階の記録を表す。
 type Stage struct {
-	Stage             string    `json:"stage"`
-	Phase             string    `json:"phase"`
-	Start             time.Time `json:"start"`
-	SendEnd           time.Time `json:"send_end"`
-	End               time.Time `json:"end"`
-	Complete          bool      `json:"complete"`
-	IncompleteWindows []int     `json:"incomplete_windows,omitempty"`
+	Stage    string    `json:"stage"`
+	Phase    string    `json:"phase"`
+	Start    time.Time `json:"start"`
+	SendEnd  time.Time `json:"send_end"`
+	End      time.Time `json:"end"`
+	Complete bool      `json:"complete"`
+	// Stoppedは、監視器が停止理由を検出して新規送信を止め、開始済み操作のdrainと保存を終えた終端段階を表す。
+	Stopped           bool  `json:"stopped,omitempty"`
+	IncompleteWindows []int `json:"incomplete_windows,omitempty"`
 }
 
 // Manifestは、reportが生Pointを解釈するための測定条件を表す。
@@ -91,6 +93,16 @@ func GenerateReport(manifestInput, pointsInput io.Reader) (Report, error) {
 	if err := manifestDecoder.Decode(&trailing); err != io.EOF {
 		return Report{}, errors.New("result_incomplete")
 	}
+	return evaluate(manifest, pointsInput, true)
+}
+
+// EvaluateProgressは、runが次段階を開始してよいかを、終了済み段階だけについてreportと同じ規則で判定する。
+// 予定段階がまだ残っていることは理由にしない。
+func EvaluateProgress(manifest Manifest, pointsInput io.Reader) (Report, error) {
+	return evaluate(manifest, pointsInput, false)
+}
+
+func evaluate(manifest Manifest, pointsInput io.Reader, requireAllStages bool) (Report, error) {
 	plan, err := NewPlan(manifest.Scenario, manifest.Dataset)
 	if err != nil {
 		return Report{}, err
@@ -202,7 +214,9 @@ func GenerateReport(manifestInput, pointsInput io.Reader) (Report, error) {
 				report.Reasons = append(report.Reasons, "connectivity")
 			}
 		}
-		if len(values) == 0 || counts["http_reqs"] != float64(len(values)) || counts["lt_operations_completed"] != counts["lt_operations_started"] || counts["iterations"] != counts["lt_operations_completed"] || counts["http_reqs"] < counts["lt_operations_completed"] || !stage.Complete || !manifest.Finalized {
+		// 停止理由で止めた段階は予定より短いが、開始済み操作の結果が揃っていれば不完全とはしない。
+		determined := stage.Complete || stage.Stopped
+		if len(values) == 0 || counts["http_reqs"] != float64(len(values)) || counts["lt_operations_completed"] != counts["lt_operations_started"] || counts["iterations"] != counts["lt_operations_completed"] || counts["http_reqs"] < counts["lt_operations_completed"] || !determined || !manifest.Finalized {
 			result.Qualified = false
 			if !hasReason(report.Reasons, "result_incomplete") {
 				report.Reasons = append(report.Reasons, "result_incomplete")
@@ -265,7 +279,10 @@ func GenerateReport(manifestInput, pointsInput io.Reader) (Report, error) {
 			result.Rate = plan.Rates[len(report.Stages)]
 			expectedOperations = result.Rate * 120
 		}
-		if counts["lt_operations_started"] != float64(expectedOperations) {
+		if stage.Stopped {
+			// 停止した段階は容量候補にせず、予定開始数との差を生成不足として数えない。
+			result.Qualified = false
+		} else if counts["lt_operations_started"] != float64(expectedOperations) {
 			result.Qualified = false
 			if !hasReason(report.Reasons, "generation_shortfall") {
 				report.Reasons = append(report.Reasons, "generation_shortfall")
@@ -294,7 +311,7 @@ func GenerateReport(manifestInput, pointsInput io.Reader) (Report, error) {
 			report.Reasons = append(report.Reasons, reason)
 		}
 	}
-	if len(report.Reasons) == 0 && len(report.Stages) != len(plan.Rates) {
+	if requireAllStages && len(report.Reasons) == 0 && len(report.Stages) != len(plan.Rates) {
 		report.Reasons = append(report.Reasons, "result_incomplete")
 	}
 	// 同時検出した理由を消さず、測定経路の障害をAPI品質より優先する。
@@ -395,6 +412,10 @@ func validateManifest(manifest Manifest) (map[string]Stage, error) {
 				return nil, invalid
 			}
 		default:
+			return nil, invalid
+		}
+		// stoppedは停止理由を伴う終端段階だけに許可し、理由のない短縮を結果として受け入れない。
+		if stage.Stopped && (stage.Complete || len(manifest.Reasons) == 0 || stage.Phase == "smoke" || len(stages)+1 != len(manifest.Stages)) {
 			return nil, invalid
 		}
 		if stage.Start.IsZero() || stage.SendEnd.Sub(stage.Start) != duration || stage.End.Before(stage.Start) || stage.End.After(stage.SendEnd.Add(10*time.Second)) || stage.Start.Before(previousEnd) || (stage.Complete && stage.End.Before(stage.SendEnd)) {

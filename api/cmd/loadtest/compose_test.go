@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,4 +143,21 @@ func TestCompose_PreparesDedicatedDatabaseWithAtlasAndFixtureTool(t *testing.T) 
 	require.Equal(t, []any{"seed"}, tool["command"])
 	require.Contains(t, tool["environment"], "LOADTEST_USER_PASSWORD")
 	require.Contains(t, tool["environment"], "LOADTEST_DB_PASSWORD")
+}
+
+func TestCompose_GivesK6RunAccountsReadOnlyWithoutSecretsFile(t *testing.T) {
+	config := resolvedCompose(t)
+	k6 := config["services"].(map[string]any)["k6"].(map[string]any)
+	mounts := map[string]map[string]any{}
+	for _, value := range k6["volumes"].([]any) {
+		mount := value.(map[string]any)
+		mounts[mount["target"].(string)] = mount
+	}
+	require.Equal(t, true, mounts["/runtime"]["read_only"])
+	require.True(t, strings.HasSuffix(mounts["/runtime"]["source"].(string), "/loadtest/runtime"))
+	require.NotEqual(t, true, mounts["/results"]["read_only"])
+	// 秘密設定ファイルのディレクトリはk6へmountしない。
+	for _, mount := range mounts {
+		require.NotContains(t, mount["source"], "/loadtest/secrets")
+	}
 }
