@@ -21,9 +21,12 @@ const (
 )
 
 type dockerRule struct {
-	Contains []string `json:"contains"`
-	Stdout   string   `json:"stdout"`
-	Exit     int      `json:"exit"`
+	Contains   []string         `json:"contains"`
+	AfterCalls int              `json:"after_calls,omitempty"`
+	Stdout     string           `json:"stdout"`
+	Exit       int              `json:"exit"`
+	Writes     []map[string]any `json:"writes,omitempty"`
+	SleepMS    int              `json:"sleep_ms,omitempty"`
 }
 
 // loadtestEnv は、api/ と同じ相対配置の一時ディレクトリと代替dockerの記録先を持つ。

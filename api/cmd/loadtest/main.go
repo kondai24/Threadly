@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -24,6 +26,8 @@ func main() {
 		os.Exit(reset(os.Args[2:]))
 	case "seed":
 		os.Exit(seed(os.Args[2:]))
+	case "run":
+		os.Exit(run(os.Args[2:]))
 	}
 	if os.Args[1] != "plan" {
 		invalidInput()
@@ -121,4 +125,29 @@ func reset(args []string) int {
 		return fail(err)
 	}
 	return 0
+}
+
+func run(args []string) int {
+	flags := flag.NewFlagSet("run", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	scenario := flags.String("scenario", "", "")
+	dataset := flags.String("dataset", "", "")
+	if flags.Parse(args) != nil || flags.NArg() != 0 {
+		invalidInput()
+	}
+	root, err := os.Getwd()
+	if err != nil {
+		return fail(&loadtest.Failure{Code: 4, Reason: "environment_unavailable"})
+	}
+	// 利用者の中断も通常の停止と同じく、k6停止・結果保存を終えてから終了130を返す。
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	outcome, err := loadtest.Environment{Root: root}.Run(ctx, *scenario, *dataset)
+	if err != nil {
+		return fail(err)
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(outcome.Report); err != nil {
+		return 5
+	}
+	return outcome.Report.ExitCode
 }

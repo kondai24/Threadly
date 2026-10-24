@@ -79,6 +79,8 @@ services:
     volumes:
       - ./scripts:/scripts:ro
       - ./results:/results
+      # 事前認証のCookieはrun中だけ0600で置き、秘密設定ファイルのディレクトリとは分ける。
+      - ./runtime:/runtime:ro
   otel-collector:
     <<: *runtime
     image: otel/opentelemetry-collector-contrib:0.160.0
