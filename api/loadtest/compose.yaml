@@ -120,14 +120,35 @@ services:
     command: ["sh", "-c", "chown -R 10001:10001 /tempo"]
     volumes:
       - loadtest_trace_data:/tempo
+  migrate:
+    <<: *runtime
+    image: arigaio/atlas:1.3.5-community-alpine
+    profiles: [prepare]
+    entrypoint: ["sh", "-c"]
+    # passwordをCompose設定へ展開せず、container内の環境変数として参照する。
+    command:
+      - atlas migrate apply --url "mysql://root:$${LOADTEST_DB_PASSWORD}@loadtest-db:3306/threadly_loadtest" --dir file:///migrations
+    environment:
+      LOADTEST_DB_PASSWORD: ${LOADTEST_DB_PASSWORD:?use dedicated loadtest settings}
+    volumes:
+      - ../migrations:/migrations:ro
+    depends_on:
+      loadtest-db:
+        condition: service_healthy
   tool:
     <<: *runtime
     image: alpine:3.22
     profiles: [prepare]
     entrypoint: ["/artifacts/loadtest"]
+    command: ["seed"]
+    environment:
+      LOADTEST_DB_PASSWORD: ${LOADTEST_DB_PASSWORD:?use dedicated loadtest settings}
+      LOADTEST_USER_PASSWORD: ${LOADTEST_USER_PASSWORD:?use dedicated loadtest settings}
     volumes:
       - ./artifacts:/artifacts:ro
-      - ../migrations:/migrations:ro
+    depends_on:
+      loadtest-db:
+        condition: service_healthy
   builder:
     <<: *runtime
     image: golang:1.26.10-bookworm

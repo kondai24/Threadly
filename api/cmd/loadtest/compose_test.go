@@ -20,7 +20,7 @@ func resolvedCompose(t *testing.T) map[string]any {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "docker", "compose", "--env-file", "/dev/null", "-f", "../../loadtest/compose.yaml", "--profile", "build", "--profile", "prepare", "--profile", "measure", "config", "--format", "json")
-	cmd.Env = append(os.Environ(), "LOADTEST_DB_PASSWORD=fixture-only", "LOADTEST_JWT_SECRET=fixture-only")
+	cmd.Env = append(os.Environ(), "LOADTEST_DB_PASSWORD=fixture-only", "LOADTEST_JWT_SECRET=fixture-only", "LOADTEST_USER_PASSWORD=fixture-only")
 	output, err := cmd.Output()
 	require.NoError(t, err)
 	var config map[string]any
@@ -36,7 +36,7 @@ func TestCompose_SeparatesServicesAndAppliesEveryRuntimeLimit(t *testing.T) {
 		cpu    float64
 		memory int
 	}{
-		"api": {1, 1024}, "loadtest-db": {1, 1024}, "k6": {.75, 768}, "otel-collector": {.25, 256}, "tempo": {.25, 512}, "grafana": {.25, 256}, "storage-init": {.25, 64}, "tool": {.25, 256}, "builder": {1, 1536},
+		"api": {1, 1024}, "loadtest-db": {1, 1024}, "k6": {.75, 768}, "otel-collector": {.25, 256}, "tempo": {.25, 512}, "grafana": {.25, 256}, "storage-init": {.25, 64}, "tool": {.25, 256}, "migrate": {.25, 256}, "builder": {1, 1536},
 	}
 	require.Len(t, services, len(expected))
 	for name, limit := range expected {
@@ -58,7 +58,7 @@ func TestCompose_SeparatesServicesAndAppliesEveryRuntimeLimit(t *testing.T) {
 func TestCompose_ProtectsVolumesNetworkAndPreparationProfiles(t *testing.T) {
 	config := resolvedCompose(t)
 	services := config["services"].(map[string]any)
-	for _, name := range []string{"builder", "tool", "k6"} {
+	for _, name := range []string{"builder", "tool", "migrate", "k6"} {
 		service := services[name].(map[string]any)
 		require.NotEmpty(t, service["profiles"])
 		require.NotContains(t, service, "build")
@@ -122,4 +122,24 @@ func TestCompose_UsesOnlyTempoForDedicatedGrafana(t *testing.T) {
 	require.Len(t, provision.Datasources, 1)
 	require.Equal(t, "tempo", provision.Datasources[0].Type)
 	require.Equal(t, "http://tempo:3200", provision.Datasources[0].URL)
+}
+
+func TestCompose_PreparesDedicatedDatabaseWithAtlasAndFixtureTool(t *testing.T) {
+	config := resolvedCompose(t)
+	services := config["services"].(map[string]any)
+	migrate := services["migrate"].(map[string]any)
+	require.Equal(t, []any{"prepare"}, migrate["profiles"])
+	require.Equal(t, "arigaio/atlas:1.3.5-community-alpine", migrate["image"])
+	command := fmt.Sprint(migrate["command"])
+	require.Contains(t, command, "migrate apply")
+	require.Contains(t, command, "@loadtest-db:3306/threadly_loadtest")
+	require.Contains(t, command, "--dir file:///migrations")
+	// passwordはcompose設定へ展開せず、container内の環境変数から参照する。
+	require.NotContains(t, command, "fixture-only")
+	require.Equal(t, "/migrations", migrate["volumes"].([]any)[0].(map[string]any)["target"])
+	require.Equal(t, true, migrate["volumes"].([]any)[0].(map[string]any)["read_only"])
+	tool := services["tool"].(map[string]any)
+	require.Equal(t, []any{"seed"}, tool["command"])
+	require.Contains(t, tool["environment"], "LOADTEST_USER_PASSWORD")
+	require.Contains(t, tool["environment"], "LOADTEST_DB_PASSWORD")
 }
