@@ -100,7 +100,7 @@ services:
       storage-init:
         condition: service_completed_successfully
     volumes:
-      - ../tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - ./tempo.yaml:/etc/tempo/tempo.yaml:ro
       - loadtest_trace_data:/tmp/tempo
     ports:
       - "127.0.0.1:13200:3200"

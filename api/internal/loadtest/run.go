@@ -41,6 +41,19 @@ const (
 	sessionLifetime    = time.Hour
 )
 
+// traceConditionsは、API containerへ渡す固定のTrace設定を比較条件として記録する。
+var traceConditions = map[string]string{
+	"exporter": "otlp", "protocol": "grpc", "endpoint": "http://otel-collector:4317",
+	"service_name": "threadly-api-loadtest", "sampler": "parentbased_always_on",
+	"metrics_exporter": "none", "logs_exporter": "none",
+}
+
+type dockerInfo struct {
+	NCPU      int   `json:"NCPU"`
+	MemTotal  int64 `json:"MemTotal"`
+	SwapLimit bool  `json:"SwapLimit"`
+}
+
 // monitoredServicesは、測定中に停止・OOM・再起動を監視する常駐サービスである。
 var monitoredServices = []string{"api", "loadtest-db", "otel-collector", "tempo", "grafana"}
 
@@ -104,9 +117,11 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 		return RunOutcome{}, invalidInput("fixture_not_ready")
 	}
 
+	startedAt := time.Now().UTC()
 	prepareCtx, cancelPrepare := context.WithTimeout(ctx, prepareTimeout)
 	defer cancelPrepare()
-	if err := e.preflight(prepareCtx, plan); err != nil {
+	vm, err := e.preflight(prepareCtx, plan)
+	if err != nil {
 		return RunOutcome{}, err
 	}
 	if err := e.verifyTarget(prepareCtx); err != nil {
@@ -116,7 +131,12 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 	if err != nil {
 		return RunOutcome{}, err
 	}
-	manifest := Manifest{SchemaVersion: 1, RunID: runID, Scenario: scenario, Dataset: dataset, Reasons: []string{}}
+	summary := state.FixtureSummary
+	manifest := Manifest{
+		SchemaVersion: 1, RunID: runID, Scenario: scenario, Dataset: dataset, Reasons: []string{},
+		Plan: &plan, Fixture: &summary, Trace: traceConditions, StartedAt: startedAt,
+		Environment: e.conditionMetadata(vm),
+	}
 	// run IDの作成後は、準備中の失敗や中断でも理由を保存してから終了する。
 	prepareFailed := func(reason string) (RunOutcome, error) {
 		if ctx.Err() != nil {
@@ -151,6 +171,7 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 
 	var points bytes.Buffer
 	firstSend := time.Now()
+	manifest.MeasureStartedAt = firstSend.UTC()
 	clock := stageClock{firstSend: firstSend}
 	baseline := &serviceBaseline{restarts: map[string]int{}}
 	measureCtx, cancelMeasure := context.WithDeadline(ctx, firstSend.Add(stopRequestAt))
@@ -219,6 +240,13 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 // finalizeは、manifestと生Pointを保存し、保存済みファイルからreportを再生成する。
 func (e Environment) finalize(dir string, manifest Manifest, points []byte) (RunOutcome, error) {
 	manifest.Finalized = true
+	manifest.FinishedAt = time.Now().UTC()
+	manifest.Monitor = monitorUsage()
+	if traceBytes, err := e.traceVolumeBytes(); err == nil {
+		manifest.TraceVolumeBytes = traceBytes
+	} else {
+		manifest.Reasons = appendReason(manifest.Reasons, "monitoring_failed")
+	}
 	if len(manifest.Stages) == 0 {
 		manifest.Reasons = appendReason(manifest.Reasons, "result_incomplete")
 	}
@@ -246,6 +274,13 @@ func (e Environment) finalize(dir string, manifest Manifest, points []byte) (Run
 	outcome.Report = report
 	if err := writePrivateJSON(dir, "report.json", report); err != nil {
 		return outcome, err
+	}
+	var csv bytes.Buffer
+	if err := WriteReportCSV(&csv, report); err != nil {
+		return outcome, environmentFailure("result_save_failed")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "report.csv"), csv.Bytes(), 0o600); err != nil {
+		return outcome, environmentFailure("result_save_failed")
 	}
 	return outcome, nil
 }
@@ -284,46 +319,42 @@ func k6Config(runID, scenario, dataset string, spec stageSpec, fixture Fixture) 
 
 // preflightは、Docker VMの上限・swap制限・無関係なcontainerを確認し、満たさなければ送信を始めない。
 // VM設定やcontainerの停止は利用者の判断であり、CLIから変更しない。
-func (e Environment) preflight(ctx context.Context, plan Plan) error {
+func (e Environment) preflight(ctx context.Context, plan Plan) (dockerInfo, error) {
 	output, err := e.docker(ctx, "info", "--format", "{{json .}}")
 	if err != nil {
-		return environmentFailure("docker_unavailable")
+		return dockerInfo{}, environmentFailure("docker_unavailable")
 	}
-	var info struct {
-		NCPU      int   `json:"NCPU"`
-		MemTotal  int64 `json:"MemTotal"`
-		SwapLimit bool  `json:"SwapLimit"`
-	}
+	var info dockerInfo
 	if err := json.Unmarshal(output, &info); err != nil {
-		return environmentFailure("docker_unavailable")
+		return dockerInfo{}, environmentFailure("docker_unavailable")
 	}
 	steadyMemory := int64(plan.SteadyMemoryMiB) * 1024 * 1024
 	if info.NCPU > maxVMCPU || info.MemTotal > maxVMMemoryBytes ||
 		float64(info.NCPU) < plan.SteadyCPU+vmCPUHeadroom || info.MemTotal < steadyMemory+vmMemoryHeadroom {
-		return environmentFailure("vm_limits_exceeded")
+		return dockerInfo{}, environmentFailure("vm_limits_exceeded")
 	}
 	if !info.SwapLimit {
-		return environmentFailure("swap_limit_unsupported")
+		return dockerInfo{}, environmentFailure("swap_limit_unsupported")
 	}
 	output, err = e.docker(ctx, "ps", "--format", "{{json .}}")
 	if err != nil {
-		return environmentFailure("docker_unavailable")
+		return dockerInfo{}, environmentFailure("docker_unavailable")
 	}
 	var unrelated []string
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
 		var container struct{ Names, Labels string }
 		if json.Unmarshal(scanner.Bytes(), &container) != nil {
-			return environmentFailure("docker_unavailable")
+			return dockerInfo{}, environmentFailure("docker_unavailable")
 		}
 		if !strings.Contains(","+container.Labels+",", ",com.docker.compose.project="+Project+",") {
 			unrelated = append(unrelated, container.Names)
 		}
 	}
 	if len(unrelated) > 0 {
-		return &Failure{Code: 4, Reason: "unrelated_containers " + strings.Join(unrelated, ",")}
+		return dockerInfo{}, &Failure{Code: 4, Reason: "unrelated_containers " + strings.Join(unrelated, ",")}
 	}
-	return nil
+	return info, nil
 }
 
 func (e Environment) readSecrets() (map[string]string, error) {

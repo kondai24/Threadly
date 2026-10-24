@@ -32,6 +32,17 @@ type Manifest struct {
 	Finalized     bool     `json:"finalized"`
 	Stages        []Stage  `json:"stages"`
 	Reasons       []string `json:"reasons"`
+
+	// 以降は比較条件の記録で、段階評価には使わない。
+	Plan             *Plan             `json:"plan,omitempty"`
+	Fixture          *FixtureSummary   `json:"fixture,omitempty"`
+	Trace            map[string]string `json:"trace,omitempty"`
+	Environment      map[string]any    `json:"environment,omitempty"`
+	Monitor          map[string]any    `json:"monitor,omitempty"`
+	StartedAt        time.Time         `json:"started_at,omitzero"`
+	MeasureStartedAt time.Time         `json:"measure_started_at,omitzero"`
+	FinishedAt       time.Time         `json:"finished_at,omitzero"`
+	TraceVolumeBytes int64             `json:"trace_volume_bytes,omitempty"`
 }
 
 type point struct {

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -133,7 +134,9 @@ func (e Environment) runStage(measureCtx, parentCtx context.Context, clock stage
 	reasons := make(chan string, 8)
 	monitorDone := make(chan struct{})
 	defer close(monitorDone)
-	go e.monitorStage(monitorDone, reasons, baseline, apiURL)
+	var k6Started atomic.Bool
+	target := monitorTarget{dir: dir, k6Name: name, k6Started: &k6Started, plan: plan}
+	go e.monitorStage(monitorDone, reasons, baseline, apiURL, target)
 
 	tail := pointTail{path: pointsPath}
 	ticker := time.NewTicker(time.Second)
@@ -155,6 +158,10 @@ func (e Environment) runStage(measureCtx, parentCtx context.Context, clock stage
 			stop.request(reason)
 		case now := <-ticker.C:
 			live.add(tail.read(), now)
+			// 最初のPointを観測するまではk6 containerが存在しないことがあるため、資源採取の対象に含めない。
+			if !live.anchor.IsZero() {
+				k6Started.Store(true)
+			}
 			if reason := live.check(now); reason != "" {
 				stop.request(reason)
 			}
@@ -184,17 +191,40 @@ type serviceBaseline struct {
 
 // monitorStageは、5秒ごとに常駐サービスとAPI healthを確認し、停止理由を送る。
 // docker操作やhealth確認の待ちが、Point判定と停止制御を遅らせないよう別goroutineで行う。
-func (e Environment) monitorStage(done <-chan struct{}, reasons chan<- string, baseline *serviceBaseline, apiURL string) {
+// monitorTargetは、段階ごとの資源採取と保存量確認の対象を表す。
+type monitorTarget struct {
+	dir       string
+	k6Name    string
+	k6Started *atomic.Bool
+	plan      Plan
+}
+
+func (e Environment) monitorStage(done <-chan struct{}, reasons chan<- string, baseline *serviceBaseline, apiURL string, target monitorTarget) {
 	send := func(reason string) {
 		select {
 		case reasons <- reason:
 		case <-done:
 		}
 	}
+	var pressure generatorPressure
 	ticker := time.NewTicker(monitorInterval)
 	defer ticker.Stop()
+	// 段階開始直後にも1回採取し、短い段階でも資源と保存量の記録を残す。
 	for {
 		if reason := e.checkServices(baseline, apiURL); reason != "" {
+			send(reason)
+		}
+		k6Name := ""
+		if target.k6Started.Load() {
+			k6Name = target.k6Name
+		}
+		samples, err := e.sampleResources(target.dir, k6Name, target.plan)
+		if err != nil {
+			send("monitoring_failed")
+		} else if pressure.observe(samples) {
+			send("generator_pressure")
+		}
+		if reason := e.checkStorage(target.dir); reason != "" {
 			send(reason)
 		}
 		select {
