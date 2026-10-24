@@ -161,3 +161,42 @@ func TestCompose_GivesK6RunAccountsReadOnlyWithoutSecretsFile(t *testing.T) {
 		require.NotContains(t, mount["source"], "/loadtest/secrets")
 	}
 }
+
+func TestCompose_UsesDedicatedTempoRetentionOnTraceVolume(t *testing.T) {
+	config := resolvedCompose(t)
+	tempo := config["services"].(map[string]any)["tempo"].(map[string]any)
+	mounts := map[string]map[string]any{}
+	for _, value := range tempo["volumes"].([]any) {
+		mount := value.(map[string]any)
+		mounts[mount["target"].(string)] = mount
+	}
+	configMount := mounts["/etc/tempo/tempo.yaml"]
+	require.True(t, strings.HasSuffix(configMount["source"].(string), "/loadtest/tempo.yaml"))
+	require.Equal(t, true, configMount["read_only"])
+	require.Equal(t, "loadtest_trace_data", mounts["/tmp/tempo"]["source"])
+	data, err := os.ReadFile(configMount["source"].(string))
+	require.NoError(t, err)
+	var tempoConfig struct {
+		Compactor struct {
+			Compaction struct {
+				BlockRetention string `yaml:"block_retention"`
+			} `yaml:"compaction"`
+		} `yaml:"compactor"`
+		Storage struct {
+			Trace struct {
+				Backend string `yaml:"backend"`
+				WAL     struct {
+					Path string `yaml:"path"`
+				} `yaml:"wal"`
+				Local struct {
+					Path string `yaml:"path"`
+				} `yaml:"local"`
+			} `yaml:"trace"`
+		} `yaml:"storage"`
+	}
+	require.NoError(t, yaml.Unmarshal(data, &tempoConfig))
+	require.Equal(t, "24h", tempoConfig.Compactor.Compaction.BlockRetention)
+	require.Equal(t, "local", tempoConfig.Storage.Trace.Backend)
+	require.True(t, strings.HasPrefix(tempoConfig.Storage.Trace.WAL.Path, "/tmp/tempo/"))
+	require.True(t, strings.HasPrefix(tempoConfig.Storage.Trace.Local.Path, "/tmp/tempo/"))
+}

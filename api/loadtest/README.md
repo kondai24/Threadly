@@ -222,7 +222,24 @@ Tempo・Grafanaの準備完了応答はAPI fixture serverで代替します（`L
 多段の正常完走は実時間で約15分かかるため自動テストでは扱わず、smokeの正常系と各停止理由で検証します。
 実Docker VMでの起動・事前認証・k6 container（uid）からの0600ファイル読み込み・実OOM検出は未検証です。
 
-## 続きの実装条件
+## 資源・保存量の監視と比較条件
 
-次は資源時系列・generator pressure・Trace volume/結果サイズの監視と、manifestの環境metadata・CSV出力です。開発DBや既存test-dbを初期化対象へ代用しません。
-artifacts / results / runtime / secrets / state / .envはGit対象外です。通常のDB・Trace volumeを削除する手順はありません。
+測定中は5秒ごとに次を確認します（段階開始直後にも1回採取します）。
+
+- `docker stats --no-stream` で常駐サービスとk6（最初のPoint観測後）のCPU・メモリを採取し、`results/<run_id>/resources.jsonl` へ追記する。
+  CPUは各containerの上限に対する比率（`cpu_quota_ratio`）、メモリは上限に対する比率（`memory_ratio`）も残す。
+- k6のメモリが上限の90%以上、またはCPUが上限の90%以上を30秒続けた場合は `generator_pressure` で停止する（生成側の限界をAPIの限界と混同しない）。
+- `docker system df -v` の専用Trace volumeが1GiB以上、または `results/<run_id>/` が512MiB以上になれば `disk_limit` で停止する。採取できなければ `monitoring_failed`。
+
+Tempoは専用の `loadtest/tempo.yaml` でblock保持期間を24時間にします。Trace volumeは `reset --reset-traces` 以外では削除しません。
+
+`manifest.json` には比較条件として、plan・fixture要約・Trace設定（sampler、exporter）・開始/測定開始/終了時刻・Docker/Composeの版・Gitのcommitと未コミット有無・
+各imageとdigest・container上限・監視プロセスのCPU時間と最大RSS・終了時のTrace volume量を記録します。secret・Cookie・passwordは記録しません。
+段階別の集計は `report.json` に加えて `report.csv`（`stage,requested_rate,http_count,http_per_second,operations_per_second,p95_ms,p99_ms,error_rate,qualified,drain_seconds`）にも保存します。
+
+### 監視の検証範囲
+
+`docker stats` / `system df` / `version` / `image inspect` の出力は代替dockerのfixtureで再現します。CPU 90%が30秒続くケースは実時間待ちのため `-short` では除外します。
+実Docker VMでのcgroup上限値の取得、`docker system df` の実測値、Tempoの24時間保持の実挙動は未検証です。
+
+artifacts / results / runtime / secrets / state / .envはGit対象外です。開発DBや既存test-dbを初期化対象へ代用しません。通常のDB・Trace volumeを削除する手順はありません。
