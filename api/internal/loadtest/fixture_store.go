@@ -16,6 +16,9 @@ const fixtureBatchSize = 1000
 // ErrAlreadyInitializedは、投入先DBに既存行があり初期化済みと判断したことを表す。
 var ErrAlreadyInitialized = errors.New("already_initialized")
 
+// ErrFixtureMismatchは、投入後にDBから読み戻した論理データが生成値と一致しないことを表す。
+var ErrFixtureMismatch = errors.New("fixture_mismatch")
+
 // FixtureSummaryは、投入済みfixtureを比較するためのhashを含まないmetadataである。
 type FixtureSummary struct {
 	Version  string `json:"version"`
@@ -61,7 +64,7 @@ func LoadFixture(ctx context.Context, db *gorm.DB, fixture Fixture, hasher passw
 			return err
 		}
 		if actual != expected {
-			return errors.New("fixture_checksum_mismatch")
+			return ErrFixtureMismatch
 		}
 		return nil
 	})

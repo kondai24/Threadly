@@ -18,7 +18,8 @@ const (
 	dbVolume    = Project + "_loadtest_db_data"
 	traceVolume = Project + "_loadtest_trace_data"
 
-	prepareTimeout = 10 * time.Minute
+	prepareTimeout       = 10 * time.Minute
+	dockerCommandTimeout = 5 * time.Second
 )
 
 // Failureは、終了コードと固定分類だけを持つerror。Dockerやfixtureのraw errorを利用者へ出さない。
@@ -142,23 +143,22 @@ func (e Environment) Prepare(ctx context.Context, dataset string) (FixtureSummar
 	}
 	ctx, cancel := context.WithTimeout(ctx, prepareTimeout)
 	defer cancel()
-	if _, err := e.verifyVolume(ctx, dbVolume, "loadtest_db_data"); err != nil {
+	if err := e.verifyTarget(ctx); err != nil {
 		return FixtureSummary{}, err
 	}
 	// builderは常駐サービスより先に、制限付きの専用containerで通常buildする。
-	steps := [][]string{
-		{"--profile", "build", "run", "--rm", "builder"},
-		{"up", "-d", "--wait", "loadtest-db"},
-		{"--profile", "prepare", "run", "--rm", "migrate"},
+	if err := e.runOneOff(ctx, "build", "--profile", "build", "run", "--rm", "--name", oneOffName("build"), "builder"); err != nil {
+		return FixtureSummary{}, err
 	}
-	for _, step := range steps {
-		if _, err := e.compose(ctx, step...); err != nil {
-			return FixtureSummary{}, environmentFailure("prepare_failed")
-		}
-	}
-	output, err := e.compose(ctx, "--profile", "prepare", "run", "--rm", "tool", "seed", "--dataset", dataset)
-	if err != nil {
+	if _, err := e.compose(ctx, "up", "-d", "--wait", "loadtest-db"); err != nil {
 		return FixtureSummary{}, environmentFailure("prepare_failed")
+	}
+	if err := e.runOneOff(ctx, "migrate", "--profile", "prepare", "run", "--rm", "--name", oneOffName("migrate"), "migrate"); err != nil {
+		return FixtureSummary{}, err
+	}
+	output, err := e.composeOutput(ctx, "seed", "--profile", "prepare", "run", "--rm", "--name", oneOffName("seed"), "tool", "seed", "--dataset", dataset)
+	if err != nil {
+		return FixtureSummary{}, err
 	}
 	var summary FixtureSummary
 	if err := json.Unmarshal(output, &summary); err != nil {
@@ -209,6 +209,9 @@ func (e Environment) Reset(ctx context.Context, confirmProject string, resetTrac
 	defer unlock()
 	ctx, cancel := context.WithTimeout(ctx, prepareTimeout)
 	defer cancel()
+	if err := e.verifyTarget(ctx); err != nil {
+		return err
+	}
 	targets := []struct{ name, key string }{{dbVolume, "loadtest_db_data"}}
 	if resetTraces {
 		targets = append(targets, struct{ name, key string }{traceVolume, "loadtest_trace_data"})
@@ -234,6 +237,76 @@ func (e Environment) Reset(ctx context.Context, confirmProject string, resetTrac
 	}
 	if err := os.Remove(e.stateFile()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return environmentFailure("state_unavailable")
+	}
+	return nil
+}
+
+func oneOffName(step string) string { return Project + "-prepare-" + step }
+
+// runOneOffは、名前付きの一時containerを実行する。clientの終了やtimeoutだけではcontainerが
+// 動き続けるため、失敗時は排他を解放する前に名前指定で削除する。
+func (e Environment) runOneOff(ctx context.Context, step string, args ...string) error {
+	_, err := e.composeOutput(ctx, step, args...)
+	return err
+}
+
+func (e Environment) composeOutput(ctx context.Context, step string, args ...string) ([]byte, error) {
+	output, err := e.compose(ctx, args...)
+	if err == nil {
+		return output, nil
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), dockerCommandTimeout)
+	defer cancel()
+	_, _ = e.docker(cleanupCtx, "rm", "-f", oneOffName(step))
+	var exit *exec.ExitError
+	// toolは初期化済みDBやchecksum不一致を終了5で返す。準備の不整合として環境障害と区別する。
+	if step == "seed" && errors.As(err, &exit) && exit.ExitCode() == 5 {
+		return nil, invalidInput("seed_rejected")
+	}
+	return nil, environmentFailure("prepare_failed")
+}
+
+// verifyTargetは、解決済みComposeのproject・DB名・volume名と、既存DB containerの所有labelを照合する。
+// 任意のproject名やDBへ初期化・削除が広がらないよう、Docker操作の前に確認する。
+func (e Environment) verifyTarget(ctx context.Context) error {
+	output, err := e.compose(ctx, "config", "--format", "json")
+	if err != nil {
+		return environmentFailure("docker_unavailable")
+	}
+	var config struct {
+		Name     string `json:"name"`
+		Services map[string]struct {
+			Environment map[string]string `json:"environment"`
+		} `json:"services"`
+		Volumes map[string]struct {
+			Name     string `json:"name"`
+			External bool   `json:"external"`
+		} `json:"volumes"`
+	}
+	if err := json.Unmarshal(output, &config); err != nil || config.Name != Project ||
+		config.Services["loadtest-db"].Environment["MYSQL_DATABASE"] != "threadly_loadtest" ||
+		config.Volumes["loadtest_db_data"].Name != dbVolume || config.Volumes["loadtest_db_data"].External ||
+		config.Volumes["loadtest_trace_data"].Name != traceVolume || config.Volumes["loadtest_trace_data"].External {
+		return invalidInput("target_mismatch")
+	}
+	container := Project + "-loadtest-db-1"
+	output, err = e.docker(ctx, "ps", "-a", "-q", "--filter", "name=^"+container+"$")
+	if err != nil {
+		return environmentFailure("docker_unavailable")
+	}
+	if len(bytes.TrimSpace(output)) > 0 {
+		output, err = e.docker(ctx, "inspect", "--format", "{{json .Config.Labels}}", container)
+		if err != nil {
+			return environmentFailure("docker_unavailable")
+		}
+		var labels map[string]string
+		if err := json.Unmarshal(output, &labels); err != nil ||
+			labels["com.docker.compose.project"] != Project || labels["com.docker.compose.service"] != "loadtest-db" {
+			return invalidInput("target_mismatch")
+		}
+	}
+	if _, err := e.verifyVolume(ctx, dbVolume, "loadtest_db_data"); err != nil {
+		return err
 	}
 	return nil
 }

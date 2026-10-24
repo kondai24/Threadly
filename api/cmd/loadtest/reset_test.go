@@ -27,11 +27,11 @@ func TestReset_RecreatesOnlyDedicatedDatabaseByDefault(t *testing.T) {
 
 	require.Equal(t, 0, status, stderr)
 	calls := env.dockerCalls(t)
-	down := indexOfCall(calls, "-p threadly-loadtest -f "+filepath.Join(env.root, "loadtest", "compose.yaml"))
+	down := indexOfCall(calls, " down --remove-orphans")
 	removeDB := indexOfCall(calls, "volume rm threadly-loadtest_loadtest_db_data")
 	// containerを止めてから専用DB volumeだけを削除し、Trace volumeは明示指定まで残す。
 	require.True(t, down >= 0 && down < removeDB, calls)
-	require.Contains(t, calls[down], " down")
+	require.Contains(t, calls[down], "-p threadly-loadtest -f "+filepath.Join(env.root, "loadtest", "compose.yaml"))
 	require.Equal(t, -1, indexOfCall(calls, "volume rm threadly-loadtest_loadtest_trace_data"))
 	for _, call := range calls {
 		require.NotContains(t, call, "down -v")
@@ -101,4 +101,16 @@ func TestReset_RefusesWithoutDeletingWhenTargetIsNotConfirmed(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestReset_RefusesWhenResolvedComposeIsNotDedicated(t *testing.T) {
+	env := newLoadtestEnv(t, append([]dockerRule{{Contains: []string{"config --format json"}, Stdout: strings.Replace(dedicatedComposeConfig, `"name":"threadly-loadtest"`, `"name":"api"`, 1)}}, ownedVolumeRules()...)...)
+	writeState(t, env, true)
+
+	_, stderr, status := env.run(t, "reset", "--confirm-project", "threadly-loadtest")
+
+	require.Equal(t, 5, status)
+	require.Equal(t, "loadtest target_mismatch\n", stderr)
+	require.Equal(t, -1, indexOfCall(env.dockerCalls(t), " down"))
+	require.Equal(t, -1, indexOfCall(env.dockerCalls(t), "volume rm"))
 }

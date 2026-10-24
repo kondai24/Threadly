@@ -7,9 +7,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"net/url"
 	"os"
-	"path/filepath"
-	"sort"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"Threadly/internal/domain/models"
@@ -20,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const fixtureTestPassword = "loadtest-fixture-only-password"
@@ -49,8 +52,13 @@ func openScratchDB(t *testing.T) *gorm.DB {
 		require.NoError(t, sqlDB.Close())
 	})
 
+	// 本番のprepareと同じく、既存Atlas migrationをatlas.sumの検証込みで明示適用する。
+	atlasURL := fmt.Sprintf("mysql://%s:%s@%s/%s", url.PathEscape(config.User), url.PathEscape(config.Passwd), config.Addr, schema)
+	atlas := exec.Command("atlas", "migrate", "apply", "--url", atlasURL, "--dir", "file://../../migrations")
+	output, err := atlas.CombinedOutput()
+	require.NoError(t, err, "atlas migrate apply failed: %s", strings.ReplaceAll(string(output), config.Passwd, "***"))
+
 	config.DBName = schema
-	config.MultiStatements = true
 	db, err := gorm.Open(mysql.Open(config.FormatDSN()), database.NewGORMConfig())
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -58,15 +66,6 @@ func openScratchDB(t *testing.T) *gorm.DB {
 		require.NoError(t, err)
 		require.NoError(t, sqlDB.Close())
 	})
-	files, err := filepath.Glob("../../migrations/*.sql")
-	require.NoError(t, err)
-	sort.Strings(files)
-	require.NotEmpty(t, files)
-	for _, file := range files {
-		statements, err := os.ReadFile(file)
-		require.NoError(t, err)
-		require.NoError(t, db.Exec(string(statements)).Error, file)
-	}
 	return db
 }
 
@@ -129,4 +128,29 @@ func TestLoadFixture_RollsBackEveryRowWhenInsertFailsMidway(t *testing.T) {
 
 	require.Error(t, err)
 	require.Equal(t, Counts{}, countRows(t, db))
+}
+
+func TestLoadFixture_SchemaRejectsDuplicatesAndBrokenReferences(t *testing.T) {
+	db := openScratchDB(t)
+	fixture, err := GenerateFixture("small")
+	require.NoError(t, err)
+	_, err = LoadFixture(context.Background(), db, fixture, auth.NewArgon2idHasher(), fixtureTestPassword)
+	require.NoError(t, err)
+	missing := models.UUID("ffffffff-ffff-4fff-8fff-ffffffffffff")
+
+	// 投入したfixtureの上でも、既存migrationのunique/FK制約が有効なままであることを確かめる。
+	duplicateUser := fixture.Users[0]
+	duplicateUser.ID = missing
+	duplicateUser.PasswordHash = "hash"
+	require.ErrorIs(t, db.Omit(clause.Associations).Create(&duplicateUser).Error, gorm.ErrDuplicatedKey)
+	postLike := fixture.PostLikes[0]
+	require.ErrorIs(t, db.Omit(clause.Associations).Create(&postLike).Error, gorm.ErrDuplicatedKey)
+	commentLike := fixture.CommentLikes[0]
+	require.ErrorIs(t, db.Omit(clause.Associations).Create(&commentLike).Error, gorm.ErrDuplicatedKey)
+	orphanReply := fixture.Comments[1]
+	orphanReply.ID = missing
+	missingParent := models.UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
+	orphanReply.ParentID = &missingParent
+	require.ErrorIs(t, db.Omit(clause.Associations).Create(&orphanReply).Error, gorm.ErrForeignKeyViolated)
+	require.Equal(t, fixture.Counts(), countRows(t, db))
 }

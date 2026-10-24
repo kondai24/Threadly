@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	smallChecksum   = "sha256:052c0dd27e04cfbafa26f75a49cf3e9a5574c2cac98ba18d81746423e3e18eb7"
+	smallChecksum   = "sha256:e38737c5799a81cd429cea5f2f23e1c68c2e82103ee0f6854a2cec1e022a479e"
 	secretValue     = "dummy-secret-value"
 	projectLabelsOK = `{"com.docker.compose.project":"threadly-loadtest","com.docker.compose.volume":"loadtest_db_data"}`
 )
@@ -47,8 +47,13 @@ func newLoadtestEnv(t *testing.T, rules ...dockerRule) loadtestEnv {
 	return env
 }
 
+// dedicatedComposeConfigは、専用projectとDB名・volumeが一致する解決済みComposeの最小形である。
+const dedicatedComposeConfig = `{"name":"threadly-loadtest","services":{"loadtest-db":{"environment":{"MYSQL_DATABASE":"threadly_loadtest"}}},"volumes":{"loadtest_db_data":{"name":"threadly-loadtest_loadtest_db_data"},"loadtest_trace_data":{"name":"threadly-loadtest_loadtest_trace_data"}}}`
+
 func (e loadtestEnv) setRules(t *testing.T, rules ...dockerRule) {
 	t.Helper()
+	// テストごとの応答を優先し、未指定なら専用Compose設定を返す。
+	rules = append(rules, dockerRule{Contains: []string{"config --format json"}, Stdout: dedicatedComposeConfig})
 	data, err := json.Marshal(rules)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(e.rules, data, 0o600))
@@ -104,7 +109,7 @@ func seedSummary(checksum string) string {
 }
 
 func TestPrepare_SeedsDedicatedDatabaseAndRecordsUnusedFixture(t *testing.T) {
-	env := newLoadtestEnv(t, dockerRule{Contains: []string{"run --rm tool seed --dataset small"}, Stdout: seedSummary(smallChecksum)})
+	env := newLoadtestEnv(t, dockerRule{Contains: []string{"run --rm", "tool seed --dataset small"}, Stdout: seedSummary(smallChecksum)})
 
 	stdout, stderr, status := env.run(t, "prepare", "--dataset", "small")
 
@@ -121,10 +126,10 @@ func TestPrepare_SeedsDedicatedDatabaseAndRecordsUnusedFixture(t *testing.T) {
 	require.Equal(t, false, recorded["used"])
 
 	calls := env.dockerCalls(t)
-	build := indexOfCall(calls, "--profile build run --rm builder")
+	build := indexOfCall(calls, "--profile build run --rm --name threadly-loadtest-prepare-build builder")
 	database := indexOfCall(calls, "up -d --wait loadtest-db")
-	migrate := indexOfCall(calls, "--profile prepare run --rm migrate")
-	seed := indexOfCall(calls, "--profile prepare run --rm tool seed --dataset small")
+	migrate := indexOfCall(calls, "--profile prepare run --rm --name threadly-loadtest-prepare-migrate migrate")
+	seed := indexOfCall(calls, "--profile prepare run --rm --name threadly-loadtest-prepare-seed tool seed --dataset small")
 	// 測定サービス停止中にbuildし、DB起動・Atlas適用・fixture投入の順で準備する。
 	require.True(t, build >= 0 && build < database && database < migrate && migrate < seed, calls)
 	for _, call := range calls {
@@ -169,8 +174,26 @@ func TestPrepare_RefusesUnsafeOrInconsistentPreparation(t *testing.T) {
 		},
 		{
 			name:       "seedのchecksum不一致は準備完了にしない",
-			rules:      []dockerRule{{Contains: []string{"run --rm tool seed"}, Stdout: seedSummary("sha256:" + strings.Repeat("0", 64))}},
+			rules:      []dockerRule{{Contains: []string{"run --rm", "tool seed"}, Stdout: seedSummary("sha256:" + strings.Repeat("0", 64))}},
 			wantStatus: 5, wantReason: "fixture_mismatch",
+		},
+		{
+			name:       "seedが初期化済みDBを拒否したら準備不整合",
+			rules:      []dockerRule{{Contains: []string{"run --rm", "tool seed"}, Exit: 5}},
+			wantStatus: 5, wantReason: "seed_rejected",
+		},
+		{
+			name:       "解決済みComposeのDB名が専用DBでなければ何も起動しない",
+			rules:      []dockerRule{{Contains: []string{"config --format json"}, Stdout: strings.Replace(dedicatedComposeConfig, "threadly_loadtest\"}", "threadly_test\"}", 1)}},
+			wantStatus: 5, wantReason: "target_mismatch",
+		},
+		{
+			name: "既存DB containerが別projectなら何も起動しない",
+			rules: []dockerRule{
+				{Contains: []string{"ps -a -q"}, Stdout: "abc123\n"},
+				{Contains: []string{"inspect --format {{json .Config.Labels}}"}, Stdout: `{"com.docker.compose.project":"api","com.docker.compose.service":"loadtest-db"}` + "\n"},
+			},
+			wantStatus: 5, wantReason: "target_mismatch",
 		},
 		{
 			name:       "DB起動失敗は環境障害",
@@ -198,7 +221,8 @@ func TestPrepare_RefusesUnsafeOrInconsistentPreparation(t *testing.T) {
 				require.Empty(t, calls)
 			}
 			if tt.wantReason == "target_mismatch" {
-				require.Equal(t, -1, indexOfCall(calls, "compose "))
+				require.Equal(t, -1, indexOfCall(calls, " up "))
+				require.Equal(t, -1, indexOfCall(calls, " run "))
 			}
 		})
 	}
@@ -244,4 +268,19 @@ func TestSeed_RejectsMissingSecretsAndUnknownDatasetWithoutConnecting(t *testing
 			require.Equal(t, "loadtest "+tt.wantReason+"\n", stderr.String())
 		})
 	}
+}
+
+func TestPrepare_RemovesNamedOneOffContainerWhenStepFails(t *testing.T) {
+	env := newLoadtestEnv(t, dockerRule{Contains: []string{"run --rm", "migrate"}, Exit: 1})
+
+	_, stderr, status := env.run(t, "prepare", "--dataset", "small")
+
+	require.Equal(t, 4, status)
+	require.Equal(t, "loadtest prepare_failed\n", stderr)
+	calls := env.dockerCalls(t)
+	migrate := indexOfCall(calls, "run --rm --name threadly-loadtest-prepare-migrate migrate")
+	cleanup := indexOfCall(calls, "rm -f threadly-loadtest-prepare-migrate")
+	// clientだけが終了してもcontainerが専用DBへ書き続けないよう、排他を解放する前に名前指定で削除する。
+	require.True(t, migrate >= 0 && migrate < cleanup, calls)
+	require.Equal(t, -1, indexOfCall(calls, "tool seed"))
 }
