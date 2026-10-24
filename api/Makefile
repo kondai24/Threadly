@@ -65,7 +65,7 @@ migrate-status:
 	$(ATLAS) migrate status --url "$(DATABASE_URL)" --dir "$(MIGRATION_DIR)"
 
 integration-test: migrate-apply
-	$(GO_TEST) -tags=integration ./internal/infra/database ./internal/infra/database/repositories
+	$(GO_TEST) -tags=integration ./internal/infra/database ./internal/infra/database/repositories ./internal/loadtest
 
 vulncheck:
 	$(GOVULNCHECK) ./...
