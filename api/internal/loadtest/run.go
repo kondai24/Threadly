@@ -18,7 +18,9 @@ import (
 )
 
 const (
-	defaultAPIURL = "http://127.0.0.1:18080"
+	defaultAPIURL     = "http://127.0.0.1:18080"
+	defaultTempoURL   = "http://127.0.0.1:13200"
+	defaultGrafanaURL = "http://127.0.0.1:13000"
 	// k6からはCompose network内のAPIだけへ送る。ホスト側の確認・事前認証は127.0.0.1の公開portを使う。
 	k6BaseURL = "http://api:8080"
 
@@ -114,33 +116,55 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 	if err != nil {
 		return RunOutcome{}, err
 	}
-	if _, err := e.compose(prepareCtx, "up", "-d", "--wait", "api", "otel-collector", "tempo", "grafana"); err != nil {
-		return RunOutcome{}, environmentFailure("startup_failed")
+	manifest := Manifest{SchemaVersion: 1, RunID: runID, Scenario: scenario, Dataset: dataset, Reasons: []string{}}
+	// run IDの作成後は、準備中の失敗や中断でも理由を保存してから終了する。
+	prepareFailed := func(reason string) (RunOutcome, error) {
+		if ctx.Err() != nil {
+			reason = "interrupted"
+		}
+		manifest.Reasons = appendReason(manifest.Reasons, reason)
+		return e.finalize(dir, manifest, nil)
 	}
-	if err := waitHealthy(prepareCtx, apiURL); err != nil {
-		return RunOutcome{}, err
+	if _, err := e.compose(prepareCtx, "up", "-d", "--wait", "api", "otel-collector", "tempo", "grafana"); err != nil {
+		return prepareFailed("environment")
+	}
+	if reason := e.waitReady(prepareCtx, apiURL, dataset, state.FixtureSummary); reason != "" {
+		return prepareFailed(reason)
 	}
 	accounts, loggedInAt, err := authenticate(prepareCtx, apiURL, scenario, plan, fixture, secrets["LOADTEST_USER_PASSWORD"])
 	if err != nil {
-		return RunOutcome{}, err
+		return prepareFailed("environment")
+	}
+	if err := checkAuthenticatedRead(prepareCtx, apiURL, scenario, accounts); err != nil {
+		return prepareFailed("environment")
 	}
 	runtimeDir := filepath.Join(e.Root, "loadtest", "runtime", runID)
 	defer func() { _ = os.RemoveAll(runtimeDir) }()
 	if err := writePrivateJSON(runtimeDir, "accounts.json", accounts); err != nil {
-		return RunOutcome{}, err
+		return prepareFailed("result_incomplete")
 	}
 	// 送信開始前に使用済みとし、途中停止したrunのデータを次の比較へ流用しない。
 	state.Used = true
 	if err := e.writeState(state); err != nil {
-		return RunOutcome{}, err
+		return prepareFailed("result_incomplete")
 	}
 
-	manifest := Manifest{SchemaVersion: 1, RunID: runID, Scenario: scenario, Dataset: dataset, Reasons: []string{}}
 	var points bytes.Buffer
 	firstSend := time.Now()
+	clock := stageClock{firstSend: firstSend}
+	baseline := &serviceBaseline{restarts: map[string]int{}}
 	measureCtx, cancelMeasure := context.WithDeadline(ctx, firstSend.Add(stopRequestAt))
 	defer cancelMeasure()
 	for _, spec := range plannedStages(plan) {
+		// 中断・watchdogの停止要求後は、次段階のk6を起動しない。
+		if measureCtx.Err() != nil {
+			reason := "result_incomplete"
+			if ctx.Err() != nil {
+				reason = "interrupted"
+			}
+			manifest.Reasons = appendReason(manifest.Reasons, reason)
+			break
+		}
 		if !StageFits(time.Since(firstSend), spec.duration) {
 			manifest.Reasons = appendReason(manifest.Reasons, "result_incomplete")
 			break
@@ -149,7 +173,11 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 			// 事前Cookieの残り期限が測定中に切れないよう、段階開始前に取り直す。
 			accounts, loggedInAt, err = authenticate(measureCtx, apiURL, scenario, plan, fixture, secrets["LOADTEST_USER_PASSWORD"])
 			if err != nil {
-				manifest.Reasons = appendReason(manifest.Reasons, "connectivity")
+				reason := "connectivity"
+				if ctx.Err() != nil {
+					reason = "interrupted"
+				}
+				manifest.Reasons = appendReason(manifest.Reasons, reason)
 				break
 			}
 			if err := writePrivateJSON(runtimeDir, "accounts.json", accounts); err != nil {
@@ -161,7 +189,7 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 			manifest.Reasons = appendReason(manifest.Reasons, "result_incomplete")
 			break
 		}
-		record, stagePoints, reasons := e.runStage(measureCtx, ctx, apiURL, runID, dir, spec, plan)
+		record, stagePoints, reasons := e.runStage(measureCtx, ctx, clock, baseline, apiURL, runID, dir, spec, plan)
 		manifest.Stages = append(manifest.Stages, record)
 		points.Write(stagePoints)
 		for _, reason := range reasons {
@@ -196,19 +224,19 @@ func (e Environment) finalize(dir string, manifest Manifest, points []byte) (Run
 	}
 	outcome := RunOutcome{RunID: manifest.RunID, Dir: dir}
 	if err := os.WriteFile(filepath.Join(dir, "points.jsonl"), points, 0o600); err != nil {
-		return outcome, environmentFailure("result_save_failed")
+		return outcome, invalidInput("result_incomplete")
 	}
 	if err := writePrivateJSON(dir, "manifest.json", manifest); err != nil {
 		return outcome, err
 	}
 	manifestFile, err := os.Open(filepath.Join(dir, "manifest.json"))
 	if err != nil {
-		return outcome, environmentFailure("result_save_failed")
+		return outcome, invalidInput("result_incomplete")
 	}
 	defer func() { _ = manifestFile.Close() }()
 	pointsFile, err := os.Open(filepath.Join(dir, "points.jsonl"))
 	if err != nil {
-		return outcome, environmentFailure("result_save_failed")
+		return outcome, invalidInput("result_incomplete")
 	}
 	defer func() { _ = pointsFile.Close() }()
 	report, err := GenerateReport(manifestFile, pointsFile)
@@ -346,23 +374,48 @@ func (e Environment) createRunDir() (string, string, error) {
 	return runID, dir, nil
 }
 
-func waitHealthy(ctx context.Context, apiURL string) error {
-	for {
-		if healthy(ctx, apiURL) {
-			return nil
+// waitReadyは、測定前にAPI・Tempo・Grafanaの応答と、専用DB上のmigration・fixtureを確認する。
+// Collectorは公開portを持たないため、常駐サービスの稼働監視で代替する。
+func (e Environment) waitReady(ctx context.Context, apiURL, dataset string, expected FixtureSummary) string {
+	for _, url := range []string{apiURL + "/health", e.serviceURL("LOADTEST_TEMPO_URL", defaultTempoURL) + "/ready", e.serviceURL("LOADTEST_GRAFANA_URL", defaultGrafanaURL) + "/api/health"} {
+		if url == "" {
+			return "result_incomplete"
 		}
-		select {
-		case <-ctx.Done():
-			return environmentFailure("startup_failed")
-		case <-time.After(time.Second):
+		for !ok(ctx, url) {
+			select {
+			case <-ctx.Done():
+				return "environment"
+			case <-time.After(time.Second):
+			}
 		}
 	}
+	// tool containerがSQLで専用DBを読み戻し、件数とchecksumを準備時の記録と照合する。
+	output, err := e.composeOutput(ctx, "verify", "--profile", "prepare", "run", "--rm", "--name", oneOffName("verify"), "tool", "verify", "--dataset", dataset)
+	if err != nil {
+		return "environment"
+	}
+	var actual FixtureSummary
+	if json.Unmarshal(output, &actual) != nil || actual != expected {
+		return "result_incomplete"
+	}
+	return ""
 }
 
-func healthy(ctx context.Context, apiURL string) bool {
+func (e Environment) serviceURL(key, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	if !loopbackURL.MatchString(value) {
+		return ""
+	}
+	return value
+}
+
+func ok(ctx context.Context, url string) bool {
 	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/health", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false
 	}
@@ -372,6 +425,33 @@ func healthy(ctx context.Context, apiURL string) bool {
 	}
 	_ = response.Body.Close()
 	return response.StatusCode == http.StatusOK
+}
+
+// checkAuthenticatedReadは、事前ログインしたCookieで認証付きAPIが使えることを測定前に確認する。
+func checkAuthenticatedRead(ctx context.Context, apiURL, scenario string, accounts []account) error {
+	if scenario == "login" || len(accounts) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/api/me", nil)
+	if err != nil {
+		return err
+	}
+	request.AddCookie(&http.Cookie{Name: "threadly-session", Value: accounts[0].Cookie})
+	response, err := noRedirectClient().Do(request)
+	if err != nil {
+		return err
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return environmentFailure("authentication_failed")
+	}
+	return nil
+}
+
+func healthy(ctx context.Context, apiURL string) bool {
+	return ok(ctx, apiURL+"/health")
 }
 
 func noRedirectClient() *http.Client {
@@ -430,16 +510,17 @@ func login(ctx context.Context, apiURL, id, username, password string) (string, 
 	return "", environmentFailure("authentication_failed")
 }
 
+// writePrivateJSONは、結果・認証ファイルを0600で保存する。保存できない結果は不完全（終了5）として扱う。
 func writePrivateJSON(dir, name string, value any) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return environmentFailure("result_save_failed")
+		return invalidInput("result_incomplete")
 	}
 	data, err := json.Marshal(value)
 	if err != nil {
-		return environmentFailure("result_save_failed")
+		return invalidInput("result_incomplete")
 	}
 	if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
-		return environmentFailure("result_save_failed")
+		return invalidInput("result_incomplete")
 	}
 	return nil
 }

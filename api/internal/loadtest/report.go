@@ -370,7 +370,8 @@ func requiredMetric(metric string) bool {
 
 func validateManifest(manifest Manifest) (map[string]Stage, error) {
 	invalid := errors.New("result_incomplete")
-	if manifest.SchemaVersion != 1 || manifest.RunID == "" || len(manifest.Stages) == 0 || len(manifest.Stages) > 7 {
+	// 準備中に止まったrunは段階を持たないが、停止理由があれば結果として受け入れる。
+	if manifest.SchemaVersion != 1 || manifest.RunID == "" || (len(manifest.Stages) == 0 && len(manifest.Reasons) == 0) || len(manifest.Stages) > 7 {
 		return nil, invalid
 	}
 	for _, reason := range manifest.Reasons {

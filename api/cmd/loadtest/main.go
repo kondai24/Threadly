@@ -26,6 +26,8 @@ func main() {
 		os.Exit(reset(os.Args[2:]))
 	case "seed":
 		os.Exit(seed(os.Args[2:]))
+	case "verify":
+		os.Exit(verify(os.Args[2:]))
 	case "run":
 		os.Exit(run(os.Args[2:]))
 	}

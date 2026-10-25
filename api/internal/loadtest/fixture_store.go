@@ -74,6 +74,23 @@ func LoadFixture(ctx context.Context, db *gorm.DB, fixture Fixture, hasher passw
 	return FixtureSummary{Version: FixtureVersion, Dataset: fixture.Dataset, Counts: fixture.Counts(), Checksum: expected}, nil
 }
 
+// ReadFixtureSummaryは、測定前の照合用に専用DBの現在の件数とchecksumを読み戻す。
+// 準備時の記録と比較し、測定前の変更や別DBへの接続を検出する。
+func ReadFixtureSummary(ctx context.Context, db *gorm.DB, dataset string) (FixtureSummary, error) {
+	if _, err := NewPlan("browse", dataset); err != nil {
+		return FixtureSummary{}, err
+	}
+	counts, err := countFixtureRows(db.WithContext(ctx))
+	if err != nil {
+		return FixtureSummary{}, err
+	}
+	checksum, err := ChecksumFromDB(ctx, db)
+	if err != nil {
+		return FixtureSummary{}, err
+	}
+	return FixtureSummary{Version: FixtureVersion, Dataset: dataset, Counts: counts, Checksum: checksum}, nil
+}
+
 // ChecksumFromDBは、DBに保存された論理データからFixture.Checksumと同じ規則で値を作る。
 func ChecksumFromDB(ctx context.Context, db *gorm.DB) (string, error) {
 	db = db.WithContext(ctx)

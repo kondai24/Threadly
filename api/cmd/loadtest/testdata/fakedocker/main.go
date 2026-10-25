@@ -10,11 +10,14 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
+
+var pastTime = regexp.MustCompile(`\{\{NOW-[0-9]+(ms|s)\}\}`)
 
 type write struct {
 	DelayMS int    `json:"delay_ms"`
@@ -74,6 +77,11 @@ func execute(args []string, r rule) int {
 			continue
 		}
 		line := strings.ReplaceAll(w.Line, "{{RUN_ID}}", runID)
+		// {{NOW-500ms}} のように、書出し時刻より前の採取時刻を持つPointも再現する。
+		line = pastTime.ReplaceAllStringFunc(line, func(match string) string {
+			offset, _ := time.ParseDuration(match[len("{{NOW-") : len(match)-2])
+			return time.Now().UTC().Add(-offset).Format(time.RFC3339Nano)
+		})
 		line = strings.ReplaceAll(line, "{{NOW}}", time.Now().UTC().Format(time.RFC3339Nano))
 		file, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 		if err != nil {
