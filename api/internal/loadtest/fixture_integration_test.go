@@ -154,3 +154,21 @@ func TestLoadFixture_SchemaRejectsDuplicatesAndBrokenReferences(t *testing.T) {
 	require.ErrorIs(t, db.Omit(clause.Associations).Create(&orphanReply).Error, gorm.ErrForeignKeyViolated)
 	require.Equal(t, fixture.Counts(), countRows(t, db))
 }
+
+func TestReadFixtureSummary_ReturnsCountsAndChecksumStoredInDB(t *testing.T) {
+	db := openScratchDB(t)
+	fixture, err := GenerateFixture("small")
+	require.NoError(t, err)
+	loaded, err := LoadFixture(context.Background(), db, fixture, auth.NewArgon2idHasher(), fixtureTestPassword)
+	require.NoError(t, err)
+
+	summary, err := ReadFixtureSummary(context.Background(), db, "small")
+
+	require.NoError(t, err)
+	require.Equal(t, loaded, summary)
+	// 測定前に削除された行もchecksumの差として検出する。
+	require.NoError(t, db.Exec("DELETE FROM comment_likes LIMIT 1").Error)
+	changed, err := ReadFixtureSummary(context.Background(), db, "small")
+	require.NoError(t, err)
+	require.NotEqual(t, loaded, changed)
+}

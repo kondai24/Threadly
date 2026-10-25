@@ -18,7 +18,7 @@ import (
 )
 
 // seedは、専用Composeのtool containerだけで実行する。接続先は専用DBに固定し、
-// 任意のDB_HOST・DB名・DSNへフォールバックしない。
+// 任意のDB_HOST・DB名・DSNへフォールバックしない。verifyも同じ接続先を使う。
 func seed(args []string) int {
 	flags := flag.NewFlagSet("seed", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -35,16 +35,9 @@ func seed(args []string) int {
 	if dbPassword == "" || userPassword == "" {
 		return fail(&loadtest.Failure{Code: 5, Reason: "secrets_missing"})
 	}
-	config := mysqldriver.NewConfig()
-	config.User = "root"
-	config.Passwd = dbPassword
-	config.Net = "tcp"
-	config.Addr = "loadtest-db:3306"
-	config.DBName = "threadly_loadtest"
-	config.ParseTime = true
-	db, err := gorm.Open(mysql.Open(config.FormatDSN()), database.NewGORMConfig())
+	db, err := openLoadtestDB(dbPassword)
 	if err != nil {
-		return fail(&loadtest.Failure{Code: 4, Reason: "database_unavailable"})
+		return fail(err)
 	}
 	summary, err := loadtest.LoadFixture(context.Background(), db, fixture, auth.NewArgon2idHasher(), userPassword)
 	if err != nil {
@@ -61,4 +54,48 @@ func seed(args []string) int {
 		return 5
 	}
 	return 0
+}
+
+// verifyは、run直前に専用DBの件数とchecksumを読み戻し、準備時の記録と照合できる形で出力する。
+func verify(args []string) int {
+	flags := flag.NewFlagSet("verify", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	dataset := flags.String("dataset", "", "")
+	if flags.Parse(args) != nil || flags.NArg() != 0 {
+		invalidInput()
+	}
+	if _, err := loadtest.NewPlan("browse", *dataset); err != nil {
+		invalidInput()
+	}
+	dbPassword := os.Getenv("LOADTEST_DB_PASSWORD")
+	if dbPassword == "" {
+		return fail(&loadtest.Failure{Code: 5, Reason: "secrets_missing"})
+	}
+	db, err := openLoadtestDB(dbPassword)
+	if err != nil {
+		return fail(err)
+	}
+	summary, err := loadtest.ReadFixtureSummary(context.Background(), db, *dataset)
+	if err != nil {
+		return fail(&loadtest.Failure{Code: 4, Reason: "verify_failed"})
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(summary); err != nil {
+		return 5
+	}
+	return 0
+}
+
+func openLoadtestDB(password string) (*gorm.DB, error) {
+	config := mysqldriver.NewConfig()
+	config.User = "root"
+	config.Passwd = password
+	config.Net = "tcp"
+	config.Addr = "loadtest-db:3306"
+	config.DBName = "threadly_loadtest"
+	config.ParseTime = true
+	db, err := gorm.Open(mysql.Open(config.FormatDSN()), database.NewGORMConfig())
+	if err != nil {
+		return nil, &loadtest.Failure{Code: 4, Reason: "database_unavailable"}
+	}
+	return db, nil
 }

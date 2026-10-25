@@ -48,6 +48,15 @@ func newAPIFixture(t *testing.T) *apiFixture {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
+		case "/ready", "/api/health":
+			// 同じfixtureでTempoとGrafanaの準備完了応答も代替する。
+			w.WriteHeader(http.StatusOK)
+		case "/api/me":
+			if cookie, err := r.Cookie("threadly-session"); err != nil || !strings.HasPrefix(cookie.Value, "session-lt_user_") {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		case "/api/auth/login":
 			var body struct{ Username, Password string }
 			_ = json.NewDecoder(r.Body).Decode(&body)
@@ -79,6 +88,7 @@ func runDefaults() []dockerRule {
 	return []dockerRule{
 		{Contains: []string{"info --format"}, Stdout: vmWithinLimits},
 		{Contains: []string{"inspect --format", ".State.OOMKilled"}, Stdout: strings.Repeat(runningState+"\n", 5)},
+		{Contains: []string{"run --rm", "tool verify --dataset small"}, Stdout: seedSummary(smallChecksum)},
 	}
 }
 
@@ -89,7 +99,7 @@ func newRunEnv(t *testing.T, api *apiFixture, rules ...dockerRule) (loadtestEnv,
 	writeState(t, env, false)
 	pids := filepath.Join(env.root, "pids")
 	require.NoError(t, os.MkdirAll(pids, 0o700))
-	return env, []string{"LOADTEST_API_URL=" + api.server.URL, "FAKE_DOCKER_PIDDIR=" + pids}
+	return env, []string{"LOADTEST_API_URL=" + api.server.URL, "LOADTEST_TEMPO_URL=" + api.server.URL, "LOADTEST_GRAFANA_URL=" + api.server.URL, "FAKE_DOCKER_PIDDIR=" + pids}
 }
 
 func (e loadtestEnv) start(t *testing.T, extra []string, args ...string) (*exec.Cmd, *bytes.Buffer, *bytes.Buffer) {
@@ -357,7 +367,7 @@ func TestRun_InterruptStopsK6AndSavesResultBeforeExiting130(t *testing.T) {
 	api := newAPIFixture(t)
 	env, extra := newRunEnv(t, api, dockerRule{Contains: []string{"k6 run"}, Writes: browseWrites("warmup", "warmup", "success", 1), SleepMS: 60000})
 	cmd, stdout, _ := env.start(t, extra, "run", "--scenario", "browse", "--dataset", "small")
-	pidFile := filepath.Join(extra[1][len("FAKE_DOCKER_PIDDIR="):], "threadly-loadtest-k6-warmup")
+	pidFile := filepath.Join(env.root, "pids", "threadly-loadtest-k6-warmup")
 	require.Eventually(t, func() bool { _, err := os.Stat(pidFile); return err == nil }, 10*time.Second, 50*time.Millisecond)
 
 	require.NoError(t, cmd.Process.Signal(os.Interrupt))
@@ -412,4 +422,68 @@ func TestRun_StopsAtFirstThirtySecondWindowThatFailsQuality(t *testing.T) {
 	stage := manifest["stages"].([]any)[0].(map[string]any)
 	require.Equal(t, true, stage["stopped"])
 	require.Equal(t, -1, indexOfCall(env.dockerCalls(t), "--name threadly-loadtest-k6-1 "))
+}
+
+func TestRun_UsesEarliestPointTimeAsStageStartEvenWhenWrittenLater(t *testing.T) {
+	api := newAPIFixture(t)
+	writes := smokeWrites()
+	// k6のJSON出力は複数VUの間で時刻順とは限らない。後から書かれた古い時刻のPointも段階に含める。
+	late := strings.Replace(k6Point("http_reqs", 0, "smoke", "smoke", "smoke", nil), "{{NOW}}", "{{NOW-800ms}}", 1)
+	writes = append(writes[:3], append([]map[string]any{{"line": late}}, writes[3:]...)...)
+	env, extra := newRunEnv(t, api, dockerRule{Contains: []string{"run --rm", "k6 run"}, Writes: writes})
+
+	stdout, stderr, status := env.runWith(t, extra, "run", "--scenario", "smoke", "--dataset", "small")
+
+	require.Equal(t, 0, status, stderr+stdout)
+}
+
+func TestRun_SavesManifestWhenPreparationFailsOrIsInterrupted(t *testing.T) {
+	t.Run("サービス起動の失敗は理由を保存して環境障害にする", func(t *testing.T) {
+		api := newAPIFixture(t)
+		env, extra := newRunEnv(t, api, dockerRule{Contains: []string{"up -d --wait api"}, Exit: 1})
+
+		stdout, stderr, status := env.runWith(t, extra, "run", "--scenario", "smoke", "--dataset", "small")
+
+		require.Equal(t, 4, status, stderr)
+		var report map[string]any
+		require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+		require.Contains(t, report["reasons"], "environment")
+		manifest := readJSON(t, filepath.Join(resultDir(t, env), "manifest.json"))
+		require.Contains(t, manifest["reasons"], "environment")
+		require.Equal(t, -1, indexOfCall(env.dockerCalls(t), "k6 run"))
+	})
+	t.Run("準備中の中断は理由を保存して130で終了する", func(t *testing.T) {
+		api := newAPIFixture(t)
+		api.healthFailsAfter = 1
+		env, extra := newRunEnv(t, api)
+		cmd, stdout, _ := env.start(t, extra, "run", "--scenario", "smoke", "--dataset", "small")
+		require.Eventually(t, func() bool { return indexOfCall(env.dockerCalls(t), "up -d --wait api") >= 0 }, 10*time.Second, 50*time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
+
+		require.NoError(t, cmd.Process.Signal(os.Interrupt))
+		err := cmd.Wait()
+
+		var exit *exec.ExitError
+		require.ErrorAs(t, err, &exit)
+		require.Equal(t, 130, exit.ExitCode())
+		var report map[string]any
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &report))
+		require.Equal(t, "interrupted", report["status"])
+		manifest := readJSON(t, filepath.Join(resultDir(t, env), "manifest.json"))
+		require.Contains(t, manifest["reasons"], "interrupted")
+	})
+}
+
+func TestRun_RefusesToSendWhenDatabaseNoLongerMatchesPreparedFixture(t *testing.T) {
+	api := newAPIFixture(t)
+	env, extra := newRunEnv(t, api, dockerRule{Contains: []string{"run --rm", "tool verify --dataset small"}, Stdout: seedSummary("sha256:changed")})
+
+	stdout, stderr, status := env.runWith(t, extra, "run", "--scenario", "smoke", "--dataset", "small")
+
+	require.Equal(t, 5, status, stderr)
+	var report map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+	require.Contains(t, report["reasons"], "result_incomplete")
+	require.Equal(t, -1, indexOfCall(env.dockerCalls(t), "k6 run"))
+	require.Equal(t, 0, api.loginCount())
 }

@@ -730,3 +730,13 @@ func TestReport_RejectsStoppedStageWithoutReasonOrBeforeLastStage(t *testing.T) 
 		})
 	}
 }
+
+func TestReport_AcceptsManifestWithoutStagesOnlyWhenStopReasonIsRecorded(t *testing.T) {
+	manifest := reportManifest{SchemaVersion: 1, RunID: "fixture-run", Scenario: "browse", Dataset: "small", Finalized: true, Reasons: []string{"environment"}}
+
+	report, status := runReport(t, manifest, nil)
+
+	require.Equal(t, 4, status)
+	require.Equal(t, "environment_failed", report["status"])
+	require.Contains(t, report["reasons"], "environment")
+}

@@ -184,17 +184,24 @@ smokeが失敗したら他シナリオを開始しないでください。smoke�
 1. `docker info` でVMのCPUが4・メモリが6GiB以下で、上限合計＋CPU 0.5・メモリ1GiBの余裕があること、swap制限に対応していることを確認する。
 2. `docker ps` で専用project以外のcontainerが動いていれば、名前を示して拒否する（自動停止しない）。
 3. 解決済みComposeと既存DB containerの専用対象を照合し、`api` / `otel-collector` / `tempo` / `grafana` を起動する。
-4. `127.0.0.1:18080/health` の応答後、browse / mixed / smokeでは割り当てUserを直列に事前ログインする。
+4. API `127.0.0.1:18080/health`・Tempo `127.0.0.1:13200/ready`・Grafana `127.0.0.1:13000/api/health` の応答を待つ。
+   Collectorは公開portを持たないため、常駐サービスの稼働監視で代替する。
+5. `tool verify` で専用DBの件数とchecksumを読み戻し、`prepare` 時の記録と一致しなければ送信せず `result_incomplete` とする。
+6. browse / mixed / smokeでは割り当てUserを直列に事前ログインし、先頭Userの `/api/me` で認証付きAPIを確認する。
    Cookieは `loadtest/runtime/<run_id>/accounts.json`（0600、k6へread-only mount）だけに置き、終了時に削除する。loginシナリオは事前ログインせずpasswordだけを渡す。
+
+準備中の失敗・中断でも `manifest.json` と `report.json` を保存し、理由（`environment` / `result_incomplete` / `interrupted`）を残します。
 
 測定:
 
 - 段階ごとに `threadly-loadtest-k6-<stage>` の一時containerでk6を1つだけ起動し、生Pointを `results/<run_id>/points-<stage>.jsonl` へ出す。
 - ホスト側は1秒ごとに生Pointを読み、30秒窓（20HTTP以上）の品質違反・transport error・10秒以上のHTTP停滞・起動後30秒のPoint欠如を判定する。
-  5秒ごとに常駐サービスのOOM・停止・再起動とAPI health（timeout 2秒）を確認する。
+  段階の開始時刻は最初に採取されたPointの時刻を基準とし、窓は境界から5秒待って確定する。確定後に届いたPointの窓は不完全として記録する。
+  5秒ごとに常駐サービスのOOM・停止・再起動とAPI health（timeout 2秒）を確認する。Docker eventsは購読せず、この `docker inspect` の定期確認で代替する。
 - 停止理由を検出したらk6へSIGINTを送り、最大10秒のdrain後は強制停止する。drain内に終えた段階は `stopped` として記録し、停止理由で判定する。
 - 段階終了ごとにreportと同じ規則で評価し、品質・生成不足・不完全があれば次段階を開始しない。
-- 最初の送信から890秒で停止要求し、残り時間で送信120秒＋drain＋余裕を確保できない段階は短縮せずに開始しない。
+- SIGINT後に停止できなければ `docker kill`・`rm -f` で強制停止し、確認できない場合は `monitoring_failed` を記録する。
+- 最初の送信から890秒で停止要求し（895秒で強制停止の保険）、残り時間で送信120秒＋drain＋余裕を確保できない段階は短縮せずに開始しない。
 - Ctrl-C / SIGTERMでも同じ停止と保存を行い、終了130を返す。
 
 結果は新規の `results/<run_id>/` に `manifest.json` / `points.jsonl` / `report.json` / 段階別の生Pointとk6設定を保存し、reportを標準出力へ出します。
@@ -209,7 +216,9 @@ go test ./cmd/loadtest -run TestRun -count=1
 go test ./cmd/loadtest -run TestRun -short -count=1
 ```
 
-代替dockerは `docker info` / `ps` / `inspect` の状態fixture、k6の生Point出力、SIGINTの受信を再現します。
+代替dockerは `docker info` / `ps` / `inspect` / `tool verify` の状態fixture、k6の生Point出力（遅れて書かれるPointを含む）、SIGINTの受信を再現します。
+Tempo・Grafanaの準備完了応答はAPI fixture serverで代替します（`LOADTEST_TEMPO_URL` / `LOADTEST_GRAFANA_URL`、loopbackのみ）。
+`verify` の実DB照合は `ReadFixtureSummary` のIntegration testで確認します。
 多段の正常完走は実時間で約15分かかるため自動テストでは扱わず、smokeの正常系と各停止理由で検証します。
 実Docker VMでの起動・事前認証・k6 container（uid）からの0600ファイル読み込み・実OOM検出は未検証です。
 
