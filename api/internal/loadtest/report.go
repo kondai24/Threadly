@@ -43,6 +43,8 @@ type Manifest struct {
 	MeasureStartedAt time.Time         `json:"measure_started_at,omitzero"`
 	FinishedAt       time.Time         `json:"finished_at,omitzero"`
 	TraceVolumeBytes int64             `json:"trace_volume_bytes,omitempty"`
+	// TraceVolumeBytesStartは、前回runから残るTrace量を比較条件として残す。
+	TraceVolumeBytesStart int64 `json:"trace_volume_bytes_start,omitempty"`
 }
 
 type point struct {
@@ -71,6 +73,8 @@ type StageResult struct {
 	OperationsCompleted int            `json:"operations_completed"`
 	OperationsFailed    int            `json:"operations_failed"`
 	OperationsPerSecond float64        `json:"operations_per_second"`
+	PlannedOperations   int            `json:"planned_operations"`
+	DroppedIterations   int            `json:"dropped_iterations"`
 }
 
 // WindowResultは、非重複窓の暫定/品質判定を表す。
@@ -290,6 +294,8 @@ func evaluate(manifest Manifest, pointsInput io.Reader, requireAllStages bool) (
 			result.Rate = plan.Rates[len(report.Stages)]
 			expectedOperations = result.Rate * 120
 		}
+		result.PlannedOperations = expectedOperations
+		result.DroppedIterations = int(counts["dropped_iterations"])
 		if stage.Stopped {
 			// 停止した段階は容量候補にせず、予定開始数との差を生成不足として数えない。
 			result.Qualified = false
