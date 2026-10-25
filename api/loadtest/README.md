@@ -224,18 +224,24 @@ Tempo・Grafanaの準備完了応答はAPI fixture serverで代替します（`L
 
 ## 資源・保存量の監視と比較条件
 
-測定中は5秒ごとに次を確認します（段階開始直後にも1回採取します）。
+測定中は5秒ごとに次を確認します（段階開始直後にも1回採取します）。サービス状態の確認と資源採取は並行に行います。
 
 - `docker stats --no-stream` で常駐サービスとk6（最初のPoint観測後）のCPU・メモリを採取し、`results/<run_id>/resources.jsonl` へ追記する。
   CPUは各containerの上限に対する比率（`cpu_quota_ratio`）、メモリは上限に対する比率（`memory_ratio`）も残す。
+  対象containerの値が欠けた場合は `monitoring_failed` とする。ただしk6が正常終了する際の `compose run --rm` による削除中（最大2秒待って終了を確認）の失敗は除く。
 - k6のメモリが上限の90%以上、またはCPUが上限の90%以上を30秒続けた場合は `generator_pressure` で停止する（生成側の限界をAPIの限界と混同しない）。
-- `docker system df -v` の専用Trace volumeが1GiB以上、または `results/<run_id>/` が512MiB以上になれば `disk_limit` で停止する。採取できなければ `monitoring_failed`。
+- `results/<run_id>/` が512MiB以上、または専用Trace volumeが1GiB以上になれば `disk_limit` で停止する。
+  Trace volumeは `docker system df -v`（VM上の全volume・imageを走査するため30秒ごと）で確認し、採取できない・volumeが見つからなければ `monitoring_failed`。
 
 Tempoは専用の `loadtest/tempo.yaml` でblock保持期間を24時間にします。Trace volumeは `reset --reset-traces` 以外では削除しません。
 
 `manifest.json` には比較条件として、plan・fixture要約・Trace設定（sampler、exporter）・開始/測定開始/終了時刻・Docker/Composeの版・Gitのcommitと未コミット有無・
-各imageとdigest・container上限・監視プロセスのCPU時間と最大RSS・終了時のTrace volume量を記録します。secret・Cookie・passwordは記録しません。
-段階別の集計は `report.json` に加えて `report.csv`（`stage,requested_rate,http_count,http_per_second,operations_per_second,p95_ms,p99_ms,error_rate,qualified,drain_seconds`）にも保存します。
+各imageとdigest・起動後の常駐containerへ実際に適用された上限・監視プロセスと子process（docker / git）のCPU時間と最大RSS・測定開始時と終了時のTrace volume量を記録します。
+k6へ適用された上限は段階ごとに `k6-limits-<stage>.json` へ保存します。secret・Cookie・passwordは記録しません。
+送信前にTrace volume量を計測できなければ送信せず `monitoring_failed` とします。
+
+段階別の集計は `report.json` に加えて `report.csv` にも同じ値で保存します。列は段階・要求rate・予定/開始/完了/失敗操作数・drop数・HTTP数・HTTP/秒・操作/秒・p95・p99・エラー率・
+窓の判定別件数（passed / quality_failed / provisional / incomplete）・合否・drain秒です。CSV・reportの保存に失敗した場合は結果不完全（終了5）です。
 
 ### 監視の検証範囲
 

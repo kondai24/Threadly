@@ -23,6 +23,8 @@ const (
 	resultsLimitBytes     = 512 * 1024 * 1024
 	pressureRatio         = 0.9
 	pressureDuration      = 30 * time.Second
+	// docker system df -vはVM上の全volume・imageを走査して重いため、Trace volumeは30秒ごとに確認する。
+	traceCheckEvery = 6
 )
 
 // ResourceSampleは、5秒ごとのcontainer資源の実値と上限比である。Dockerの%値は100%=1CPUなので、
@@ -83,6 +85,11 @@ func (e Environment) sampleResources(dir, k6Name string, plan Plan) ([]ResourceS
 			sample.CPUQuotaRatio = cpu / 100 / limit
 		}
 		samples = append(samples, sample)
+		delete(services, raw.Name)
+	}
+	// 欠けたcontainerを合格扱いにすると、圧迫や停止を見逃す。
+	if len(services) > 0 {
+		return nil, fmt.Errorf("missing stats")
 	}
 	file, err := os.OpenFile(filepath.Join(dir, "resources.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -147,7 +154,7 @@ func (e Environment) traceVolumeBytes() (int64, error) {
 			return parseDockerSize(volume.Size)
 		}
 	}
-	return 0, nil
+	return 0, fmt.Errorf("trace volume not found")
 }
 
 // parseDockerSizeは、Docker CLIの10進単位（kB/MB/GB/TB）の表示をbyteへ戻す。
@@ -186,17 +193,22 @@ func dirSize(dir string) (int64, error) {
 	return total, err
 }
 
-// checkStorageは、Trace volumeと結果ディレクトリの上限超過・計測不能を停止理由にする。
-func (e Environment) checkStorage(dir string) string {
-	traceBytes, err := e.traceVolumeBytes()
-	if err != nil {
-		return "monitoring_failed"
+// checkStorageは、結果ディレクトリと、includeTraceならTrace volumeの上限超過・計測不能を停止理由にする。
+func (e Environment) checkStorage(dir string, includeTrace bool) string {
+	if includeTrace {
+		traceBytes, err := e.traceVolumeBytes()
+		if err != nil {
+			return "monitoring_failed"
+		}
+		if traceBytes >= traceVolumeLimitBytes {
+			return "disk_limit"
+		}
 	}
 	resultBytes, err := dirSize(dir)
 	if err != nil {
 		return "monitoring_failed"
 	}
-	if traceBytes >= traceVolumeLimitBytes || resultBytes >= resultsLimitBytes {
+	if resultBytes >= resultsLimitBytes {
 		return "disk_limit"
 	}
 	return ""
@@ -205,14 +217,14 @@ func (e Environment) checkStorage(dir string) string {
 // conditionMetadataは、比較条件をmanifestへ残すための版・環境情報を集める。
 // 取得できない値はunknownとし、取得失敗を測定結果の合格へ混ぜない。秘密値は含めない。
 func (e Environment) conditionMetadata(vm dockerInfo) map[string]any {
-	ctx, cancel := context.WithTimeout(context.Background(), dockerCommandTimeout)
-	defer cancel()
+	// 遅いdaemonで後半の項目だけ欠けないよう、コマンドごとに時間制限を与える。
+	ctx := context.Background()
 	environment := map[string]any{
 		"vm_cpu": vm.NCPU, "vm_memory_bytes": vm.MemTotal, "swap_limit": vm.SwapLimit,
 		"docker_client_version": "unknown", "docker_server_version": "unknown", "architecture": "unknown",
 		"compose_version": "unknown", "commit_sha": "unknown", "dirty": "unknown",
 	}
-	if output, err := e.docker(ctx, "version", "--format", "{{json .}}"); err == nil {
+	if output, err := e.dockerWithin(ctx, "version", "--format", "{{json .}}"); err == nil {
 		var version struct {
 			Client struct{ Version string }
 			Server struct{ Version, Arch string }
@@ -223,7 +235,7 @@ func (e Environment) conditionMetadata(vm dockerInfo) map[string]any {
 			environment["architecture"] = version.Server.Arch
 		}
 	}
-	if output, err := e.docker(ctx, "compose", "version", "--short"); err == nil && len(bytes.TrimSpace(output)) > 0 {
+	if output, err := e.dockerWithin(ctx, "compose", "version", "--short"); err == nil && len(bytes.TrimSpace(output)) > 0 {
 		environment["compose_version"] = strings.TrimSpace(string(output))
 	}
 	if output, err := e.git(ctx, "rev-parse", "HEAD"); err == nil {
@@ -233,11 +245,23 @@ func (e Environment) conditionMetadata(vm dockerInfo) map[string]any {
 		environment["dirty"] = len(bytes.TrimSpace(output)) > 0
 	}
 	environment["images"] = e.imageMetadata(ctx)
-	environment["container_limits"] = e.containerLimits(ctx)
+	names := make([]string, 0, len(monitoredServices))
+	for _, service := range monitoredServices {
+		names = append(names, Project+"-"+service+"-1")
+	}
+	environment["container_limits"] = e.containerLimits(ctx, names...)
 	return environment
 }
 
+func (e Environment) dockerWithin(ctx context.Context, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, dockerCommandTimeout)
+	defer cancel()
+	return e.docker(ctx, args...)
+}
+
 func (e Environment) git(ctx context.Context, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, dockerCommandTimeout)
+	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = e.Root
 	return cmd.Output()
@@ -246,7 +270,9 @@ func (e Environment) git(ctx context.Context, args ...string) ([]byte, error) {
 // imageMetadataは、解決済みComposeのimage tagと、取得済みならdigestを返す。
 func (e Environment) imageMetadata(ctx context.Context) map[string]any {
 	images := map[string]any{}
-	output, err := e.compose(ctx, "--profile", "build", "--profile", "prepare", "--profile", "measure", "config", "--format", "json")
+	configCtx, cancel := context.WithTimeout(ctx, dockerCommandTimeout)
+	output, err := e.compose(configCtx, "--profile", "build", "--profile", "prepare", "--profile", "measure", "config", "--format", "json")
+	cancel()
 	if err != nil {
 		return images
 	}
@@ -260,7 +286,7 @@ func (e Environment) imageMetadata(ctx context.Context) map[string]any {
 	}
 	for service, value := range config.Services {
 		entry := map[string]any{"image": value.Image, "digests": "unknown"}
-		if digests, err := e.docker(ctx, "image", "inspect", "--format", "{{json .RepoDigests}}", value.Image); err == nil {
+		if digests, err := e.dockerWithin(ctx, "image", "inspect", "--format", "{{json .RepoDigests}}", value.Image); err == nil {
 			var parsed []string
 			if json.Unmarshal(digests, &parsed) == nil {
 				entry["digests"] = parsed
@@ -271,14 +297,10 @@ func (e Environment) imageMetadata(ctx context.Context) map[string]any {
 	return images
 }
 
-// containerLimitsは、実行中containerへ実際に適用されたCPU・メモリ・swap上限を返す。
-func (e Environment) containerLimits(ctx context.Context) []map[string]any {
-	names := make([]string, 0, len(monitoredServices))
-	for _, service := range monitoredServices {
-		names = append(names, Project+"-"+service+"-1")
-	}
+// containerLimitsは、起動済みcontainerへ実際に適用されたCPU・メモリ・swap上限を返す。
+func (e Environment) containerLimits(ctx context.Context, names ...string) []map[string]any {
 	format := `{"name":{{json .Name}},"nano_cpus":{{.HostConfig.NanoCpus}},"memory":{{.HostConfig.Memory}},"memory_swap":{{.HostConfig.MemorySwap}}}`
-	output, err := e.docker(ctx, append([]string{"inspect", "--format", format}, names...)...)
+	output, err := e.dockerWithin(ctx, append([]string{"inspect", "--format", format}, names...)...)
 	if err != nil {
 		return nil
 	}
@@ -300,20 +322,38 @@ func monitorUsage() map[string]any {
 		return map[string]any{"cpu_seconds": "unknown"}
 	}
 	cpu := time.Duration(usage.Utime.Nano() + usage.Stime.Nano())
-	return map[string]any{"cpu_seconds": cpu.Seconds(), "max_rss_raw": usage.Maxrss}
+	result := map[string]any{"cpu_seconds": cpu.Seconds(), "max_rss_raw": usage.Maxrss}
+	// 監視の大半はdocker・git子processが行うため、終了済み子processの消費も別に残す。
+	var children syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_CHILDREN, &children); err == nil {
+		result["children_cpu_seconds"] = time.Duration(children.Utime.Nano() + children.Stime.Nano()).Seconds()
+		result["children_max_rss_raw"] = children.Maxrss
+	}
+	return result
 }
 
 // WriteReportCSVは、runが保存したreportと同じ値を段階別CSVへ書く。
 func WriteReportCSV(w io.Writer, report Report) error {
 	writer := csv.NewWriter(w)
-	if err := writer.Write([]string{"stage", "requested_rate", "http_count", "http_per_second", "operations_per_second", "p95_ms", "p99_ms", "error_rate", "qualified", "drain_seconds"}); err != nil {
+	header := []string{
+		"stage", "requested_rate", "planned_operations", "operations_started", "operations_completed", "operations_failed", "dropped_iterations",
+		"http_count", "http_per_second", "operations_per_second", "p95_ms", "p99_ms", "error_rate",
+		"windows_passed", "windows_failed", "windows_provisional", "windows_incomplete", "qualified", "drain_seconds",
+	}
+	if err := writer.Write(header); err != nil {
 		return err
 	}
 	for _, stage := range report.Stages {
+		windows := map[string]int{}
+		for _, window := range stage.Windows {
+			windows[window.Status]++
+		}
 		row := []string{
-			stage.Stage, strconv.Itoa(stage.Rate), strconv.Itoa(stage.HTTPCount),
-			formatFloat(stage.HTTPPerSecond), formatFloat(stage.OperationsPerSecond),
+			stage.Stage, strconv.Itoa(stage.Rate), strconv.Itoa(stage.PlannedOperations),
+			strconv.Itoa(stage.OperationsStarted), strconv.Itoa(stage.OperationsCompleted), strconv.Itoa(stage.OperationsFailed), strconv.Itoa(stage.DroppedIterations),
+			strconv.Itoa(stage.HTTPCount), formatFloat(stage.HTTPPerSecond), formatFloat(stage.OperationsPerSecond),
 			formatFloat(stage.P95MS), formatFloat(stage.P99MS), formatFloat(stage.ErrorRate),
+			strconv.Itoa(windows["passed"]), strconv.Itoa(windows["quality_failed"]), strconv.Itoa(windows["provisional"]), strconv.Itoa(windows["incomplete"]),
 			strconv.FormatBool(stage.Qualified), formatFloat(stage.DrainSeconds),
 		}
 		if err := writer.Write(row); err != nil {

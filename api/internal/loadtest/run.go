@@ -135,7 +135,6 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 	manifest := Manifest{
 		SchemaVersion: 1, RunID: runID, Scenario: scenario, Dataset: dataset, Reasons: []string{},
 		Plan: &plan, Fixture: &summary, Trace: traceConditions, StartedAt: startedAt,
-		Environment: e.conditionMetadata(vm),
 	}
 	// run IDの作成後は、準備中の失敗や中断でも理由を保存してから終了する。
 	prepareFailed := func(reason string) (RunOutcome, error) {
@@ -151,6 +150,13 @@ func (e Environment) Run(ctx context.Context, scenario, dataset string) (RunOutc
 	if reason := e.waitReady(prepareCtx, apiURL, dataset, state.FixtureSummary); reason != "" {
 		return prepareFailed(reason)
 	}
+	// 実際に適用された上限とimage digestは、起動後のcontainerから読む。
+	manifest.Environment = e.conditionMetadata(vm)
+	traceStart, err := e.traceVolumeBytes()
+	if err != nil {
+		return prepareFailed("monitoring_failed")
+	}
+	manifest.TraceVolumeBytesStart = traceStart
 	accounts, loggedInAt, err := authenticate(prepareCtx, apiURL, scenario, plan, fixture, secrets["LOADTEST_USER_PASSWORD"])
 	if err != nil {
 		return prepareFailed("environment")
@@ -272,15 +278,16 @@ func (e Environment) finalize(dir string, manifest Manifest, points []byte) (Run
 		return outcome, invalidInput("result_incomplete")
 	}
 	outcome.Report = report
-	if err := writePrivateJSON(dir, "report.json", report); err != nil {
-		return outcome, err
-	}
+	// 保存の失敗は結果不完全とし、report.jsonと終了コードが食い違わないよう最後に書く。
 	var csv bytes.Buffer
 	if err := WriteReportCSV(&csv, report); err != nil {
-		return outcome, environmentFailure("result_save_failed")
+		return outcome, invalidInput("result_incomplete")
 	}
 	if err := os.WriteFile(filepath.Join(dir, "report.csv"), csv.Bytes(), 0o600); err != nil {
-		return outcome, environmentFailure("result_save_failed")
+		return outcome, invalidInput("result_incomplete")
+	}
+	if err := writePrivateJSON(dir, "report.json", report); err != nil {
+		return outcome, err
 	}
 	return outcome, nil
 }
