@@ -103,13 +103,13 @@ func TestRun_ReturnsStartupFailureAfterTraceInitWithinDeadline(t *testing.T) {
 	unreachable := listenLocal(t)
 	unreachableAddr := unreachable.Addr().(*net.TCPAddr)
 	require.NoError(t, unreachable.Close())
-	// ConnectionDBは環境変数を直接読むため、接続できない専用値を設定して起動途中で失敗させる。
-	t.Setenv("DB_HOST", "127.0.0.1")
-	t.Setenv("DB_PORT", strconv.Itoa(unreachableAddr.Port))
-	t.Setenv("DB_USER", "test")
-	t.Setenv("DB_PASSWORD", "test")
-	t.Setenv("DB", "test")
+	// 設定検証は通し、接続できないDBを指定してDB接続の段階で起動を失敗させる。
 	env := envOf(map[string]string{
+		"DB_HOST":                     "127.0.0.1",
+		"DB_PORT":                     strconv.Itoa(unreachableAddr.Port),
+		"DB_USER":                     "test",
+		"DB_PASSWORD":                 "test",
+		"DB":                          "test",
 		"OTEL_TRACES_EXPORTER":        "otlp",
 		"OTEL_SERVICE_NAME":           "threadly-api",
 		"OTEL_EXPORTER_OTLP_ENDPOINT": "http://" + unreachable.Addr().String(),
@@ -120,5 +120,6 @@ func TestRun_ReturnsStartupFailureAfterTraceInitWithinDeadline(t *testing.T) {
 	err := run(context.Background(), env)
 
 	require.ErrorContains(t, err, "resolve router")
+	require.NotContains(t, err.Error(), "database config")
 	require.Less(t, time.Since(started), traceShutdownTimeout)
 }
