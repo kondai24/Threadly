@@ -9,18 +9,18 @@ import (
 	"Threadly/internal/interface/controllers"
 	"Threadly/internal/usecase"
 	"fmt"
-	"os"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/dig"
 	"gorm.io/gorm"
 )
 
-func NewContainer() (*dig.Container, error) {
+// NewContainerは、起動処理から渡されたgetenvだけで設定を読み、各依存を配線する。
+func NewContainer(getenv func(string) string) (*dig.Container, error) {
 	container := dig.New()
 
 	constructors := []any{
-		database.ConnectionDB,
+		func() (*gorm.DB, error) { return database.ConnectionDB(getenv) },
 		provideUserRepository,
 		providePostRepository,
 		provideCommentRepository,
@@ -30,7 +30,7 @@ func NewContainer() (*dig.Container, error) {
 		providePostLikeSummaryReader,
 		provideCommentLikeSummaryReader,
 		providePasswordHasher,
-		provideTokenIssuer,
+		func() (usecase.TokenIssuer, error) { return provideTokenIssuer(getenv) },
 		usecase.NewAuthUsecase,
 		usecase.NewLikeUsecase,
 		usecase.NewPostUsecaseWithLikeReader,
@@ -88,10 +88,10 @@ func providePasswordHasher() usecase.PasswordHasher {
 	return authinfra.NewArgon2idHasher()
 }
 
-func provideTokenIssuer() (usecase.TokenIssuer, error) {
+func provideTokenIssuer(getenv func(string) string) (usecase.TokenIssuer, error) {
 	// JWT_SECRETが未設定・短すぎる場合は、デフォルト値にフォールバックせず
 	// 起動を失敗させる。
-	return authinfra.NewJWTIssuer(os.Getenv("JWT_SECRET"))
+	return authinfra.NewJWTIssuer(getenv("JWT_SECRET"))
 }
 
 func provideHandlers(

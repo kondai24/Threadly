@@ -22,22 +22,43 @@ type DBConfig struct {
 	DB       string
 }
 
-func getDBConfig() DBConfig {
-	port, err := strconv.Atoi(os.Getenv("DB_PORT"))
-	if err != nil {
-		port = 3306
-	}
-	return DBConfig{
-		User:     os.Getenv("DB_USER"),
-		Password: os.Getenv("DB_PASSWORD"),
-		Host:     os.Getenv("DB_HOST"),
-		Port:     port,
-		DB:       os.Getenv("DB"),
-	}
+// configErrorは、raw値を含めず設定項目名と分類だけを返す。DB_PASSWORDをログへ出さないため。
+type configError struct {
+	key    string
+	reason string
 }
 
-func ConnectionDB() (*gorm.DB, error) {
-	config := getDBConfig()
+func (e *configError) Error() string {
+	return fmt.Sprintf("database config %s: %s", e.key, e.reason)
+}
+
+// parseDBConfigは、Makefileのmigrationと同じく5項目すべてを必須とし、
+// 不正なportを既定値へ置き換えず起動時に拒否する。
+func parseDBConfig(getenv func(string) string) (DBConfig, error) {
+	for _, key := range []string{"DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT", "DB"} {
+		if getenv(key) == "" {
+			return DBConfig{}, &configError{key: key, reason: "required"}
+		}
+	}
+	port, err := strconv.Atoi(getenv("DB_PORT"))
+	if err != nil || port < 1 || port > 65535 {
+		return DBConfig{}, &configError{key: "DB_PORT", reason: "invalid port"}
+	}
+	return DBConfig{
+		User:     getenv("DB_USER"),
+		Password: getenv("DB_PASSWORD"),
+		Host:     getenv("DB_HOST"),
+		Port:     port,
+		DB:       getenv("DB"),
+	}, nil
+}
+
+// ConnectionDBは、起動処理から渡されたgetenvでDB設定を読み、MySQLへ接続する。
+func ConnectionDB(getenv func(string) string) (*gorm.DB, error) {
+	config, err := parseDBConfig(getenv)
+	if err != nil {
+		return nil, err
+	}
 	dsn := fmt.Sprintf(
 		"%s:%s@tcp(%s:%d)/%s?parseTime=True",
 		config.User,
