@@ -19,7 +19,7 @@ func main() {
 	// 環境変数ファイルを読み込む。
 	_ = godotenv.Load()
 
-	container, err := di.NewContainer()
+	container, err := di.NewContainer(os.Getenv)
 	if err != nil {
 		log.Fatalf("Failed to build container: %v", err)
 	}
