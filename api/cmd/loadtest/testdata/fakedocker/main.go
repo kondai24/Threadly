@@ -68,10 +68,13 @@ func execute(args []string, r rule) int {
 	}
 	target, runID := outputTarget(args)
 	for _, w := range r.Writes {
-		select {
-		case <-signals:
-			return 130
-		case <-time.After(time.Duration(w.DelayMS) * time.Millisecond):
+		// 遅延0の行は直前の行と同じ操作の続きとして書き切り、k6のdrainと同様に途中で切らない。
+		if w.DelayMS > 0 {
+			select {
+			case <-signals:
+				return 130
+			case <-time.After(time.Duration(w.DelayMS) * time.Millisecond):
+			}
 		}
 		if target == "" {
 			continue
