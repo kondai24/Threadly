@@ -21,7 +21,7 @@ export DB_USER DB_PASSWORD DB_HOST DB_PORT DB PORT JWT_SECRET COOKIE_SECURE
 export OTEL_SDK_DISABLED OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL
 export OTEL_TRACES_EXPORTER OTEL_TRACES_SAMPLER OTEL_METRICS_EXPORTER OTEL_LOGS_EXPORTER
 
-.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
+.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean loadtest-test loadtest-prepare loadtest-reset loadtest-smoke loadtest-run
 
 tools:
 	@if command -v "$(ATLAS)" >/dev/null 2>&1; then \
@@ -69,6 +69,28 @@ integration-test: migrate-apply
 
 vulncheck:
 	$(GOVULNCHECK) ./...
+
+# 負荷試験は専用project threadly-loadtestだけを操作する。手順と前提は loadtest/README.md を参照する。
+LOADTEST := go run ./cmd/loadtest
+
+# Docker VM・DB・k6を使わない回帰検証。実時間待ちのケースは除く。
+loadtest-test:
+	$(GO_TEST) -short ./cmd/loadtest ./internal/loadtest
+
+loadtest-prepare:
+	@test -n "$(DATASET)" || (echo "Set DATASET=small|medium|large" >&2; exit 1)
+	$(LOADTEST) prepare --dataset "$(DATASET)"
+
+# 破壊的操作のため、確認値はCONFIRM_PROJECTで明示させる。
+loadtest-reset:
+	$(LOADTEST) reset --confirm-project "$(CONFIRM_PROJECT)"
+
+loadtest-smoke:
+	$(LOADTEST) run --scenario smoke --dataset small
+
+loadtest-run:
+	@test -n "$(SCENARIO)" && test -n "$(DATASET)" || (echo "Set SCENARIO=browse|mixed|login and DATASET" >&2; exit 1)
+	$(LOADTEST) run --scenario "$(SCENARIO)" --dataset "$(DATASET)"
 
 clean:
 	rm -rf $(BIN_DIR)
