@@ -36,7 +36,8 @@ type TraceRuntime struct {
 	shutdown func(context.Context) error
 }
 
-// NewTraceRuntimeは、明示的に解釈するOTEL_*設定だけからTrace送信を構成する。
+// NewTraceRuntimeは、検証済み設定からTrace送信を構成する。
+// Resource属性はSDK標準の環境変数マージを使い、service.nameは検証済み設定を優先する。
 // Collectorへの接続確認は起動条件にしない。
 func NewTraceRuntime(ctx context.Context, getenv func(string) string) (*TraceRuntime, error) {
 	config, err := parseTraceConfig(getenv)
@@ -72,7 +73,7 @@ func NewTraceRuntime(ctx context.Context, getenv func(string) string) (*TraceRun
 		}),
 		// queue満杯時はSpanを落とし、HTTP処理を送信待ちで止めない（WithBlockingは使わない）。
 		sdktrace.WithBatcher(
-			fixedResourceExporter{SpanExporter: exporter, resource: serviceResource},
+			exporter,
 			sdktrace.WithMaxQueueSize(batchQueueSize),
 			sdktrace.WithMaxExportBatchSize(batchMaxSize),
 			sdktrace.WithBatchTimeout(batchInterval),

@@ -98,13 +98,14 @@ func TestNewTraceRuntime_DisabledSettingsUseNoopTracer(t *testing.T) {
 	}
 }
 
-func TestTraceRuntime_ExportsWithExplicitSettingsOnly(t *testing.T) {
+func TestTraceRuntime_ExportsWithResourceEnvironmentAndExplicitTransportSettings(t *testing.T) {
 	const secret = "dummy-secret-value"
-	// Exporterが環境変数から暗黙に読む設定を入れても、bootstrapの明示設定だけが使われることを確かめる。
+	// Resource属性の環境設定は許容し、送信先と認証headerは検証済み設定に固定する。
 	t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "authorization="+secret)
 	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "authorization="+secret)
 	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://127.0.0.1:1")
-	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "host.name="+secret)
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.name=environment-api,service.version=1.2.3")
+	t.Setenv("OTEL_SERVICE_NAME", "environment-service")
 	collector := startFakeCollector(t)
 	ctx := context.Background()
 
@@ -120,10 +121,14 @@ func TestTraceRuntime_ExportsWithExplicitSettingsOnly(t *testing.T) {
 	require.Len(t, requests, 1)
 	resourceSpans := requests[0].GetResourceSpans()
 	require.Len(t, resourceSpans, 1)
-	resourceAttributes := resourceSpans[0].GetResource().GetAttributes()
-	require.Len(t, resourceAttributes, 1)
-	require.Equal(t, "service.name", resourceAttributes[0].GetKey())
-	require.Equal(t, "threadly-api", resourceAttributes[0].GetValue().GetStringValue())
+	resourceAttributes := make(map[string]string)
+	for _, attr := range resourceSpans[0].GetResource().GetAttributes() {
+		resourceAttributes[attr.GetKey()] = attr.GetValue().GetStringValue()
+	}
+	require.Equal(t, map[string]string{
+		"service.name":    "threadly-api",
+		"service.version": "1.2.3",
+	}, resourceAttributes)
 	scopeSpans := resourceSpans[0].GetScopeSpans()
 	require.Len(t, scopeSpans, 1)
 	require.Equal(t, "Threadly/api", scopeSpans[0].GetScope().GetName())
