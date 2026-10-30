@@ -1,8 +1,8 @@
 # 負荷試験の計画と段階集計
 
-現時点で利用できるのは、Dockerへ接続しない `plan` / `report`、専用DBの `prepare` / `reset`、専用Composeの構成定義とk6のHTTP操作です。
-`run`、live監視・停止、ディスク監視は未実装です。
-VM上限のpreflightも未実装のため、この構成を手動で起動して負荷試験を始めないでください。
+現時点で利用できるのは、Dockerへ接続しない `plan` / `report`、専用DBの `prepare` / `reset`、段階制御・監視付きの `run`、専用Composeの構成定義とk6のHTTP操作です。
+資源時系列・generator pressure・ディスク監視とmanifestの環境metadataは未実装です。
+この構成を `docker compose up` で手動起動して負荷試験を始めず、`run` を使ってください。
 
 ## 開発用CLIの確認
 
@@ -115,7 +115,7 @@ accountsはVU順の配列で、重複しないid/usernameと、閲覧・混在�
 
 入口のoptionsはwarmup60秒、測定120秒、固定到着率・固定VU上限、drain最大10秒、smoke最大30秒です。
 設定の `k6 inspect` 確認は送信時間・資源上限の実測を意味しません。
-認証情報の取得・残存期限確認、0600一時ファイルの生成/削除、段階間の排他、900秒watchdog、停止理由の保存は未実装のrun制御が担当します。スクリプト単独で本試験を開始しないでください。
+認証情報の取得・残存期限確認、0600一時ファイルの生成/削除、段階間の排他、900秒watchdog、停止理由の保存は `run` が担当します。スクリプト単独で本試験を開始しないでください。
 
 ## 専用DBの準備と初期化
 
@@ -167,7 +167,62 @@ go test ./cmd/loadtest -run 'Test(Prepare|Reset|Seed)' -count=1
 代替dockerのテストは、呼び出し順・拒否時に破壊的操作を送らないこと・状態ファイル・秘密値の非出力を確認します。
 実際の専用containerでのbuild、Atlas適用、`loadtest-db` へのseed、tool containerの256MiB上限内でのlarge投入は未検証です。
 
+## run
+
+```sh
+go run ./cmd/loadtest run --scenario smoke --dataset small
+go run ./cmd/loadtest reset --confirm-project threadly-loadtest
+go run ./cmd/loadtest prepare --dataset medium
+go run ./cmd/loadtest run --scenario mixed --dataset medium
+```
+
+`run` は未使用のfixtureだけを受け付け、送信開始前に使用済みへ変えます。次のrunの前には `reset` と `prepare` が必要です。
+smokeが失敗したら他シナリオを開始しないでください。smokeと本試験の間もresetします。
+
+準備（全体10分以内）:
+
+1. `docker info` でVMのCPUが4・メモリが6GiB以下で、上限合計＋CPU 0.5・メモリ1GiBの余裕があること、swap制限に対応していることを確認する。
+2. `docker ps` で専用project以外のcontainerが動いていれば、名前を示して拒否する（自動停止しない）。
+3. 解決済みComposeと既存DB containerの専用対象を照合し、`api` / `otel-collector` / `tempo` / `grafana` を起動する。
+4. API `127.0.0.1:18080/health`・Tempo `127.0.0.1:13200/ready`・Grafana `127.0.0.1:13000/api/health` の応答を待つ。
+   Collectorは公開portを持たないため、常駐サービスの稼働監視で代替する。
+5. `tool verify` で専用DBの件数とchecksumを読み戻し、`prepare` 時の記録と一致しなければ送信せず `result_incomplete` とする。
+6. browse / mixed / smokeでは割り当てUserを直列に事前ログインし、先頭Userの `/api/me` で認証付きAPIを確認する。
+   Cookieは `loadtest/runtime/<run_id>/accounts.json`（0600、k6へread-only mount）だけに置き、終了時に削除する。loginシナリオは事前ログインせずpasswordだけを渡す。
+
+準備中の失敗・中断でも `manifest.json` と `report.json` を保存し、理由（`environment` / `result_incomplete` / `interrupted`）を残します。
+
+測定:
+
+- 段階ごとに `threadly-loadtest-k6-<stage>` の一時containerでk6を1つだけ起動し、生Pointを `results/<run_id>/points-<stage>.jsonl` へ出す。
+- ホスト側は1秒ごとに生Pointを読み、30秒窓（20HTTP以上）の品質違反・transport error・10秒以上のHTTP停滞・起動後30秒のPoint欠如を判定する。
+  段階の開始時刻は最初に採取されたPointの時刻を基準とし、窓は境界から5秒待って確定する。確定後に届いたPointの窓は不完全として記録する。
+  5秒ごとに常駐サービスのOOM・停止・再起動とAPI health（timeout 2秒）を確認する。Docker eventsは購読せず、この `docker inspect` の定期確認で代替する。
+- 停止理由を検出したらk6へSIGINTを送り、最大10秒のdrain後は強制停止する。drain内に終えた段階は `stopped` として記録し、停止理由で判定する。
+- 段階終了ごとにreportと同じ規則で評価し、品質・生成不足・不完全があれば次段階を開始しない。
+- SIGINT後に停止できなければ `docker kill`・`rm -f` で強制停止し、確認できない場合は `monitoring_failed` を記録する。
+- 最初の送信から890秒で停止要求し（895秒で強制停止の保険）、残り時間で送信120秒＋drain＋余裕を確保できない段階は短縮せずに開始しない。
+- Ctrl-C / SIGTERMでも同じ停止と保存を行い、終了130を返す。
+
+結果は新規の `results/<run_id>/` に `manifest.json` / `points.jsonl` / `report.json` / 段階別の生Pointとk6設定を保存し、reportを標準出力へ出します。
+終了コードはreportと同じです。保存済み結果は `report` で同じ規則により再生成できます。
+
+### runの検証範囲
+
+```sh
+# 代替dockerとloopbackのAPI fixture serverで、Docker VMを使わずに実行する（約1分）。
+go test ./cmd/loadtest -run TestRun -count=1
+# 30秒窓の品質停止を実時間で待つケースを除く場合
+go test ./cmd/loadtest -run TestRun -short -count=1
+```
+
+代替dockerは `docker info` / `ps` / `inspect` / `tool verify` の状態fixture、k6の生Point出力（遅れて書かれるPointを含む）、SIGINTの受信を再現します。
+Tempo・Grafanaの準備完了応答はAPI fixture serverで代替します（`LOADTEST_TEMPO_URL` / `LOADTEST_GRAFANA_URL`、loopbackのみ）。
+`verify` の実DB照合は `ReadFixtureSummary` のIntegration testで確認します。
+多段の正常完走は実時間で約15分かかるため自動テストでは扱わず、smokeの正常系と各停止理由で検証します。
+実Docker VMでの起動・事前認証・k6 container（uid）からの0600ファイル読み込み・実OOM検出は未検証です。
+
 ## 続きの実装条件
 
-次はrun制御と、資源・Trace・ディスク監視です。開発DBや既存test-dbを初期化対象へ代用しません。
-artifacts / results / secrets / .envはGit対象外です。通常のDB・Trace volumeを削除する手順はありません。
+次は資源時系列・generator pressure・Trace volume/結果サイズの監視と、manifestの環境metadata・CSV出力です。開発DBや既存test-dbを初期化対象へ代用しません。
+artifacts / results / runtime / secrets / state / .envはGit対象外です。通常のDB・Trace volumeを削除する手順はありません。

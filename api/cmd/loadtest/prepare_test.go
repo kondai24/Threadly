@@ -21,9 +21,12 @@ const (
 )
 
 type dockerRule struct {
-	Contains []string `json:"contains"`
-	Stdout   string   `json:"stdout"`
-	Exit     int      `json:"exit"`
+	Contains   []string         `json:"contains"`
+	AfterCalls int              `json:"after_calls,omitempty"`
+	Stdout     string           `json:"stdout"`
+	Exit       int              `json:"exit"`
+	Writes     []map[string]any `json:"writes,omitempty"`
+	SleepMS    int              `json:"sleep_ms,omitempty"`
 }
 
 // loadtestEnv は、api/ と同じ相対配置の一時ディレクトリと代替dockerの記録先を持つ。
@@ -241,7 +244,7 @@ func writeState(t *testing.T, env loadtestEnv, used bool) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "fixture.json"), data, 0o600))
 }
 
-func TestSeed_RejectsMissingSecretsAndUnknownDatasetWithoutConnecting(t *testing.T) {
+func TestSeedAndVerify_RejectMissingSecretsAndUnknownDatasetWithoutConnecting(t *testing.T) {
 	cases := []struct {
 		name       string
 		args       []string
@@ -251,6 +254,8 @@ func TestSeed_RejectsMissingSecretsAndUnknownDatasetWithoutConnecting(t *testing
 		{name: "未知datasetは拒否する", args: []string{"seed", "--dataset", secretValue}, env: []string{"LOADTEST_DB_PASSWORD=" + secretValue, "LOADTEST_USER_PASSWORD=" + secretValue}, wantReason: "invalid_input"},
 		{name: "DB passwordがなければ接続しない", args: []string{"seed", "--dataset", "small"}, env: []string{"LOADTEST_USER_PASSWORD=" + secretValue}, wantReason: "secrets_missing"},
 		{name: "User passwordがなければ接続しない", args: []string{"seed", "--dataset", "small"}, env: []string{"LOADTEST_DB_PASSWORD=" + secretValue}, wantReason: "secrets_missing"},
+		{name: "照合でも未知datasetは拒否する", args: []string{"verify", "--dataset", secretValue}, env: []string{"LOADTEST_DB_PASSWORD=" + secretValue}, wantReason: "invalid_input"},
+		{name: "照合でもDB passwordがなければ接続しない", args: []string{"verify", "--dataset", "small"}, wantReason: "secrets_missing"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

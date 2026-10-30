@@ -20,6 +20,7 @@ type reportStage struct {
 	SendEnd           time.Time `json:"send_end"`
 	End               time.Time `json:"end"`
 	Complete          bool      `json:"complete"`
+	Stopped           bool      `json:"stopped,omitempty"`
 	IncompleteWindows []int     `json:"incomplete_windows,omitempty"`
 }
 
@@ -670,4 +671,72 @@ func TestReport_AcceptsSmokeFinishingBeforeThirtySeconds(t *testing.T) {
 	report, status := runReport(t, manifest, points)
 	require.Equal(t, 0, status)
 	require.Equal(t, "smoke_passed", report["status"])
+}
+
+func TestReport_UsesStopReasonForStageStoppedByMonitor(t *testing.T) {
+	manifest, points := completeReportFixture()
+	// 段階4の最初の窓で品質違反を検出し、新規送信を止めてdrain後に保存した結果を再現する。
+	stopped := manifest.Stages[3]
+	stopped.End = stopped.Start.Add(40 * time.Second)
+	stopped.Complete = false
+	stopped.Stopped = true
+	manifest.Stages = append(manifest.Stages[:3], stopped)
+	manifest.Reasons = []string{"quality"}
+	var kept []metricPoint
+	for _, p := range points {
+		stage := p.Data.Tags["stage"]
+		if stage == "5" || stage == "6" || (stage == "4" && p.Data.Time.After(stopped.Start.Add(29*time.Second))) {
+			continue
+		}
+		if stage == "4" && p.Metric == "lt_http_duration" {
+			p.Data.Value = 900
+		}
+		kept = append(kept, p)
+	}
+
+	report, status := runReport(t, manifest, kept)
+
+	require.Equal(t, 2, status)
+	require.Equal(t, "quality_failed", report["status"])
+	require.Equal(t, []any{"quality"}, report["reasons"])
+	require.Equal(t, float64(5), report["max_qualified_rate"])
+	require.Equal(t, false, report["stages"].([]any)[3].(map[string]any)["qualified"])
+}
+
+func TestReport_RejectsStoppedStageWithoutReasonOrBeforeLastStage(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*reportManifest)
+	}{
+		{name: "停止理由がない短縮段階は受け付けない", mutate: func(m *reportManifest) {
+			m.Stages[5].Complete = false
+			m.Stages[5].Stopped = true
+		}},
+		{name: "終端以外の停止段階は受け付けない", mutate: func(m *reportManifest) {
+			m.Reasons = []string{"quality"}
+			m.Stages[4].Complete = false
+			m.Stages[4].Stopped = true
+		}},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			manifest, points := completeReportFixture()
+			tt.mutate(&manifest)
+			m, p := reportFiles(t, manifest, points)
+			stdout, stderr, status := command(t, "report", "--manifest", m, "--points", p)
+			require.Equal(t, 5, status)
+			require.Empty(t, stdout)
+			require.Equal(t, "loadtest invalid_input\n", stderr)
+		})
+	}
+}
+
+func TestReport_AcceptsManifestWithoutStagesOnlyWhenStopReasonIsRecorded(t *testing.T) {
+	manifest := reportManifest{SchemaVersion: 1, RunID: "fixture-run", Scenario: "browse", Dataset: "small", Finalized: true, Reasons: []string{"environment"}}
+
+	report, status := runReport(t, manifest, nil)
+
+	require.Equal(t, 4, status)
+	require.Equal(t, "environment_failed", report["status"])
+	require.Contains(t, report["reasons"], "environment")
 }
