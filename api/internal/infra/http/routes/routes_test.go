@@ -20,6 +20,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/mock/gomock"
 )
 
@@ -137,6 +139,16 @@ func newTestRouter(t *testing.T) (*gin.Engine, routeRepositories) {
 
 func newRouteRouter(t *testing.T, withLikes bool) (*gin.Engine, routeRepositories) {
 	t.Helper()
+	return newRouteRouterWithTracer(t, withLikes, noop.NewTracerProvider().Tracer("test"))
+}
+
+// newRouteRouterWithTracerは、全Controller・Usecaseへ同じTracerを渡したRouterを組み立てる。
+func newRouteRouterWithTracer(
+	t *testing.T,
+	withLikes bool,
+	tracer trace.Tracer,
+) (*gin.Engine, routeRepositories) {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	repos := routeRepositories{
 		Post:        mocks.NewMockPostRepository(ctrl),
@@ -151,22 +163,23 @@ func newRouteRouter(t *testing.T, withLikes bool) (*gin.Engine, routeRepositorie
 		CommentLike: repos.CommentLike,
 	}}
 	tokens := routeTokenIssuer{}
-	auth := usecase.NewAuthUsecase(newRouteUserRepository(), routePasswordHasher{}, tokens)
-	post := usecase.NewPostUsecase(repos.Post, uow)
-	comment := usecase.NewCommentUsecase(repos.Comment, repos.Post, uow)
+	auth := usecase.NewAuthUsecase(newRouteUserRepository(), routePasswordHasher{}, tokens, tracer)
+	post := usecase.NewPostUsecase(repos.Post, uow, tracer)
+	comment := usecase.NewCommentUsecase(repos.Comment, repos.Post, uow, tracer)
 	var likeController *controllers.LikeController
 	if withLikes {
-		likes := usecase.NewLikeUsecase(repos.Post, repos.Comment, repos.PostLike, repos.CommentLike)
-		post = usecase.NewPostUsecaseWithLikeReader(repos.Post, uow, likes)
-		comment = usecase.NewCommentUsecaseWithLikeReader(repos.Comment, repos.Post, uow, likes)
-		likeController = controllers.NewLikeController(likes)
+		likes := usecase.NewLikeUsecase(repos.Post, repos.Comment, repos.PostLike, repos.CommentLike, tracer)
+		post = usecase.NewPostUsecaseWithLikeReader(repos.Post, uow, likes, tracer)
+		comment = usecase.NewCommentUsecaseWithLikeReader(repos.Comment, repos.Post, uow, likes, tracer)
+		likeController = controllers.NewLikeController(likes, tracer)
 	}
 	return SetupRouter(Handlers{
-		Auth:        controllers.NewAuthController(auth),
-		Post:        controllers.NewPostController(post),
-		Comment:     controllers.NewCommentController(comment),
+		Auth:        controllers.NewAuthController(auth, tracer),
+		Post:        controllers.NewPostController(post, tracer),
+		Comment:     controllers.NewCommentController(comment, tracer),
 		Like:        likeController,
 		TokenIssuer: tokens,
+		Tracer:      tracer,
 	}), repos
 }
 

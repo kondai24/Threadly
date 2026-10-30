@@ -51,7 +51,7 @@ func newAuthUsecaseTest(
 	t.Cleanup(ctrl.Finish)
 
 	repo := mocks.NewMockUserRepository(ctrl)
-	usecase := NewAuthUsecase(repo, hasher, tokens)
+	usecase := NewAuthUsecase(repo, hasher, tokens, noopTracer())
 	return usecase, repo
 }
 

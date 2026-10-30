@@ -28,7 +28,7 @@ func newLikeUsecaseTest(t *testing.T) (
 	commentRepo := mocks.NewMockCommentRepository(ctrl)
 	postLikeRepo := mocks.NewMockPostLikeRepository(ctrl)
 	commentLikeRepo := mocks.NewMockCommentLikeRepository(ctrl)
-	usecase := NewLikeUsecase(postRepo, commentRepo, postLikeRepo, commentLikeRepo)
+	usecase := NewLikeUsecase(postRepo, commentRepo, postLikeRepo, commentLikeRepo, noopTracer())
 	return usecase, postRepo, commentRepo, postLikeRepo, commentLikeRepo
 }
 

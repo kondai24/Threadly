@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/mock/gomock"
 )
 
@@ -43,8 +44,9 @@ func TestSetupRouter_InternalErrorsHideDetails(t *testing.T) {
 					UUIDBaseModel: models.UUIDBaseModel{ID: routeUserID}, PasswordHash: "hash",
 				}, nil)
 				tokens := routeTokenIssuer{}
-				auth := usecase.NewAuthUsecase(repo, failingPasswordHasher{err: internalErr}, tokens)
-				return SetupRouter(Handlers{Auth: controllers.NewAuthController(auth), TokenIssuer: tokens})
+				tracer := noop.NewTracerProvider().Tracer("test")
+				auth := usecase.NewAuthUsecase(repo, failingPasswordHasher{err: internalErr}, tokens, tracer)
+				return SetupRouter(Handlers{Auth: controllers.NewAuthController(auth, tracer), TokenIssuer: tokens, Tracer: tracer})
 			},
 		},
 		{

@@ -21,6 +21,10 @@ make dev
 
 `api/.env` がある場合、Makefileが `DB_USER`・`DB_PASSWORD`・`DB_HOST`・`DB_PORT`・`DB` から `DATABASE_URL` を自動生成します。そのため、ローカル開発では `DATABASE_URL` を毎回設定する必要はありません。別のDBを対象にする場合は、従来どおり `DATABASE_URL='mysql://...' make migrate-apply` のように明示指定できます。
 
+## TraceのResource属性
+
+Trace送信を有効にした場合、ResourceはOpenTelemetry SDK標準のマージを使います。APIプロセスの環境変数 `OTEL_RESOURCE_ATTRIBUTES` に `service.version=1.2.0,deployment.environment.name=development` のような追加属性を指定できます。`service.name` は起動時に検証した `OTEL_SERVICE_NAME` を優先します。追加属性はトレースの送信対象になるため、password・token・個人情報などを含めないでください。環境変数全体を自動収集するものではありません。
+
 ## 認証
 
 パスワードは Argon2id でハッシュ化して保存します。登録またはログインが成功すると、1時間有効な `HttpOnly; SameSite=Lax` セッションCookieが設定されます。HTTPS環境では `Secure` も有効になり、Cookie名は `__Host-threadly-session` です。JWT本体はレスポンスボディやブラウザJavaScriptへ返しません。

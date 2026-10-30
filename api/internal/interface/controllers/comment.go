@@ -10,16 +10,18 @@ import (
 	"Threadly/internal/usecase"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // CommentControllerは、CommentUsecaseの結果をHTTP statusと公開DTOへ変換するadapterである。
 type CommentController struct {
 	usecase *usecase.CommentUsecase
+	tracer  trace.Tracer
 }
 
 // NewCommentControllerは、CommentUsecaseをHTTP adapterへ注入する。
-func NewCommentController(commentUsecase *usecase.CommentUsecase) *CommentController {
-	return &CommentController{usecase: commentUsecase}
+func NewCommentController(commentUsecase *usecase.CommentUsecase, tracer trace.Tracer) *CommentController {
+	return &CommentController{usecase: commentUsecase, tracer: tracer}
 }
 
 // ListCommentsHandler godoc
@@ -36,6 +38,9 @@ func NewCommentController(commentUsecase *usecase.CommentUsecase) *CommentContro
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/comments [get]
 func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
+	span := startHandlerSpan(c, cc.tracer, "CommentController.ListCommentsHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -72,6 +77,9 @@ func (cc *CommentController) ListCommentsHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/posts/{id}/comments [post]
 func (cc *CommentController) CreateCommentHandler(c *gin.Context) {
+	span := startHandlerSpan(c, cc.tracer, "CommentController.CreateCommentHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -124,6 +132,9 @@ func (cc *CommentController) CreateCommentHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/comments/{id} [put]
 func (cc *CommentController) UpdateCommentHandler(c *gin.Context) {
+	span := startHandlerSpan(c, cc.tracer, "CommentController.UpdateCommentHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
@@ -167,6 +178,9 @@ func (cc *CommentController) UpdateCommentHandler(c *gin.Context) {
 // @Failure 500 {object} dto.ErrorResponse
 // @Router /api/comments/{id} [delete]
 func (cc *CommentController) DeleteCommentHandler(c *gin.Context) {
+	span := startHandlerSpan(c, cc.tracer, "CommentController.DeleteCommentHandler")
+	defer func() { endHandlerSpan(c, span, recover()) }()
+
 	userID, ok := middleware.UserIDFromContext(c.Request.Context())
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})

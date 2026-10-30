@@ -7,7 +7,9 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+	"Threadly/internal/tracing"
 
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -15,15 +17,19 @@ import (
 // PostRepositoryは、PostRepository契約をGORMへ適配する。
 // DBにはroot DBまたはUnitOfWorkが生成したtransaction-bound DBが入る。
 type PostRepository struct {
-	DB *gorm.DB
+	DB     *gorm.DB
+	Tracer trace.Tracer
 }
 
 // NewPostRepositoryは、指定されたDB handleへ結び付いたPostRepositoryを生成する。
-func NewPostRepository(db *gorm.DB) repositories.PostRepository {
-	return &PostRepository{DB: db}
+func NewPostRepository(db *gorm.DB, tracer trace.Tracer) repositories.PostRepository {
+	return &PostRepository{DB: db, Tracer: tracer}
 }
 
-func (r *PostRepository) GetByID(ctx context.Context, postID models.UUID) (*models.Post, error) {
+func (r *PostRepository) GetByID(ctx context.Context, postID models.UUID) (_ *models.Post, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.GetByID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	var post models.Post
 	result := r.DB.WithContext(ctx).
 		Preload("Author").
@@ -41,7 +47,10 @@ func (r *PostRepository) GetByID(ctx context.Context, postID models.UUID) (*mode
 func (r *PostRepository) GetByIDForUpdate(
 	ctx context.Context,
 	postID models.UUID,
-) (*models.Post, error) {
+) (_ *models.Post, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.GetByIDForUpdate")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 呼び出し元が同じTransaction内で後続更新するPostをロックし、削除との
 	// 競合を直列化する。
 	var post models.Post
@@ -62,7 +71,10 @@ func (r *PostRepository) GetByIDForOwner(
 	ctx context.Context,
 	userID models.UUID,
 	postID models.UUID,
-) (*models.Post, error) {
+) (_ *models.Post, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.GetByIDForOwner")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 所有者条件を検索へ含め、存在しない・削除済み・他User所有のPostを
 	// 同じNotFound契約にする。
 	var post models.Post
@@ -79,11 +91,17 @@ func (r *PostRepository) GetByIDForOwner(
 	return &post, nil
 }
 
-func (r *PostRepository) Create(ctx context.Context, post *models.Post) error {
+func (r *PostRepository) Create(ctx context.Context, post *models.Post) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.Create")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	return r.DB.WithContext(ctx).Create(post).Error
 }
 
-func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *models.Post) error {
+func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *models.Post) (err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.Update")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// mapを使い、更新値が空文字でもGORMに無視されないようにする。
 	result := r.DB.WithContext(ctx).
 		Model(&models.Post{}).
@@ -101,7 +119,10 @@ func (r *PostRepository) Update(ctx context.Context, userID models.UUID, post *m
 	return nil
 }
 
-func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, postID models.UUID) (int64, error) {
+func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, postID models.UUID) (_ int64, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.DeleteByID")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	// 関連Comment・LikeのcleanupはUsecaseが別Repositoryへ委譲するため、ここでは
 	// Post本体だけを論理削除する。
 	result := r.DB.WithContext(ctx).
@@ -113,7 +134,10 @@ func (r *PostRepository) DeleteByID(ctx context.Context, userID models.UUID, pos
 	return result.RowsAffected, nil
 }
 
-func (r *PostRepository) ListAll(ctx context.Context) ([]*models.Post, error) {
+func (r *PostRepository) ListAll(ctx context.Context) (_ []*models.Post, err error) {
+	ctx, span := tracing.Start(ctx, r.Tracer, tracing.LayerRepository, "PostRepository.ListAll")
+	defer func() { tracing.End(span, repositoryResult(err), recover()) }()
+
 	posts := make([]*models.Post, 0)
 	result := r.DB.WithContext(ctx).
 		Preload("Author").

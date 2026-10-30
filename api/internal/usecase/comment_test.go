@@ -38,6 +38,7 @@ func newCommentUsecaseTest(
 				Comment: commentRepo,
 			},
 		},
+		noopTracer(),
 	)
 	return usecase, commentRepo, postRepo
 }
@@ -63,7 +64,7 @@ func newCommentDeleteUsecaseTest(
 			Comment:     commentRepo,
 			CommentLike: commentLikeRepo,
 		},
-	})
+	}, noopTracer())
 	return usecase, commentRepo, commentLikeRepo
 }
 

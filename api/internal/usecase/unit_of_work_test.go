@@ -5,7 +5,15 @@ import (
 
 	"Threadly/internal/domain/models"
 	"Threadly/internal/domain/repositories"
+
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
+
+// noopTracerは、Span記録を検証しないテストで明示的に使う無記録Tracer。
+func noopTracer() trace.Tracer {
+	return noop.NewTracerProvider().Tracer("test")
+}
 
 type testUnitOfWork struct {
 	repos repositories.TransactionRepositories
