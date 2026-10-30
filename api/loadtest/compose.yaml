@@ -1,0 +1,157 @@
+name: threadly-loadtest
+
+x-runtime: &runtime
+  cpus: 0.25
+  mem_limit: 256m
+  memswap_limit: 256m
+  restart: "no"
+  labels:
+    io.threadly.loadtest.project: threadly-loadtest
+  logging:
+    driver: local
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  api:
+    <<: *runtime
+    image: alpine:3.22
+    cpus: 1.0
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    command: ["/artifacts/threadly-api"]
+    volumes:
+      - ./artifacts:/artifacts:ro
+    environment:
+      PORT: "8080"
+      DB_HOST: loadtest-db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: ${LOADTEST_DB_PASSWORD:?use dedicated loadtest settings}
+      DB: threadly_loadtest
+      JWT_SECRET: ${LOADTEST_JWT_SECRET:?use dedicated loadtest settings}
+      COOKIE_SECURE: "false"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: threadly-api-loadtest
+      OTEL_TRACES_SAMPLER: parentbased_always_on
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      loadtest-db:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 60
+  loadtest-db:
+    <<: *runtime
+    image: mysql:8.0.36
+    cpus: 1.0
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOADTEST_DB_PASSWORD:?use dedicated loadtest settings}
+      MYSQL_DATABASE: threadly_loadtest
+      TZ: UTC
+    volumes:
+      - ../db/my.conf:/etc/mysql/conf.d/my.cnf:ro
+      - loadtest_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 2s
+      retries: 60
+  k6:
+    <<: *runtime
+    image: grafana/k6:2.3.0
+    cpus: 0.75
+    mem_limit: 768m
+    memswap_limit: 768m
+    profiles: [measure]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./results:/results
+  otel-collector:
+    <<: *runtime
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_started
+  tempo:
+    <<: *runtime
+    image: grafana/tempo:2.8.2
+    mem_limit: 512m
+    memswap_limit: 512m
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    depends_on:
+      storage-init:
+        condition: service_completed_successfully
+    volumes:
+      - ../tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - loadtest_trace_data:/tmp/tempo
+    ports:
+      - "127.0.0.1:13200:3200"
+  grafana:
+    <<: *runtime
+    image: grafana/grafana:12.0.2
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      tempo:
+        condition: service_started
+  storage-init:
+    <<: *runtime
+    image: alpine:3.22
+    mem_limit: 64m
+    memswap_limit: 64m
+    command: ["sh", "-c", "chown -R 10001:10001 /tempo"]
+    volumes:
+      - loadtest_trace_data:/tempo
+  tool:
+    <<: *runtime
+    image: alpine:3.22
+    profiles: [prepare]
+    entrypoint: ["/artifacts/loadtest"]
+    volumes:
+      - ./artifacts:/artifacts:ro
+      - ../migrations:/migrations:ro
+  builder:
+    <<: *runtime
+    image: golang:1.26.10-bookworm
+    cpus: 1.0
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    profiles: [build]
+    working_dir: /source
+    environment:
+      CGO_ENABLED: "0"
+      GOCACHE: /cache/build
+      GOMODCACHE: /cache/modules
+    command: ["sh", "-c", "go build -o /artifacts/threadly-api ./cmd/api && go build -o /artifacts/loadtest ./cmd/loadtest"]
+    volumes:
+      - ..:/source:ro
+      - ./artifacts:/artifacts
+      - loadtest_build_cache:/cache
+
+volumes:
+  loadtest_db_data: {}
+  loadtest_trace_data: {}
+  loadtest_build_cache: {}
+
+networks:
+  default:
+    labels:
+      io.threadly.loadtest.project: threadly-loadtest
