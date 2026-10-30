@@ -1,8 +1,43 @@
 # 負荷試験の計画と段階集計
 
-現時点で利用できるのは、Dockerへ接続しない `plan` / `report`、専用DBの `prepare` / `reset`、段階制御・監視付きの `run`、専用Composeの構成定義とk6のHTTP操作です。
-資源時系列・generator pressure・ディスク監視とmanifestの環境metadataは未実装です。
-この構成を `docker compose up` で手動起動して負荷試験を始めず、`run` を使ってください。
+専用project `threadly-loadtest` 上で、固定fixtureを準備し、資源上限付きのAPIへk6で段階的に負荷をかけ、品質を満たす最大段階を判定します。
+この構成を `docker compose up` で手動起動して負荷試験を始めず、次の入口を使ってください（`api/` から実行）。
+
+## 通しの手順
+
+```sh
+# 0. loadtest/secrets/loadtest.env を用意する（下記「専用DBの準備と初期化」）。値は共有・コミットしない。
+# 1. 疎通確認（smoke）。失敗したら本試験を始めない。
+make loadtest-prepare DATASET=small
+make loadtest-smoke
+# 2. 本試験の前に毎回初期化して準備し直す。
+make loadtest-reset CONFIRM_PROJECT=threadly-loadtest
+make loadtest-prepare DATASET=medium
+make loadtest-run SCENARIO=mixed DATASET=medium
+# 3. 保存済み結果からreportを再生成する。
+go run ./cmd/loadtest report --manifest loadtest/results/<run_id>/manifest.json --points loadtest/results/<run_id>/points.jsonl
+# Docker VM・DB・k6を使わない回帰検証
+make loadtest-test
+```
+
+| 入口 | CLI | 終了コード |
+| --- | --- | --- |
+| `make loadtest-prepare` | `prepare --dataset` | 0成功 / 4環境 / 5入力・対象不一致・準備済み |
+| `make loadtest-reset` | `reset --confirm-project`（Traceも消す場合は `--reset-traces` をCLIへ直接指定） | 同上 |
+| `make loadtest-smoke` / `make loadtest-run` | `run --scenario --dataset` | reportと同じ（0 / 2 / 3 / 4 / 5 / 中断130） |
+| — | `plan` / `report` | 0 / 5（reportは判定結果の終了コード） |
+
+## 環境依存で未検証の項目
+
+自動テストは代替docker・loopbackのfixture server・使い捨てMySQL schema・実k6（loopback）で行います。次は実Docker VMでの手動確認が必要で、未実施です。
+
+- 専用imageの取得・digest・architectureと、builder / migrate / tool / k6 containerの起動互換性
+- Composeの資源上限・swap制限がVM上で実効していること（`docker info` / `docker stats` の実測値）
+- 専用DBへのAtlas適用とseed（largeを含む、tool containerの256MiB上限内）
+- API・Tempo・Grafanaのready、事前認証、k6 container（uid）からの0600 accounts読込
+- 実OOM・再起動の検出、SIGINTによるk6のdrainと強制停止
+- `docker system df` のTrace volume実測、Tempoの24時間保持
+- 多段の正常完走（実時間で約15分）と、smoke → reset → 本試験の通し実行
 
 ## 開発用CLIの確認
 
@@ -47,7 +82,7 @@ drain中の応答は開始段階へ含め、HTTP/秒の分母は120秒に固定�
 
 Pointのtimeは採取時刻です。後の時刻のPointより遅れて記録された値は破棄せず、該当窓を不完全にします。
 採取時刻だけでは受信遅延を全て復元できないため、監視器で検出した窓欠損はstageの `incomplete_windows`（0始まり）へ保存します。
-live監視器と実k6の結合は未実装です。
+`run` のlive監視器は同じ規則で窓を評価し、確定後に届いたPointの窓を `incomplete_windows` へ記録します。
 
 | 終了コード | 意味 |
 | --- | --- |
@@ -69,7 +104,7 @@ DBとCollectorはホストへ公開せず、API/Grafana/Tempoは127.0.0.1の1808
 
 builderは通常の `go build ./cmd/api` とCLIを1CPU・1536MiBの専用コンテナで作る構成です。
 Go imageは1.26.10-bookworm、k6は2.3.0、その他は既存構成の明示tagを継承します。imageの取得・digest・architecture・起動互換性は未確認です。
-builder / prepare用tool / k6は別profileです。測定前のbuild、Migration、fixture、ready確認と測定中の一時tool停止を制御するCLIは未実装です。
+builder / prepare用tool / k6は別profileです。測定前のbuild、Migration、fixture、ready確認は `prepare` / `run` が制御します。
 
 構成テストは検証専用の値を子processへ渡してComposeのJSONを読み、資源上限、volume分離、公開先、profile、Tempo専用datasourceを意味として検証します。
 実際のローカル設定や秘密値を表示する必要はありません。
