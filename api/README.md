@@ -21,7 +21,13 @@ make dev
 
 `api/.env` がある場合、Makefileが `DB_USER`・`DB_PASSWORD`・`DB_HOST`・`DB_PORT`・`DB` から `DATABASE_URL` を自動生成します。そのため、ローカル開発では `DATABASE_URL` を毎回設定する必要はありません。別のDBを対象にする場合は、従来どおり `DATABASE_URL='mysql://...' make migrate-apply` のように明示指定できます。
 
-## TraceのResource属性
+## Trace
+
+通常の `make build`・`make dev` で、HTTP全体・Handler・Usecase・RepositoryのSpanを同じTraceとして送信できます。送信先は `docker compose up -d otel-collector tempo grafana` で起動するCollectorで、Grafana Explore（http://localhost:3000）のTempo datasourceから確認します。
+
+`api/.env` の `OTEL_TRACES_EXPORTER` が未設定または `none` の場合は送信しません。送信する場合は `.env.sample` のOTEL設定例を参考に、`OTEL_TRACES_EXPORTER=otlp`、`OTEL_SERVICE_NAME`、`OTEL_EXPORTER_OTLP_ENDPOINT`、`OTEL_EXPORTER_OTLP_PROTOCOL=grpc` を設定します。対応外の値は起動時にエラーになります。送信を一時的に止める場合は `OTEL_SDK_DISABLED=true` にして再起動します。Collectorに接続できなくてもAPIは起動し、Traceは失われることがあります。
+
+### Resource属性
 
 Trace送信を有効にした場合、ResourceはOpenTelemetry SDK標準のマージを使います。APIプロセスの環境変数 `OTEL_RESOURCE_ATTRIBUTES` に `service.version=1.2.0,deployment.environment.name=development` のような追加属性を指定できます。`service.name` は起動時に検証した `OTEL_SERVICE_NAME` を優先します。追加属性はトレースの送信対象になるため、password・token・個人情報などを含めないでください。環境変数全体を自動収集するものではありません。
 
