@@ -1,8 +1,8 @@
 # 負荷試験の計画と段階集計
 
-現時点で利用できるのは、Dockerへ接続しない `plan` / `report`、専用Composeの構成定義とk6のHTTP操作です。
-`prepare` / `reset` / `run`、固定fixture投入、live監視・停止、ディスク監視は未実装です。
-専用DBの対象照合やVM上限のpreflightも未実装のため、この構成を手動で起動して負荷試験を始めないでください。
+現時点で利用できるのは、Dockerへ接続しない `plan` / `report`、専用DBの `prepare` / `reset`、専用Composeの構成定義とk6のHTTP操作です。
+`run`、live監視・停止、ディスク監視は未実装です。
+VM上限のpreflightも未実装のため、この構成を手動で起動して負荷試験を始めないでください。
 
 ## 開発用CLIの確認
 
@@ -117,8 +117,57 @@ accountsはVU順の配列で、重複しないid/usernameと、閲覧・混在�
 設定の `k6 inspect` 確認は送信時間・資源上限の実測を意味しません。
 認証情報の取得・残存期限確認、0600一時ファイルの生成/削除、段階間の排他、900秒watchdog、停止理由の保存は未実装のrun制御が担当します。スクリプト単独で本試験を開始しないでください。
 
+## 専用DBの準備と初期化
+
+`prepare` / `reset` は `api/` から実行し、専用project `threadly-loadtest` だけを操作します。
+秘密値は追跡しない `loadtest/secrets/loadtest.env`（0600推奨）から読み、開発用 `.env` や任意のDSNへフォールバックしません。
+
+```sh
+# loadtest/secrets/loadtest.env（値は各自で生成し、共有・コミットしない）
+LOADTEST_DB_PASSWORD=...
+LOADTEST_JWT_SECRET=...      # 32バイト以上
+LOADTEST_USER_PASSWORD=...   # fixture Userの共通password
+
+go run ./cmd/loadtest prepare --dataset small
+go run ./cmd/loadtest reset --confirm-project threadly-loadtest
+go run ./cmd/loadtest reset --reset-traces --confirm-project threadly-loadtest
+```
+
+`prepare` は次の順で準備し、成功時だけ `loadtest/state/fixture.json` へ未使用fixtureとして記録します。
+
+1. 解決済みComposeのproject名・DB名・volume名と、既存の `loadtest-db` container・DB volumeのComposeラベルが専用対象と一致するかを照合する。
+2. `builder`（1CPU・1536MiB）で通常の `go build ./cmd/api` とCLIを作る。
+3. `loadtest-db` を起動し、`migrate`（Atlas 1.3.5 community）で既存migrationを明示適用する。
+4. `tool` containerの `seed` が、空のDBへ固定fixture v1を1つのtransactionで投入する。DBから読み戻したchecksumが生成値と一致した場合だけcommitする。
+5. ホスト側でdataset・件数・checksumを再生成値と照合する。
+
+準備済み・秘密設定なし・対象不一致・seedの拒否（初期化済みDBや読み戻し不一致）・checksum不一致は終了5、Docker操作の失敗は終了4で、状態を書き換えません。
+build / migrate / seedは名前付きの一時containerで実行し、失敗やtimeout（全体10分）では排他を解放する前に名前指定で削除します。
+`reset` は確認値が `threadly-loadtest` と一致し、volumeの所有を照合できた場合だけ、`down --remove-orphans` の後に専用DB volumeを名前指定で削除します。
+Trace volumeは `--reset-traces` の明示時だけ削除します。`down -v` は使いません。prepare / reset / runは `loadtest/state/lock` で排他し、実行中なら何もせず終了5です。
+
+fixtureは件数表どおりのUser・Post・親Comment5件と返信5件・Post/CommentごとのLike2件です。
+IDは種別と連番から作る固定UUID、時刻は2026-01-01T00:00:00Zからの連番秒です。password hashはランダムsaltのためchecksumの対象外です。
+
+### 検証範囲
+
+```sh
+# 生成規則とchecksum（DB不要）
+go test ./internal/loadtest -run 'Fixture' -count=1
+
+# 実MySQLへの投入・rollback・unique/FK制約。TEST_DATABASE_DSNのserverへ使い捨てschemaを作り、
+# atlas CLIで既存migrationを適用してから検証し、終了時に削除します。既存test-dbのschemaやデータには触れません。
+TEST_DATABASE_DSN='root:password@tcp(127.0.0.1:3307)/threadly_test?parseTime=True' \
+  go test -tags=integration ./internal/loadtest -run LoadFixture -count=1
+
+# prepare / reset / seedのCLI（PATHへ置いた代替dockerで、Docker VMを使わずに検証）
+go test ./cmd/loadtest -run 'Test(Prepare|Reset|Seed)' -count=1
+```
+
+代替dockerのテストは、呼び出し順・拒否時に破壊的操作を送らないこと・状態ファイル・秘密値の非出力を確認します。
+実際の専用containerでのbuild、Atlas適用、`loadtest-db` へのseed、tool containerの256MiB上限内でのlarge投入は未検証です。
+
 ## 続きの実装条件
 
-次はprepare/resetです。専用MySQLへ既存Atlas migrationを明示適用し、固定件数・FK/unique・transaction rollback・再生成checksumと対象保護を、公開CLIから検証する必要があります。
-実DBを使うprepare/resetは未完了のまま、独立したk6操作を機能テストしました。fixture生成物との結合はprepare/reset完了後、run制御と資源・Trace・ディスク監視はその後に進めます。開発DBや既存test-dbを初期化対象へ代用しません。
+次はrun制御と、資源・Trace・ディスク監視です。開発DBや既存test-dbを初期化対象へ代用しません。
 artifacts / results / secrets / .envはGit対象外です。通常のDB・Trace volumeを削除する手順はありません。

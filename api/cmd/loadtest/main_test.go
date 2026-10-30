@@ -13,7 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var binary string
+var (
+	binary        string
+	fakeDockerDir string
+)
 
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "threadly-loadtest-cli-")
@@ -23,6 +26,12 @@ func TestMain(m *testing.M) {
 	binary = filepath.Join(dir, "loadtest")
 	build := exec.Command("go", "build", "-o", binary, ".")
 	if output, err := build.CombinedOutput(); err != nil {
+		panic(string(output))
+	}
+	// Docker VMを使えない自動テストでは、引数を記録する代替dockerだけをPATHへ置く。
+	fakeDockerDir = filepath.Join(dir, "fakedocker")
+	buildFake := exec.Command("go", "build", "-o", filepath.Join(fakeDockerDir, "docker"), "./testdata/fakedocker")
+	if output, err := buildFake.CombinedOutput(); err != nil {
 		panic(string(output))
 	}
 	code := m.Run()
