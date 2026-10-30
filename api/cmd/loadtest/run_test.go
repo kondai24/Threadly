@@ -84,11 +84,28 @@ func (a *apiFixture) loginCount() int {
 	return len(a.logins)
 }
 
+// statsLineは、docker stats --no-stream --format {{json .}} の1行である。CPUPercは100%=1CPU。
+func statsLine(name, cpu, memPerc string) string {
+	return fmt.Sprintf(`{"Name":%q,"CPUPerc":%q,"MemUsage":"100MiB / 1GiB","MemPerc":%q}`, name, cpu, memPerc) + "\n"
+}
+
+// appliedLimitsは、`docker inspect` で読む実際のcontainer上限の応答fixtureである。
+const appliedLimits = `{"name":"/threadly-loadtest-api-1","nano_cpus":1000000000,"memory":1073741824,"memory_swap":1073741824}` + "\n"
+
 func runDefaults() []dockerRule {
+	stats := residentStats()
+	// 段階名ごとのk6 containerを、どの段階でも採取できるようにする。
+	for _, stage := range []string{"smoke", "warmup", "1", "2", "3", "4", "5", "6"} {
+		stats += statsLine("threadly-loadtest-k6-"+stage, "10.00%", "10.00%")
+	}
 	return []dockerRule{
+		{Contains: []string{"inspect --format", "NanoCpus"}, Stdout: appliedLimits},
 		{Contains: []string{"info --format"}, Stdout: vmWithinLimits},
 		{Contains: []string{"inspect --format", ".State.OOMKilled"}, Stdout: strings.Repeat(runningState+"\n", 5)},
 		{Contains: []string{"run --rm", "tool verify --dataset small"}, Stdout: seedSummary(smallChecksum)},
+		{Contains: []string{"stats --no-stream"}, Stdout: stats},
+		{Contains: []string{"system df -v"}, Stdout: `[{"Name":"threadly-loadtest_loadtest_trace_data","Size":"10MB"},{"Name":"other","Size":"9GB"}]`},
+		{Contains: []string{"version --format"}, Stdout: `{"Client":{"Version":"28.5.1"},"Server":{"Version":"28.5.1","Arch":"arm64"}}`},
 	}
 }
 
@@ -486,4 +503,168 @@ func TestRun_RefusesToSendWhenDatabaseNoLongerMatchesPreparedFixture(t *testing.
 	require.Contains(t, report["reasons"], "result_incomplete")
 	require.Equal(t, -1, indexOfCall(env.dockerCalls(t), "k6 run"))
 	require.Equal(t, 0, api.loginCount())
+}
+
+func TestRun_SavesStageCSVResourceSamplesAndConditionMetadata(t *testing.T) {
+	api := newAPIFixture(t)
+	env, extra := newRunEnv(t, api, dockerRule{Contains: []string{"run --rm", "k6 run"}, Writes: smokeWrites(), SleepMS: 1500})
+
+	_, stderr, status := env.runWith(t, extra, "run", "--scenario", "smoke", "--dataset", "small")
+
+	require.Equal(t, 0, status, stderr)
+	dir := resultDir(t, env)
+	csv, err := os.ReadFile(filepath.Join(dir, "report.csv"))
+	require.NoError(t, err)
+	// smokeは容量段階を持たないため見出しだけになる。値の対応はWriteReportCSVの単体テストで確認する。
+	require.True(t, strings.HasPrefix(string(csv), "stage,requested_rate,planned_operations,"), string(csv))
+	require.Equal(t, 1, strings.Count(string(csv), "\n"))
+	resources, err := os.ReadFile(filepath.Join(dir, "resources.jsonl"))
+	require.NoError(t, err)
+	var sample map[string]any
+	require.NoError(t, json.Unmarshal([]byte(strings.SplitN(string(resources), "\n", 2)[0]), &sample))
+	require.Equal(t, "api", sample["service"])
+	// Dockerの値は100%=1CPUで、上限1CPUのAPIではquota比も同じ0.1になる。
+	require.Equal(t, 10.0, sample["cpu_percent"])
+	require.Equal(t, 0.1, sample["cpu_quota_ratio"])
+	require.Equal(t, 0.1, sample["memory_ratio"])
+	require.NotEmpty(t, sample["time"])
+
+	manifest := readJSON(t, filepath.Join(dir, "manifest.json"))
+	plan := manifest["plan"].(map[string]any)
+	require.Equal(t, "smoke", plan["scenario"])
+	fixture := manifest["fixture"].(map[string]any)
+	require.Equal(t, smallChecksum, fixture["checksum"])
+	trace := manifest["trace"].(map[string]any)
+	require.Equal(t, "threadly-api-loadtest", trace["service_name"])
+	require.Equal(t, "parentbased_always_on", trace["sampler"])
+	environment := manifest["environment"].(map[string]any)
+	require.Equal(t, "28.5.1", environment["docker_server_version"])
+	require.Equal(t, "arm64", environment["architecture"])
+	require.Equal(t, float64(4), environment["vm_cpu"])
+	require.Contains(t, manifest, "started_at")
+	require.Contains(t, manifest, "finished_at")
+	require.Contains(t, manifest["monitor"], "cpu_seconds")
+	require.Equal(t, float64(10*1000*1000), manifest["trace_volume_bytes"])
+	// 前回runから残るTrace量も比較条件にする。
+	require.Equal(t, float64(10*1000*1000), manifest["trace_volume_bytes_start"])
+	require.Contains(t, manifest["monitor"], "children_cpu_seconds")
+	// 上限は起動後に実containerから読む。起動前に読むと未作成のcontainerが欠ける。
+	limits := environment["container_limits"].([]any)
+	require.Equal(t, float64(1000000000), limits[0].(map[string]any)["nano_cpus"])
+	calls := env.dockerCalls(t)
+	require.Greater(t, indexOfCall(calls, "NanoCpus"), indexOfCall(calls, "up -d --wait api"))
+	k6Limits := readJSON(t, filepath.Join(dir, "k6-limits-smoke.json"))
+	require.Equal(t, float64(1000000000), k6Limits["nano_cpus"])
+}
+
+func TestRun_IgnoresK6StatsFailureWhileK6ContainerIsBeingRemovedAtNormalExit(t *testing.T) {
+	api := newAPIFixture(t)
+	// compose run --rmはk6 containerを削除してからCLIが終わるため、その間のstatsは失敗する。
+	env, extra := newRunEnv(t, api,
+		dockerRule{Contains: []string{"stats --no-stream", "threadly-loadtest-k6-smoke"}, SleepMS: 200, Exit: 1},
+		dockerRule{Contains: []string{"run --rm", "k6 run"}, Writes: smokeWrites(), SleepMS: 5600},
+	)
+
+	stdout, stderr, status := env.runWith(t, extra, "run", "--scenario", "smoke", "--dataset", "small")
+
+	require.Equal(t, 0, status, stderr+stdout)
+}
+
+func residentStats() string {
+	var stats string
+	for _, service := range []string{"api", "loadtest-db", "otel-collector", "tempo", "grafana"} {
+		stats += statsLine("threadly-loadtest-"+service+"-1", "10.00%", "10.00%")
+	}
+	return stats
+}
+
+// steadyBrowseWritesは、停滞判定にかからないよう、warmup中に成功HTTPを一定間隔で書き出す。
+func steadyBrowseWrites(count, intervalMS int) []map[string]any {
+	var writes []map[string]any
+	for i := 0; i < count; i++ {
+		next := browseWrites("warmup", "warmup", "success", 1)
+		next[0]["delay_ms"] = intervalMS
+		writes = append(writes, next...)
+	}
+	return writes
+}
+
+func TestRun_StopsOnGeneratorPressureAndStorageLimits(t *testing.T) {
+	cases := []struct {
+		name       string
+		rules      []dockerRule
+		wantStatus int
+		wantReason string
+	}{
+		{
+			name:       "k6のメモリ上限比90%以上は生成側の圧迫として停止する",
+			rules:      []dockerRule{{Contains: []string{"stats --no-stream"}, Stdout: residentStats() + statsLine("threadly-loadtest-k6-warmup", "10.00%", "90.00%")}},
+			wantStatus: 3, wantReason: "generator_pressure",
+		},
+		{
+			name:       "Trace volumeが1GiBに達したら停止する",
+			rules:      []dockerRule{{Contains: []string{"system df -v"}, AfterCalls: 1, Stdout: `[{"Name":"threadly-loadtest_loadtest_trace_data","Size":"1.1GB"}]`}},
+			wantStatus: 4, wantReason: "disk_limit",
+		},
+		{
+			name:       "Trace volumeが見つからなければ0扱いにせず停止する",
+			rules:      []dockerRule{{Contains: []string{"system df -v"}, AfterCalls: 1, Stdout: `[{"Name":"other","Size":"9GB"}]`}},
+			wantStatus: 4, wantReason: "monitoring_failed",
+		},
+		{
+			name:       "起動済みk6の資源値が欠けたら圧迫を見逃さないよう停止する",
+			rules:      []dockerRule{{Contains: []string{"stats --no-stream", "threadly-loadtest-k6-warmup"}, Stdout: residentStats()}},
+			wantStatus: 4, wantReason: "monitoring_failed",
+		},
+		{
+			name:       "送信前にTrace量を計測できなければ送信しない",
+			rules:      []dockerRule{{Contains: []string{"system df -v"}, Exit: 1}},
+			wantStatus: 4, wantReason: "monitoring_failed",
+		},
+		{
+			name:       "保存量を計測できなければ合格扱いにせず停止する",
+			rules:      []dockerRule{{Contains: []string{"system df -v"}, AfterCalls: 1, Exit: 1}},
+			wantStatus: 4, wantReason: "monitoring_failed",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newAPIFixture(t)
+			rules := append(tt.rules, dockerRule{Contains: []string{"k6 run"}, Writes: steadyBrowseWrites(10, 1000), SleepMS: 30000})
+			env, extra := newRunEnv(t, api, rules...)
+
+			stdout, stderr, status := env.runWith(t, extra, "run", "--scenario", "browse", "--dataset", "small")
+
+			require.Equal(t, tt.wantStatus, status, stderr+stdout)
+			var report map[string]any
+			require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+			require.Contains(t, report["reasons"], tt.wantReason)
+			if strings.HasPrefix(tt.name, "送信前") {
+				require.Equal(t, -1, indexOfCall(env.dockerCalls(t), "k6 run"))
+				return
+			}
+			require.GreaterOrEqual(t, indexOfCall(env.dockerCalls(t), "kill -s SIGINT threadly-loadtest-k6-warmup"), 0)
+		})
+	}
+}
+
+func TestRun_StopsWhenK6CPUQuotaStaysAtNinetyPercentForThirtySeconds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("30秒の継続を実時間で待つため、-shortでは実行しない")
+	}
+	api := newAPIFixture(t)
+	// k6の上限0.75CPUに対し68%は0.91倍で、quota比90%以上が続く状態を表す。
+	env, extra := newRunEnv(t, api,
+		dockerRule{Contains: []string{"stats --no-stream"}, Stdout: residentStats() + statsLine("threadly-loadtest-k6-warmup", "68.00%", "10.00%")},
+		dockerRule{Contains: []string{"k6 run"}, Writes: steadyBrowseWrites(45, 1000), SleepMS: 30000},
+	)
+	started := time.Now()
+
+	stdout, stderr, status := env.runWith(t, extra, "run", "--scenario", "browse", "--dataset", "small")
+
+	require.Equal(t, 3, status, stderr+stdout)
+	require.GreaterOrEqual(t, time.Since(started), 30*time.Second)
+	var report map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+	require.Contains(t, report["reasons"], "generator_pressure")
 }

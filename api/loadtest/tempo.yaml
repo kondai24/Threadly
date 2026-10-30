@@ -1,0 +1,28 @@
+# 負荷試験専用のTempo設定。通常開発用の api/tempo.yaml とは分け、専用Trace volume上で24時間だけ保持する。
+# retentionは即時のディスク上限ではないため、容量は run がTrace volumeの使用量を監視して止める。
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+compactor:
+  compaction:
+    block_retention: 24h
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /tmp/tempo/wal
+    local:
+      path: /tmp/tempo/blocks
+
+usage_report:
+  reporting_enabled: false

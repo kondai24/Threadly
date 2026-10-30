@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -133,7 +134,15 @@ func (e Environment) runStage(measureCtx, parentCtx context.Context, clock stage
 	reasons := make(chan string, 8)
 	monitorDone := make(chan struct{})
 	defer close(monitorDone)
-	go e.monitorStage(monitorDone, reasons, baseline, apiURL)
+	var k6Started atomic.Bool
+	target := monitorTarget{dir: dir, stage: spec.stage, k6Name: name, k6Started: &k6Started, k6Exited: stop.exited, plan: plan}
+	go e.monitorStage(monitorDone, reasons, baseline, apiURL, target)
+	var limitsDone chan struct{}
+	defer func() {
+		if limitsDone != nil {
+			<-limitsDone
+		}
+	}()
 
 	tail := pointTail{path: pointsPath}
 	ticker := time.NewTicker(time.Second)
@@ -155,6 +164,16 @@ func (e Environment) runStage(measureCtx, parentCtx context.Context, clock stage
 			stop.request(reason)
 		case now := <-ticker.C:
 			live.add(tail.read(), now)
+			// 最初のPointを観測するまではk6 containerが存在しないことがあるため、資源採取の対象に含めない。
+			if !live.anchor.IsZero() && !k6Started.Load() {
+				k6Started.Store(true)
+				// 短い段階でも記録できるよう、起動確認の直後に1回だけ実際の上限を読む。
+				limitsDone = make(chan struct{})
+				go func() {
+					defer close(limitsDone)
+					e.recordK6Limits(target)
+				}()
+			}
 			if reason := live.check(now); reason != "" {
 				stop.request(reason)
 			}
@@ -184,17 +203,52 @@ type serviceBaseline struct {
 
 // monitorStageは、5秒ごとに常駐サービスとAPI healthを確認し、停止理由を送る。
 // docker操作やhealth確認の待ちが、Point判定と停止制御を遅らせないよう別goroutineで行う。
-func (e Environment) monitorStage(done <-chan struct{}, reasons chan<- string, baseline *serviceBaseline, apiURL string) {
+// monitorTargetは、段階ごとの資源採取と保存量確認の対象を表す。
+type monitorTarget struct {
+	dir       string
+	stage     string
+	k6Name    string
+	k6Started *atomic.Bool
+	// k6Exitedは、k6のCLI processが終了したら閉じる。
+	k6Exited <-chan struct{}
+	plan     Plan
+}
+
+// k6RemovalGraceは、k6のstats失敗が正常終了時のcontainer削除によるものかを見分ける待ち時間である。
+const k6RemovalGrace = 2 * time.Second
+
+func (e Environment) monitorStage(done <-chan struct{}, reasons chan<- string, baseline *serviceBaseline, apiURL string, target monitorTarget) {
 	send := func(reason string) {
 		select {
 		case reasons <- reason:
 		case <-done:
 		}
 	}
+	var pressure generatorPressure
 	ticker := time.NewTicker(monitorInterval)
 	defer ticker.Stop()
-	for {
-		if reason := e.checkServices(baseline, apiURL); reason != "" {
+	// 段階開始直後にも1回採取し、短い段階でも資源と保存量の記録を残す。
+	for tick := 0; ; tick++ {
+		// 各確認のtimeoutが直列に積み上がらないよう、サービス状態と資源採取を並行に行う。
+		serviceReason := make(chan string, 1)
+		go func() { serviceReason <- e.checkServices(baseline, apiURL) }()
+		k6Name := ""
+		if target.k6Started.Load() && !closed(target.k6Exited) {
+			k6Name = target.k6Name
+		}
+		samples, err := e.sampleResources(target.dir, k6Name, target.plan)
+		switch {
+		case err != nil && k6Name != "" && exitsWithin(target.k6Exited, k6RemovalGrace):
+			// compose run --rmは削除後にCLIが終わるため、その間の採取失敗は正常終了として扱う。
+		case err != nil:
+			send("monitoring_failed")
+		case pressure.observe(samples):
+			send("generator_pressure")
+		}
+		if reason := e.checkStorage(target.dir, tick%traceCheckEvery == 0); reason != "" {
+			send(reason)
+		}
+		if reason := <-serviceReason; reason != "" {
 			send(reason)
 		}
 		select {
@@ -202,6 +256,32 @@ func (e Environment) monitorStage(done <-chan struct{}, reasons chan<- string, b
 			return
 		case <-ticker.C:
 		}
+	}
+}
+
+// recordK6Limitsは、起動済みk6 containerへ実際に適用された上限を段階ごとに保存する。
+// 取得できない場合はファイルを作らず、manifestの上限記録と同様に欠損として残す。
+func (e Environment) recordK6Limits(target monitorTarget) {
+	if limits := e.containerLimits(context.Background(), target.k6Name); len(limits) == 1 {
+		_ = writePrivateJSON(target.dir, "k6-limits-"+target.stage+".json", limits[0])
+	}
+}
+
+func closed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
+func exitsWithin(ch <-chan struct{}, wait time.Duration) bool {
+	select {
+	case <-ch:
+		return true
+	case <-time.After(wait):
+		return false
 	}
 }
 
