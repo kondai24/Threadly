@@ -18,10 +18,10 @@ GOVULNCHECK := go tool govulncheck
 AIR := go tool air
 
 export DB_USER DB_PASSWORD DB_HOST DB_PORT DB PORT JWT_SECRET COOKIE_SECURE
-export OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL
-export OTEL_TRACES_EXPORTER OTEL_METRICS_EXPORTER OTEL_LOGS_EXPORTER
+export OTEL_SDK_DISABLED OTEL_SERVICE_NAME OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL
+export OTEL_TRACES_EXPORTER OTEL_TRACES_SAMPLER OTEL_METRICS_EXPORTER OTEL_LOGS_EXPORTER
 
-.PHONY: tools dev dev-otelc build build-otelc swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
+.PHONY: tools dev build swag test test-cover migrate-diff migrate-apply migrate-status integration-test vulncheck clean
 
 tools:
 	@if command -v "$(ATLAS)" >/dev/null 2>&1; then \
@@ -36,16 +36,9 @@ tools:
 dev:
 	$(AIR) -c .air.toml
 
-dev-otelc:
-	$(AIR) -c .air-otelc.toml
-
 build:
 	mkdir -p $(BIN_DIR)
 	go build -o $(BIN_DIR)/main $(SWAG_MAIN)
-
-build-otelc:
-	mkdir -p $(BIN_DIR)
-	go tool otelc go build -o $(BIN_DIR)/main-otelc $(SWAG_MAIN)
 
 swag:
 	$(SWAG) init \

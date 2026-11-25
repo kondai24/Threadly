@@ -1,0 +1,69 @@
+# 負荷試験専用の環境。通常開発用の docker-compose.yml とは project 名と DB volume を分ける。
+# API と DB の CPU・メモリは、毎回同じ条件で限界を測るために固定する。
+name: threadly-loadtest
+
+services:
+  db:
+    image: mysql:8.0.36
+    cpus: 1.0
+    mem_limit: 1g
+    memswap_limit: 1g
+    environment:
+      # host へ port を公開しない専用 DB のため、開発用 compose と同じ固定値を使う。
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: threadly_loadtest
+      TZ: UTC
+    volumes:
+      - ../db/my.conf:/etc/mysql/conf.d/my.cnf:ro
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 2s
+      retries: 60
+
+  migrate:
+    image: arigaio/atlas:1.3.5-community-alpine
+    command: ["migrate", "apply", "--url", "mysql://root:password@db:3306/threadly_loadtest", "--dir", "file:///migrations"]
+    volumes:
+      - ../migrations:/migrations:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
+      dockerfile: loadtest/Dockerfile
+    cpus: 1.0
+    mem_limit: 1g
+    memswap_limit: 1g
+    entrypoint:
+      - sh
+      - -c
+      # JWT_SECRET は起動ごとに生成し、リポジトリや設定ファイルに置かない。
+      - export JWT_SECRET="$$(head -c 48 /dev/urandom | base64 | tr -d '\n')"; exec threadly-api
+    environment:
+      GIN_MODE: release
+      PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB: threadly_loadtest
+      # HTTP で接続するため Secure Cookie を使わない。Cookie 名は threadly-session になる。
+      COOKIE_SECURE: "false"
+      OTEL_SDK_DISABLED: "true"
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 60
+
+volumes:
+  db_data:

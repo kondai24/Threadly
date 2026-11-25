@@ -19,7 +19,8 @@ env_files = [".env"]
   delay = 500
   stop_on_error = true
   send_interrupt = true
-  kill_delay = "500ms"
+  # Wait for HTTP shutdown (up to 5s) and trace provider shutdown (up to 5s) before killing.
+  kill_delay = "11s"
   log = "tmp/build-errors.log"
   poll = false
   poll_interval = 0
