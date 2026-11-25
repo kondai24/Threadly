@@ -18,5 +18,30 @@ storage:
     local:
       path: /tmp/tempo/blocks
 
+# 受け取ったSpanから層・Span名ごとのRED metricsを生成し、Prometheusへremote writeする。
+# exemplarにtrace_idを載せ、Grafanaのグラフ上の点から該当Traceへ移動できるようにする。
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  traces_storage:
+    path: /tmp/tempo/generator/traces
+  processor:
+    span_metrics:
+      # Span名だけでは層を集計できないため、Threadlyが全Spanに付ける層と結果の分類をlabelにする。
+      dimensions:
+        - threadly.layer
+        - threadly.result
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [span-metrics, service-graphs]
+
 usage_report:
   reporting_enabled: false
