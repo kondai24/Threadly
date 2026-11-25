@@ -8,6 +8,11 @@ datasources:
     uid: tempo
     isDefault: true
     editable: false
+    jsonData:
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
   - name: Loki
     type: loki
     access: proxy
@@ -20,3 +25,8 @@ datasources:
     url: http://prometheus:9090
     uid: prometheus
     editable: false
+    jsonData:
+      # Tempoが付けたexemplarのtraceIDから、Tempoの該当Traceを開く。
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: tempo

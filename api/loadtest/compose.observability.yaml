@@ -1,0 +1,73 @@
+# 負荷試験専用環境へTrace送信と可視化基盤を足すoverride。compose.yamlと一緒に指定する。
+#   docker compose -f loadtest/compose.yaml -f loadtest/compose.observability.yaml up -d --build --wait
+# Trace送信はAPIのCPUを使うため、限界値の測定にはcompose.yamlだけで起動した結果を使う。
+# パスは最初に指定したcompose.yamlのディレクトリ（loadtest/）から解決される。
+services:
+  api:
+    environment:
+      OTEL_SDK_DISABLED: "false"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_SERVICE_NAME: threadly-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  # Tempoは UID 10001 で動くため、root所有で作られるnamed volumeの所有者を先に直す。
+  observability-storage-init:
+    image: alpine:3.22
+    command: ["sh", "-c", "chown -R 10001:10001 /tempo"]
+    volumes:
+      - tempo_data:/tempo
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ../otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    depends_on:
+      observability-storage-init:
+        condition: service_completed_successfully
+      prometheus:
+        condition: service_started
+    volumes:
+      - ../tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/tmp/tempo
+
+  prometheus:
+    image: prom/prometheus:v3.5.5
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --web.enable-remote-write-receiver
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ../prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    environment:
+      # 127.0.0.1にだけ公開する使い捨て環境のため、ログインを省略する。
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/threadly-red.json
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      - tempo
+      - prometheus
+
+volumes:
+  tempo_data:
+  prometheus_data:

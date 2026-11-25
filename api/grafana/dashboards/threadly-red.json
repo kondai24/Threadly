@@ -1,0 +1,306 @@
+{
+  "uid": "threadly-red",
+  "title": "Threadly RED",
+  "tags": [
+    "threadly",
+    "tempo",
+    "k6"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "description": "Tempo の span metrics（exemplar 付き）から HTTP の負荷を可視化し、クリック先の Trace で handler → usecase → repository の各層を確認する。",
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "service",
+        "type": "custom",
+        "query": "threadly-api",
+        "current": {
+          "text": "threadly-api",
+          "value": "threadly-api"
+        },
+        "hide": 2,
+        "options": [
+          {
+            "text": "threadly-api",
+            "value": "threadly-api",
+            "selected": true
+          }
+        ]
+      },
+      {
+        "name": "span_name",
+        "label": "span_name（正規表現）",
+        "type": "textbox",
+        "query": ".+",
+        "current": {
+          "text": ".+",
+          "value": ".+"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "1. 負荷の全体像（HTTP）",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "HTTP リクエスト数（route 別）",
+      "description": "k6 が送ったリクエストを HTTP Span から数えたもの。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total{service=\"$service\", threadly_layer=\"http\"}[$__rate_interval]))",
+          "legendFormat": "{{span_name}}",
+          "exemplar": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "links": [
+            {
+              "title": "この時刻の ${__field.labels.span_name} の Trace を一覧する",
+              "url": "/d/threadly-red/threadly-red?orgId=1&var-service=${service}&var-span_name=${__field.labels.span_name:percentencode}&time=${__value.time}&time.window=60000&viewPanel=panel-6"
+            }
+          ],
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "HTTP の結果分類（threadly.result）",
+      "description": "success 以外が増えたら、その時刻の Trace を確認する。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (threadly_result) (rate(traces_spanmetrics_calls_total{service=\"$service\", threadly_layer=\"http\"}[$__rate_interval]))",
+          "legendFormat": "{{threadly_result}}",
+          "exemplar": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "links": [],
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "HTTP p95 レイテンシ（route 別）",
+      "description": "◆ は exemplar（実際の Trace の 1 件）。◆ をクリックすると Tempo の Trace を開ける。線をクリックすると、その時刻・route の Trace 一覧へ移動する。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket{service=\"$service\", threadly_layer=\"http\"}[$__rate_interval])))",
+          "legendFormat": "{{span_name}}",
+          "exemplar": true,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "links": [
+            {
+              "title": "この時刻の ${__field.labels.span_name} の Trace を一覧する",
+              "url": "/d/threadly-red/threadly-red?orgId=1&var-service=${service}&var-span_name=${__field.labels.span_name:percentencode}&time=${__value.time}&time.window=60000&viewPanel=panel-6"
+            }
+          ],
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "max",
+            "mean"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "row",
+      "title": "2. Trace 一覧（グラフのクリック先）",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Trace 一覧：span_name = ${span_name}",
+      "description": "上のグラフの線をクリックすると、その時刻の前後 1 分と Span 名で絞り込まれる。Trace ID をクリックすると handler → usecase → repository の Span 階層を表示する。",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "tableType": "traces",
+          "limit": 50,
+          "spss": 10,
+          "query": "{resource.service.name=\"$service\" && name=~\"$span_name\"}"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Duration",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}
