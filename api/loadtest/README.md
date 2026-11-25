@@ -91,18 +91,7 @@ make vulncheck
 CLIのテストは一時ディレクトリへbuildした実行ファイルのstdout・stderr・終了コードを観測します。
 fixtureの期待値は固定の手計算例です。実MySQL・VM/swap・実効制限・Trace画面・全負荷試験の検証を含みません。
 
-## k6の少量機能テスト
-
-k6 2.3.0のローカル実行ファイルを指定します。テストが一時HTTPサーバーをloopbackへ起動し、実k6で少量の操作を送ります。コンテナ・DB・Threadly APIは使用しません。
-
-```sh
-# api/ から。ローカルに取得した実行ファイルへの絶対パスを指定します。
-K6_BINARY=/path/to/k6 go test ./cmd/loadtest -run TestK6 -count=1
-```
-
-`K6_BINARY` 未指定ではk6テストをskipします。指定済みで実行できない場合は失敗します。
-CIの `k6-functional-test` は公式2.3.0のLinux binaryを固定checksumで確認し、このテストを実行します。
-検証対象はHTTP受信順・件数・JSON body・Cookie、生Point、秘密非出力です。5秒timeoutの検証も含みます。
+## k6スクリプト
 
 `scripts/operations.js` はsmoke、閲覧、混在、loginのHTTP操作とPoint出力を担当します。
 混在はglobal iterationの剰余20で16閲覧・4書き込み、Like/Unlikeを含む22HTTPを送ります。201の空bodyを許容し、200でも内容不正なら失敗です。
