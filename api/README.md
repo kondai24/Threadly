@@ -118,6 +118,10 @@ DATABASE_URL='mysql://root:password@127.0.0.1:3307/threadly_test' make integrati
 
 Integration testが触るのは専用の `threadly_test` DBだけです。`make integration-test` がAtlasのversioned migrationを適用してからテストを実行します。テストデータの変更はtransactionをrollbackし、開発用の `go_post` DBやそのvolumeは削除しません。
 
+## 負荷試験
+
+資源上限付きの専用環境へ k6 で負荷をかけます。手順は [loadtest/README.md](loadtest/README.md) を参照してください。
+
 ## Migration
 
 GORMのモデルは `internal/domain/models` に定義し、DBスキーマの変更履歴は `migrations/` と `migrations/atlas.sum` で管理します。Atlasのmigrationはアプリケーション起動時には実行されません。
