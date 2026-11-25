@@ -1,5 +1,5 @@
 # 負荷試験用の API image。build context は api/ で、.env などを image に入れないよう必要なディレクトリだけをコピーする。
-FROM golang:1.26.10-bookworm AS build
+FROM golang:1.26.11-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
